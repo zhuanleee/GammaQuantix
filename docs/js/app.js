@@ -2237,31 +2237,48 @@ async function loadOptionsChain() {
         document.getElementById('options-tables').style.display = 'grid';
         document.getElementById('options-summary').style.display = 'grid';
 
-        // Populate summary stats
-        const summary = chain.summary || {};
-        const sentiment = summary.sentiment || 'neutral';
+        // Populate summary stats from top-level chain fields
+        const totalCallVol = chain.total_call_volume || 0;
+        const totalPutVol = chain.total_put_volume || 0;
+        const pcRatio = totalCallVol > 0 ? totalPutVol / totalCallVol : 0;
+        const sentiment = pcRatio > 1.2 ? 'bearish' : pcRatio < 0.8 ? 'bullish' : 'neutral';
         const sentimentColor = sentiment === 'bullish' ? 'var(--green)' :
                               sentiment === 'bearish' ? 'var(--red)' :
                               'var(--text-muted)';
 
         document.getElementById('opt-sentiment').textContent = sentiment.toUpperCase();
         document.getElementById('opt-sentiment').style.color = sentimentColor;
-        document.getElementById('opt-pc-ratio').textContent = (summary.put_call_volume_ratio || summary.put_call_ratio || 0).toFixed(2);
-        document.getElementById('opt-call-vol').textContent = (summary.total_call_volume || 0).toLocaleString();
-        document.getElementById('opt-put-vol').textContent = (summary.total_put_volume || 0).toLocaleString();
+        document.getElementById('opt-pc-ratio').textContent = pcRatio.toFixed(2);
+        document.getElementById('opt-call-vol').textContent = totalCallVol.toLocaleString();
+        document.getElementById('opt-put-vol').textContent = totalPutVol.toLocaleString();
+
+        // Filter chains to center around ATM (±20 strikes from current price)
+        const currentPrice = chain.underlying_price || optionsChartData.currentPrice || 0;
+        const filterNearATM = (contracts) => {
+            if (!contracts.length || !currentPrice) return contracts.slice(0, 50);
+            const sorted = [...contracts].sort((a, b) => a.strike - b.strike);
+            const atmIdx = sorted.findIndex(c => c.strike >= currentPrice);
+            const start = Math.max(0, atmIdx - 20);
+            const end = Math.min(sorted.length, atmIdx + 21);
+            return sorted.slice(start, end);
+        };
 
         // Render calls table
-        const calls = chain.calls || [];
+        const calls = filterNearATM(chain.calls || []);
         if (calls.length === 0) {
             document.getElementById('calls-table-body').innerHTML =
                 '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">No call contracts available</td></tr>';
         } else {
-            document.getElementById('calls-table-body').innerHTML = calls.slice(0, 50).map(c => {
+            document.getElementById('calls-table-body').innerHTML = calls.map(c => {
                 const deltaColor = (c.delta || 0) >= 0.5 ? 'var(--green)' : 'var(--text-muted)';
-                return `<tr style="border-bottom: 1px solid var(--border);">
+                const bidVal = c.bid != null ? c.bid : c.last_price || 0;
+                const askVal = c.ask != null ? c.ask : c.last_price || 0;
+                const isATM = currentPrice && Math.abs(c.strike - currentPrice) < 2;
+                const rowBg = isATM ? 'background: rgba(99, 102, 241, 0.1);' : '';
+                return `<tr style="border-bottom: 1px solid var(--border); ${rowBg}">
                     <td style="padding: 8px; font-weight: 600;">$${c.strike || '--'}</td>
-                    <td style="padding: 8px; text-align: right;">$${(c.bid || 0).toFixed(2)}</td>
-                    <td style="padding: 8px; text-align: right;">$${(c.ask || 0).toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right;">$${bidVal.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right;">$${askVal.toFixed(2)}</td>
                     <td style="padding: 8px; text-align: right;">${(c.volume || 0).toLocaleString()}</td>
                     <td style="padding: 8px; text-align: right;">${(c.open_interest || 0).toLocaleString()}</td>
                     <td style="padding: 8px; text-align: right;">${c.implied_volatility ? (c.implied_volatility * 100).toFixed(1) + '%' : '--'}</td>
@@ -2271,17 +2288,21 @@ async function loadOptionsChain() {
         }
 
         // Render puts table
-        const puts = chain.puts || [];
+        const puts = filterNearATM(chain.puts || []);
         if (puts.length === 0) {
             document.getElementById('puts-table-body').innerHTML =
                 '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">No put contracts available</td></tr>';
         } else {
-            document.getElementById('puts-table-body').innerHTML = puts.slice(0, 50).map(p => {
-                const deltaColor = (p.delta || 0) <= -0.5 ? 'var(--red)' : 'var(--text-muted)';
-                return `<tr style="border-bottom: 1px solid var(--border);">
+            document.getElementById('puts-table-body').innerHTML = puts.map(p => {
+                const deltaColor = Math.abs(p.delta || 0) >= 0.5 ? 'var(--red)' : 'var(--text-muted)';
+                const bidVal = p.bid != null ? p.bid : p.last_price || 0;
+                const askVal = p.ask != null ? p.ask : p.last_price || 0;
+                const isATM = currentPrice && Math.abs(p.strike - currentPrice) < 2;
+                const rowBg = isATM ? 'background: rgba(99, 102, 241, 0.1);' : '';
+                return `<tr style="border-bottom: 1px solid var(--border); ${rowBg}">
                     <td style="padding: 8px; font-weight: 600;">$${p.strike || '--'}</td>
-                    <td style="padding: 8px; text-align: right;">$${(p.bid || 0).toFixed(2)}</td>
-                    <td style="padding: 8px; text-align: right;">$${(p.ask || 0).toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right;">$${bidVal.toFixed(2)}</td>
+                    <td style="padding: 8px; text-align: right;">$${askVal.toFixed(2)}</td>
                     <td style="padding: 8px; text-align: right;">${(p.volume || 0).toLocaleString()}</td>
                     <td style="padding: 8px; text-align: right;">${(p.open_interest || 0).toLocaleString()}</td>
                     <td style="padding: 8px; text-align: right;">${p.implied_volatility ? (p.implied_volatility * 100).toFixed(1) + '%' : '--'}</td>
