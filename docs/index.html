@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamma Quantix - Options Flow & GEX Analysis</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <h1 class="logo">📊 Gamma Quantix</h1>
+            <span class="tagline">Options Flow & GEX Analysis</span>
+        </div>
+        <div class="header-right">
+            <div class="ticker-search">
+                <input type="text" id="ticker-input" placeholder="Enter ticker (e.g., SPY, /ES)" autocomplete="off">
+                <button id="analyze-btn" onclick="analyzeTicker()">Analyze</button>
+            </div>
+            <div class="market-status" id="market-status">
+                <span class="status-dot"></span>
+                <span id="status-text">Loading...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <!-- Ticker Info Card -->
+            <div class="card" id="ticker-info-card">
+                <div class="card-header">
+                    <span id="current-ticker">SPY</span>
+                    <span id="ticker-price" class="price">--</span>
+                </div>
+                <div class="card-body">
+                    <div class="price-change" id="price-change">--</div>
+                    <div class="ticker-meta">
+                        <span id="ticker-volume">Vol: --</span>
+                        <span id="ticker-expiry">Exp: --</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expiration Select -->
+            <div class="card">
+                <div class="card-header">
+                    <span>📅 Expiration</span>
+                </div>
+                <div class="card-body">
+                    <select id="expiry-select" onchange="onExpiryChange()">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Key Levels Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span>📍 Key Levels</span>
+                </div>
+                <div class="card-body" id="key-levels-container">
+                    <div class="level-row">
+                        <span class="level-label">Call Wall</span>
+                        <span class="level-value call" id="sidebar-call-wall">--</span>
+                    </div>
+                    <div class="level-row">
+                        <span class="level-label">Put Wall</span>
+                        <span class="level-value put" id="sidebar-put-wall">--</span>
+                    </div>
+                    <div class="level-row">
+                        <span class="level-label">Gamma Flip</span>
+                        <span class="level-value gamma" id="sidebar-gamma-flip">--</span>
+                    </div>
+                    <div class="level-row">
+                        <span class="level-label">Max Pain</span>
+                        <span class="level-value maxpain" id="sidebar-max-pain">--</span>
+                    </div>
+                    <div class="level-row">
+                        <span class="level-label">VAL</span>
+                        <span class="level-value val" id="sidebar-val">--</span>
+                    </div>
+                    <div class="level-row">
+                        <span class="level-label">POC</span>
+                        <span class="level-value poc" id="sidebar-poc">--</span>
+                    </div>
+                    <div class="level-row">
+                        <span class="level-label">VAH</span>
+                        <span class="level-value vah" id="sidebar-vah">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GEX Summary Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span>⚡ GEX Summary</span>
+                </div>
+                <div class="card-body" id="gex-summary-container">
+                    <div class="gex-stat">
+                        <span class="stat-label">Total GEX</span>
+                        <span class="stat-value" id="sidebar-total-gex">--</span>
+                    </div>
+                    <div class="gex-stat">
+                        <span class="stat-label">P/C Ratio</span>
+                        <span class="stat-value" id="sidebar-pc-ratio">--</span>
+                    </div>
+                    <div class="gex-stat">
+                        <span class="stat-label">Sentiment</span>
+                        <span class="stat-value" id="sidebar-sentiment">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Volume Profile Card -->
+            <div class="card">
+                <div class="card-header">
+                    <span>📊 Volume Profile</span>
+                </div>
+                <div class="card-body" id="volume-profile-container">
+                    <div class="vp-position" id="vp-position">Loading...</div>
+                    <div class="vp-range" id="vp-range"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chart Area -->
+        <section class="chart-section">
+            <!-- Options Visualization -->
+            <div class="card chart-card">
+                <div class="card-header">
+                    <div class="chart-title">
+                        <span>📈 OPTIONS VISUALIZATION</span>
+                        <span id="viz-ticker-label" class="ticker-label">- SPY</span>
+                    </div>
+                    <div class="chart-controls">
+                        <select id="timeframe-select" onchange="onTimeframeChange()">
+                            <option value="30">1M</option>
+                            <option value="7">1W</option>
+                            <option value="90">3M</option>
+                        </select>
+                        <button class="refresh-btn" onclick="refreshData()">🔄</button>
+                    </div>
+                </div>
+
+                <!-- Metrics Toggle Panel -->
+                <div class="toggle-panel">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-callwall" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label call">Call Wall</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-putwall" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label put">Put Wall</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-gammaflip" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label gamma">Gamma Flip</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-maxpain" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label maxpain">Max Pain</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-val" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label val">VAL</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-poc" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label poc">POC</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-vah" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label vah">VAH</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="viz-toggle-gex" checked onchange="toggleGexChart()">
+                        <span class="toggle-label">GEX Chart</span>
+                    </label>
+                </div>
+
+                <div class="card-body chart-body">
+                    <!-- Price Chart Container -->
+                    <div id="price-chart-container" class="chart-container">
+                        <div class="chart-loading">Loading price data...</div>
+                    </div>
+
+                    <!-- GEX Chart Container -->
+                    <div id="gex-chart-container" class="chart-container">
+                        <div class="chart-loading">Loading GEX data...</div>
+                    </div>
+                </div>
+
+                <!-- Info Bar -->
+                <div class="info-bar">
+                    <div class="info-item">
+                        <span class="info-label">Current Price</span>
+                        <span class="info-value" id="viz-current-price">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Call Wall</span>
+                        <span class="info-value call" id="viz-call-wall">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Put Wall</span>
+                        <span class="info-value put" id="viz-put-wall">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Max Pain</span>
+                        <span class="info-value maxpain" id="viz-max-pain">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total GEX</span>
+                        <span class="info-value" id="viz-total-gex">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GEX by Strike Table -->
+            <div class="card">
+                <div class="card-header">
+                    <span>📊 GEX by Strike</span>
+                    <span class="level-count" id="gex-levels-count">-- levels</span>
+                </div>
+                <div class="card-body table-body" id="gex-table-container">
+                    <table class="gex-table">
+                        <thead>
+                            <tr>
+                                <th>Strike</th>
+                                <th>Call GEX</th>
+                                <th>Put GEX</th>
+                                <th>Net GEX</th>
+                                <th>Call OI</th>
+                                <th>Put OI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gex-table-body">
+                            <tr><td colspan="6" class="loading">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <span>Gamma Quantix - Options Flow & GEX Analysis</span>
+            <span class="footer-divider">|</span>
+            <span>Data: Tastytrade, Polygon</span>
+            <span class="footer-divider">|</span>
+            <span id="last-update">Last update: --</span>
+        </div>
+    </footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
