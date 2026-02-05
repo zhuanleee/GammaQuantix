@@ -259,6 +259,8 @@ async function loadOptionsForExpiry() {
 
     if (!ticker) return;
 
+    const futuresInfo = getFuturesInfo(ticker);
+
     // Sync expirations
     if (ticker === 'SPY' && expiry && !isSyncingExpiry) {
         const marketExpirySelect = document.getElementById('market-sentiment-expiry');
