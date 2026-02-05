@@ -14,13 +14,13 @@
     <!-- Header -->
     <header class="header">
         <div class="header-left">
-            <h1 class="logo">📊 Gamma Quantix</h1>
+            <h1 class="logo">Gamma Quantix</h1>
             <span class="tagline">Options Flow & GEX Analysis</span>
         </div>
         <div class="header-right">
             <div class="ticker-search">
                 <input type="text" id="ticker-input" placeholder="Enter ticker (e.g., SPY, /ES)" autocomplete="off">
-                <button id="analyze-btn" onclick="analyzeTicker()">Analyze</button>
+                <button id="analyze-btn" onclick="loadOptionsAnalysis()">Analyze</button>
             </div>
             <div class="market-status" id="market-status">
                 <span class="status-dot"></span>
@@ -30,225 +30,651 @@
     </header>
 
     <!-- Main Content -->
-    <main class="main-content">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <!-- Ticker Info Card -->
-            <div class="card" id="ticker-info-card">
-                <div class="card-header">
-                    <span id="current-ticker">SPY</span>
-                    <span id="ticker-price" class="price">--</span>
+    <main class="main-content-full">
+        <!-- TIER 1: Market Sentiment Hero Zone -->
+        <div class="hero-zone">
+            <div class="options-hero-grid">
+                <!-- Left: Visual Sentiment Gauge -->
+                <div style="text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">MARKET SENTIMENT</div>
+                    <div style="position: relative; width: 180px; height: 100px; margin: 0 auto;">
+                        <!-- Sentiment Arc -->
+                        <svg viewBox="0 0 180 100" style="width: 100%; height: 100%;">
+                            <defs>
+                                <linearGradient id="sentimentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" style="stop-color:#ef4444"/>
+                                    <stop offset="50%" style="stop-color:#f59e0b"/>
+                                    <stop offset="100%" style="stop-color:#10b981"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M 15 85 A 75 75 0 0 1 165 85" fill="none" stroke="url(#sentimentGradient)" stroke-width="12" stroke-linecap="round"/>
+                            <g id="sentiment-needle" transform="rotate(0, 90, 85)">
+                                <line x1="90" y1="85" x2="90" y2="25" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
+                                <circle cx="90" cy="85" r="6" fill="var(--text)"/>
+                            </g>
+                        </svg>
+                        <div style="position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-muted); padding: 0 10px;">
+                            <span>Bearish</span>
+                            <span>Neutral</span>
+                            <span>Bullish</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 1.5rem; font-weight: 700; margin-top: 8px;" id="sentiment-label">--</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);" id="sentiment-description">Loading...</div>
                 </div>
-                <div class="card-body">
-                    <div class="price-change" id="price-change">--</div>
-                    <div class="ticker-meta">
-                        <span id="ticker-volume">Vol: --</span>
-                        <span id="ticker-expiry">Exp: --</span>
+
+                <!-- Right: Key Metrics Grid -->
+                <div>
+                    <div class="options-metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">VIX</div>
+                            <div class="metric-value" id="vix-level">--</div>
+                            <div class="metric-sub" id="vix-label">--</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">P/C RATIO</div>
+                            <div class="metric-value" id="spy-pc-ratio">--</div>
+                            <div class="metric-sub" id="spy-pc-label">--</div>
+                        </div>
+                        <div class="metric-card" style="border: 1px solid var(--purple);">
+                            <div class="metric-label" style="color: var(--purple);">MAX PAIN</div>
+                            <div class="metric-value" id="spy-max-pain" style="color: var(--purple);">--</div>
+                            <div class="metric-sub" id="spy-max-pain-dist">--</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">GEX</div>
+                            <div class="metric-value" id="market-gex">--</div>
+                            <div class="metric-sub" id="gex-label">--</div>
+                        </div>
+                    </div>
+                    <!-- Expiry selector -->
+                    <div class="expiry-bar">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.7rem; color: var(--text-muted);">SPY Expiry:</span>
+                            <select id="market-sentiment-expiry" onchange="loadMarketSentimentForExpiry()">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.65rem; color: var(--text-muted);" id="spy-call-put-oi">--</span>
+                            <button class="btn btn-ghost" onclick="loadMarketSentiment()" style="font-size: 0.7rem; padding: 4px 10px;">Refresh</button>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Expiration Select -->
-            <div class="card">
-                <div class="card-header">
-                    <span>📅 Expiration</span>
-                </div>
-                <div class="card-body">
-                    <select id="expiry-select" onchange="onExpiryChange()">
-                        <option value="">Loading...</option>
+        <!-- Quick Ticker Shortcuts -->
+        <div class="quick-tickers">
+            <span style="font-size: 0.75rem; color: var(--text-muted); padding: 6px 0;">Equities:</span>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('SPY')">SPY</button>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('QQQ')">QQQ</button>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('NVDA')">NVDA</button>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('TSLA')">TSLA</button>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('AAPL')">AAPL</button>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('AMD')">AMD</button>
+            <button class="btn btn-ghost ticker-btn" onclick="quickAnalyzeTicker('META')">META</button>
+            <span class="ticker-divider"></span>
+            <span style="font-size: 0.75rem; color: var(--orange); padding: 6px 0;">Futures:</span>
+            <button class="btn btn-ghost ticker-btn futures-btn" onclick="quickAnalyzeTicker('/ES')" title="E-mini S&P 500">/ES</button>
+            <button class="btn btn-ghost ticker-btn futures-btn" onclick="quickAnalyzeTicker('/NQ')" title="E-mini Nasdaq">/NQ</button>
+            <button class="btn btn-ghost ticker-btn futures-btn" onclick="quickAnalyzeTicker('/CL')" title="Crude Oil">/CL</button>
+            <button class="btn btn-ghost ticker-btn futures-btn" onclick="quickAnalyzeTicker('/GC')" title="Gold">/GC</button>
+        </div>
+
+        <!-- Search & Action Bar -->
+        <div class="filter-bar" style="margin-bottom: 16px; flex-wrap: wrap;">
+            <input type="text" id="options-ticker-input" placeholder="Enter ticker..."
+                style="flex: 1; min-width: 120px; max-width: 180px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.875rem;"
+                onkeypress="if(event.key==='Enter') loadOptionsAnalysis()" />
+            <button class="btn btn-primary" onclick="loadOptionsAnalysis()" style="padding: 8px 16px;">Analyze</button>
+            <button class="btn btn-ghost" onclick="loadSmartMoneyFlow()" style="padding: 8px 12px;">Smart Flow</button>
+            <button class="btn btn-ghost" onclick="loadWhaleTrades()" style="padding: 8px 12px;">Whale Trades</button>
+            <button class="btn btn-ghost" onclick="loadUnusualActivity()" style="padding: 8px 12px;">Unusual Activity</button>
+        </div>
+
+        <!-- Options Analysis Container -->
+        <div id="options-analysis-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--blue);">
+            <div class="card-header">
+                <div class="card-title">Options Analysis <span id="oa-ticker" style="color: var(--blue); margin-left: 8px;"></span></div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <select id="oa-expiry-select" onchange="loadOptionsForExpiry()">
+                        <option value="">Select expiration...</option>
                     </select>
+                    <div class="dte-buttons">
+                        <button class="btn btn-ghost" onclick="selectExpiryByDays(0)" title="0DTE">0D</button>
+                        <button class="btn btn-ghost" onclick="selectExpiryByDays(7)" title="~1 Week">1W</button>
+                        <button class="btn btn-ghost" onclick="selectExpiryByDays(30)" title="~1 Month">1M</button>
+                        <button class="btn btn-ghost" onclick="selectExpiryByDays(90)" title="~3 Months">3M</button>
+                    </div>
+                    <div id="oa-sentiment" class="sentiment-badge">--</div>
                 </div>
             </div>
+            <div class="card-body">
+                <!-- Main Metrics Row -->
+                <div class="metrics-grid-5">
+                    <div class="metric-box">
+                        <div class="metric-label">P/C RATIO</div>
+                        <div class="metric-value" id="oa-pc-ratio">--</div>
+                        <div class="metric-sub" id="oa-pc-label">--</div>
+                    </div>
+                    <div class="metric-box" id="oa-gex-card" style="cursor: pointer; border: 2px solid transparent;" onclick="showOptionsChart('gex')" title="Click to view GEX chart">
+                        <div class="metric-label">GEX <span class="info-icon" data-tooltip="Gamma Exposure: Positive GEX = stabilizing. Negative GEX = volatile.">i</span></div>
+                        <div class="metric-value" id="oa-gex">--</div>
+                        <div class="metric-sub" id="oa-gex-label">--</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">IV RANK <span class="info-icon" data-tooltip="Where current IV sits vs past year. High = sell, Low = buy.">i</span></div>
+                        <div class="metric-value" id="oa-iv-rank">--</div>
+                        <div class="metric-sub" id="oa-iv-label">--</div>
+                    </div>
+                    <div class="metric-box" id="oa-maxpain-card" style="cursor: pointer; border: 2px solid var(--purple);" onclick="showOptionsChart('maxpain')" title="Click to view Max Pain chart">
+                        <div class="metric-label">MAX PAIN <span class="info-icon" data-tooltip="Strike where option writers lose the least. Stocks gravitate here near expiry.">i</span></div>
+                        <div class="metric-value" id="oa-max-pain" style="color: var(--purple);">--</div>
+                        <div class="metric-sub" id="oa-mp-distance">--</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">CURRENT</div>
+                        <div class="metric-value" id="oa-current-price">--</div>
+                        <div class="metric-sub" id="oa-dte">--</div>
+                    </div>
+                </div>
+                <!-- OI Stats Row -->
+                <div class="oi-stats-row">
+                    <div><span class="stat-label">Call OI:</span> <span class="stat-value green" id="oa-call-oi">--</span></div>
+                    <div class="divider"></div>
+                    <div><span class="stat-label">Put OI:</span> <span class="stat-value red" id="oa-put-oi">--</span></div>
+                    <div class="divider"></div>
+                    <div><span class="stat-label">Expiry:</span> <span class="stat-value" id="oa-expiry-display">--</span></div>
+                </div>
+                <!-- Options Chart (Max Pain / GEX toggle) -->
+                <div id="oa-chart-container" style="margin-top: 16px;">
+                    <div id="oa-chart-title" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">Pain by Strike Price</div>
+                    <div id="oa-chart" style="background: var(--bg-hover); border-radius: 8px; padding: 16px; min-height: 160px;">
+                        <div style="color: var(--text-muted); font-size: 0.8rem; text-align: center; padding: 40px;">
+                            Enter a ticker and click Analyze to see options data
+                        </div>
+                    </div>
+                    <div id="oa-chart-legend" style="display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 0.7rem;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <div style="width: 12px; height: 12px; background: var(--purple); border-radius: 2px;"></div>
+                            <span style="color: var(--text-muted);">Max Pain Strike</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <div style="width: 12px; height: 2px; background: var(--blue);"></div>
+                            <span style="color: var(--text-muted);">Current Price</span>
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Key Levels Card -->
+                <!-- Interpretation -->
+                <div class="interpretation-box" id="oa-interpretation" style="margin-top: 12px;">
+                    Enter a ticker and click Analyze to see options sentiment and max pain analysis.
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticker Summary Stats -->
+        <div class="stats-bar" id="options-summary" style="display: none; margin-bottom: 20px;">
+            <div class="stat-item">
+                <span class="stat-label">Sentiment</span>
+                <span class="stat-value" id="opt-sentiment">--</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">P/C Ratio</span>
+                <span class="stat-value" id="opt-pc-ratio">--</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Call Volume</span>
+                <span class="stat-value green" id="opt-call-vol">--</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Put Volume</span>
+                <span class="stat-value red" id="opt-put-vol">--</span>
+            </div>
+        </div>
+
+        <!-- Options Visualization Chart -->
+        <div id="options-viz-container" class="card" style="display: none; margin-bottom: 20px;">
+            <div class="card-header">
+                <div class="card-title">OPTIONS VISUALIZATION <span id="viz-ticker-label"></span></div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <select id="viz-timeframe" onchange="updateOptionsViz()">
+                        <option value="5">5D</option>
+                        <option value="30" selected>1M</option>
+                        <option value="90">3M</option>
+                    </select>
+                    <button class="btn btn-ghost" onclick="refreshOptionsViz()" title="Refresh">Refresh</button>
+                </div>
+            </div>
+            <!-- Toggle Panel -->
+            <div class="toggle-panel">
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-callwall" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label call">Call Wall</span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-putwall" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label put">Put Wall</span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-gammaflip" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label gamma">Gamma Flip</span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-maxpain" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label maxpain">Max Pain</span>
+                </label>
+                <span class="toggle-divider">|</span>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-val" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label val">VAL</span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-poc" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label poc">POC</span>
+                </label>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-vah" checked onchange="updatePriceChartLevels()">
+                    <span class="toggle-label vah">VAH</span>
+                </label>
+                <span class="toggle-divider">|</span>
+                <label class="toggle-item">
+                    <input type="checkbox" id="viz-toggle-gex" checked onchange="toggleGexChart()">
+                    <span class="toggle-label">GEX Chart</span>
+                </label>
+            </div>
+            <div class="card-body chart-body">
+                <div id="price-chart-container" class="chart-container">
+                    <div class="chart-loading">Loading price data...</div>
+                </div>
+                <div id="gex-chart-container" class="chart-container" style="height: 200px;">
+                    <div class="chart-loading">Loading GEX data...</div>
+                </div>
+            </div>
+            <!-- Info Bar -->
+            <div class="info-bar">
+                <div class="info-item">
+                    <span class="info-label">Current Price</span>
+                    <span class="info-value" id="viz-current-price">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Call Wall</span>
+                    <span class="info-value call" id="viz-call-wall">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Put Wall</span>
+                    <span class="info-value put" id="viz-put-wall">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Max Pain</span>
+                    <span class="info-value maxpain" id="viz-max-pain">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Total GEX</span>
+                    <span class="info-value" id="viz-total-gex">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Options Chain Tables -->
+        <div class="grid-2" id="options-tables" style="display: none; margin-bottom: 20px;">
+            <!-- Calls Table -->
             <div class="card">
                 <div class="card-header">
-                    <span>📍 Key Levels</span>
+                    <div class="card-title" style="color: var(--green);">Calls</div>
                 </div>
-                <div class="card-body" id="key-levels-container">
-                    <div class="level-row">
-                        <span class="level-label">Call Wall</span>
-                        <span class="level-value call" id="sidebar-call-wall">--</span>
-                    </div>
-                    <div class="level-row">
-                        <span class="level-label">Put Wall</span>
-                        <span class="level-value put" id="sidebar-put-wall">--</span>
-                    </div>
-                    <div class="level-row">
-                        <span class="level-label">Gamma Flip</span>
-                        <span class="level-value gamma" id="sidebar-gamma-flip">--</span>
-                    </div>
-                    <div class="level-row">
-                        <span class="level-label">Max Pain</span>
-                        <span class="level-value maxpain" id="sidebar-max-pain">--</span>
-                    </div>
-                    <div class="level-row">
-                        <span class="level-label">VAL</span>
-                        <span class="level-value val" id="sidebar-val">--</span>
-                    </div>
-                    <div class="level-row">
-                        <span class="level-label">POC</span>
-                        <span class="level-value poc" id="sidebar-poc">--</span>
-                    </div>
-                    <div class="level-row">
-                        <span class="level-label">VAH</span>
-                        <span class="level-value vah" id="sidebar-vah">--</span>
+                <div class="card-body" style="padding: 0;">
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table class="options-chain-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 70px;">Strike</th>
+                                    <th style="width: 60px;">Bid</th>
+                                    <th style="width: 60px;">Ask</th>
+                                    <th style="width: 60px;">Vol</th>
+                                    <th style="width: 70px;">OI</th>
+                                    <th style="width: 50px;">IV</th>
+                                    <th style="width: 50px;">Delta</th>
+                                </tr>
+                            </thead>
+                            <tbody id="calls-table-body">
+                                <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Analyze a ticker to view chain</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-
-            <!-- GEX Summary Card -->
+            <!-- Puts Table -->
             <div class="card">
                 <div class="card-header">
-                    <span>⚡ GEX Summary</span>
+                    <div class="card-title" style="color: var(--red);">Puts</div>
                 </div>
-                <div class="card-body" id="gex-summary-container">
-                    <div class="gex-stat">
-                        <span class="stat-label">Total GEX</span>
-                        <span class="stat-value" id="sidebar-total-gex">--</span>
+                <div class="card-body" style="padding: 0;">
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table class="options-chain-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 70px;">Strike</th>
+                                    <th style="width: 60px;">Bid</th>
+                                    <th style="width: 60px;">Ask</th>
+                                    <th style="width: 60px;">Vol</th>
+                                    <th style="width: 70px;">OI</th>
+                                    <th style="width: 50px;">IV</th>
+                                    <th style="width: 50px;">Delta</th>
+                                </tr>
+                            </thead>
+                            <tbody id="puts-table-body">
+                                <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Analyze a ticker to view chain</td></tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="gex-stat">
-                        <span class="stat-label">P/C Ratio</span>
-                        <span class="stat-value" id="sidebar-pc-ratio">--</span>
-                    </div>
-                    <div class="gex-stat">
-                        <span class="stat-label">Sentiment</span>
-                        <span class="stat-value" id="sidebar-sentiment">--</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Volume Profile Card -->
-            <div class="card">
-                <div class="card-header">
-                    <span>📊 Volume Profile</span>
-                </div>
-                <div class="card-body" id="volume-profile-container">
-                    <div class="vp-position" id="vp-position">Loading...</div>
-                    <div class="vp-range" id="vp-range"></div>
                 </div>
             </div>
-        </aside>
+        </div>
 
-        <!-- Main Chart Area -->
-        <section class="chart-section">
-            <!-- Options Visualization -->
-            <div class="card chart-card">
-                <div class="card-header">
-                    <div class="chart-title">
-                        <span>📈 OPTIONS VISUALIZATION</span>
-                        <span id="viz-ticker-label" class="ticker-label">- SPY</span>
+        <!-- GEX Dashboard -->
+        <div id="gex-dashboard-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--orange);">
+            <div class="card-header">
+                <div class="card-title">GEX Dashboard <span id="gex-ticker" style="color: var(--orange); margin-left: 8px;"></span></div>
+                <button class="btn btn-primary" onclick="loadGexDashboard()">Refresh GEX</button>
+            </div>
+            <div class="card-body">
+                <!-- Regime Row -->
+                <div class="regime-grid">
+                    <!-- Volatility Regime -->
+                    <div class="regime-box">
+                        <div class="regime-header">VOLATILITY REGIME</div>
+                        <div class="regime-content">
+                            <div id="gex-regime-badge" class="regime-badge">--</div>
+                            <div class="regime-stats">
+                                <div><span class="stat-label">Confidence:</span> <span id="gex-regime-confidence">--</span></div>
+                                <div><span class="stat-label">Strategy:</span> <span id="gex-regime-strategy">--</span></div>
+                            </div>
+                        </div>
+                        <div class="regime-rec" id="gex-regime-recommendation">--</div>
                     </div>
-                    <div class="chart-controls">
-                        <select id="timeframe-select" onchange="onTimeframeChange()">
-                            <option value="30">1M</option>
-                            <option value="7">1W</option>
-                            <option value="90">3M</option>
+                    <!-- Combined Regime -->
+                    <div class="regime-box">
+                        <div class="regime-header">COMBINED REGIME (GEX + P/C)</div>
+                        <div class="regime-content">
+                            <div id="combined-regime-badge" class="regime-badge">--</div>
+                            <div class="regime-stats">
+                                <div><span class="stat-label">Risk Level:</span> <span id="combined-risk-level">--</span></div>
+                                <div><span class="stat-label">Position Size:</span> <span id="combined-position-size">--</span></div>
+                            </div>
+                        </div>
+                        <div class="regime-rec" id="combined-recommendation">--</div>
+                    </div>
+                </div>
+                <!-- Key Levels Row -->
+                <div class="levels-grid">
+                    <div class="level-box call-border">
+                        <div class="level-header">CALL WALL (RESIST)</div>
+                        <div class="level-value call" id="gex-call-wall">--</div>
+                        <div class="level-sub" id="gex-call-wall-dist">--</div>
+                    </div>
+                    <div class="level-box put-border">
+                        <div class="level-header">PUT WALL (SUPPORT)</div>
+                        <div class="level-value put" id="gex-put-wall">--</div>
+                        <div class="level-sub" id="gex-put-wall-dist">--</div>
+                    </div>
+                    <div class="level-box gamma-border">
+                        <div class="level-header">GAMMA FLIP</div>
+                        <div class="level-value gamma" id="gex-gamma-flip">--</div>
+                        <div class="level-sub" id="gex-gamma-flip-note">Sign change zone</div>
+                    </div>
+                    <div class="level-box purple-border">
+                        <div class="level-header">P/C RATIO Z-SCORE</div>
+                        <div class="level-value" id="gex-pc-zscore">--</div>
+                        <div class="level-sub" id="gex-pc-sentiment">--</div>
+                    </div>
+                </div>
+                <!-- GEX Price Ladder -->
+                <div id="gex-price-ladder-container"></div>
+                <!-- Zones & Signals -->
+                <div class="zones-grid">
+                    <div class="zone-box">
+                        <div class="zone-header blue">Key Zones</div>
+                        <div class="zone-content">
+                            <div><span class="stat-label">Magnet Zones:</span> <span id="gex-magnet-zones">--</span></div>
+                            <div><span class="stat-label">Acceleration Zones:</span> <span id="gex-accel-zones">--</span></div>
+                        </div>
+                    </div>
+                    <div class="zone-box">
+                        <div class="zone-header purple">Trading Signal</div>
+                        <div class="zone-content">
+                            <div id="gex-signal-badge" class="signal-badge">--</div>
+                            <div id="gex-signal-note" class="signal-note">--</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Interpretation -->
+                <div class="interpretation-box orange" id="gex-interpretation">
+                    Load a ticker to see comprehensive GEX analysis with regime classification, support/resistance levels, and trading signals.
+                </div>
+                <!-- Key Levels Table (Collapsible) -->
+                <div id="gex-levels-table-container" style="display: none; margin-top: 12px;">
+                    <div id="gex-levels-table-header" onclick="toggleGexLevelsTable()" class="table-toggle-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="gex-levels-toggle-icon" class="toggle-icon">&#9654;</span>
+                            <span style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted);">DETAILED KEY LEVELS</span>
+                            <span id="gex-levels-count" class="levels-count">0 levels</span>
+                        </div>
+                        <span style="font-size: 0.65rem; color: var(--text-muted);">Click to expand</span>
+                    </div>
+                    <div id="gex-levels-table-body" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ratio Spread Conditions -->
+        <div id="ratio-spread-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--purple);">
+            <div class="card-header">
+                <div class="card-title">Ratio Spread Conditions <span id="ratio-ticker" style="color: var(--purple); margin-left: 8px;"></span></div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted);">Target DTE:</label>
+                        <select id="ratio-dte-select" onchange="loadRatioSpreadScore()">
+                            <option value="30">30 DTE</option>
+                            <option value="45">45 DTE</option>
+                            <option value="60">60 DTE</option>
+                            <option value="90">90 DTE</option>
+                            <option value="120" selected>120 DTE</option>
+                            <option value="150">150 DTE</option>
+                            <option value="180">180 DTE</option>
                         </select>
-                        <button class="refresh-btn" onclick="refreshData()">🔄</button>
                     </div>
-                </div>
-
-                <!-- Metrics Toggle Panel -->
-                <div class="toggle-panel">
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-callwall" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label call">Call Wall</span>
-                    </label>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-putwall" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label put">Put Wall</span>
-                    </label>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-gammaflip" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label gamma">Gamma Flip</span>
-                    </label>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-maxpain" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label maxpain">Max Pain</span>
-                    </label>
-                    <span class="toggle-divider">|</span>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-val" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label val">VAL</span>
-                    </label>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-poc" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label poc">POC</span>
-                    </label>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-vah" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label vah">VAH</span>
-                    </label>
-                    <span class="toggle-divider">|</span>
-                    <label class="toggle-item">
-                        <input type="checkbox" id="viz-toggle-gex" checked onchange="toggleGexChart()">
-                        <span class="toggle-label">GEX Chart</span>
-                    </label>
-                </div>
-
-                <div class="card-body chart-body">
-                    <!-- Price Chart Container -->
-                    <div id="price-chart-container" class="chart-container">
-                        <div class="chart-loading">Loading price data...</div>
-                    </div>
-
-                    <!-- GEX Chart Container -->
-                    <div id="gex-chart-container" class="chart-container">
-                        <div class="chart-loading">Loading GEX data...</div>
-                    </div>
-                </div>
-
-                <!-- Info Bar -->
-                <div class="info-bar">
-                    <div class="info-item">
-                        <span class="info-label">Current Price</span>
-                        <span class="info-value" id="viz-current-price">--</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Call Wall</span>
-                        <span class="info-value call" id="viz-call-wall">--</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Put Wall</span>
-                        <span class="info-value put" id="viz-put-wall">--</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Max Pain</span>
-                        <span class="info-value maxpain" id="viz-max-pain">--</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Total GEX</span>
-                        <span class="info-value" id="viz-total-gex">--</span>
-                    </div>
+                    <div id="ratio-score-badge" class="score-badge">Score: <span id="ratio-total-score">-</span>/6</div>
+                    <button class="btn btn-primary" onclick="loadRatioSpreadScore()">Refresh</button>
                 </div>
             </div>
+            <div class="card-body">
+                <!-- Verdict Banner -->
+                <div id="ratio-verdict-banner" class="verdict-banner">
+                    <div class="verdict-text" id="ratio-verdict">--</div>
+                    <div class="verdict-rec" id="ratio-recommendation">Load a ticker to analyze ratio spread conditions</div>
+                    <div class="verdict-stats">
+                        <div><span class="stat-label">Data Source:</span> <span id="ratio-data-source">--</span></div>
+                        <div><span class="stat-label">Risk Level:</span> <span id="ratio-risk-level">--</span></div>
+                        <div><span class="stat-label">Position Size:</span> <span id="ratio-position-size">--</span></div>
+                    </div>
+                </div>
+                <!-- 6 Factor Grid -->
+                <div class="factor-grid">
+                    <div id="ratio-vrp-card" class="factor-card">
+                        <div class="factor-header"><span>VRP (IV - RV)</span> <span id="ratio-vrp-check">&#11036;</span></div>
+                        <div class="factor-value" id="ratio-vrp-value">--</div>
+                        <div class="factor-label" id="ratio-vrp-label">Options pricing vs realized</div>
+                    </div>
+                    <div id="ratio-skew-card" class="factor-card">
+                        <div class="factor-header"><span>PUT SKEW</span> <span id="ratio-skew-check">&#11036;</span></div>
+                        <div class="factor-value" id="ratio-skew-value">--</div>
+                        <div class="factor-label" id="ratio-skew-label">OTM put richness</div>
+                    </div>
+                    <div id="ratio-term-card" class="factor-card">
+                        <div class="factor-header"><span>TERM STRUCTURE</span> <span id="ratio-term-check">&#11036;</span></div>
+                        <div class="factor-value" id="ratio-term-value">--</div>
+                        <div class="factor-label" id="ratio-term-label">IV curve shape</div>
+                    </div>
+                    <div id="ratio-gex-card" class="factor-card">
+                        <div class="factor-header"><span>GEX REGIME</span> <span id="ratio-gex-check">&#11036;</span></div>
+                        <div class="factor-value" id="ratio-gex-value">--</div>
+                        <div class="factor-label" id="ratio-gex-label">Dealer positioning</div>
+                    </div>
+                    <div id="ratio-rv-card" class="factor-card">
+                        <div class="factor-header"><span>RV DIRECTION</span> <span id="ratio-rv-check">&#11036;</span></div>
+                        <div class="factor-value" id="ratio-rv-value">--</div>
+                        <div class="factor-label" id="ratio-rv-label">Vol trend</div>
+                    </div>
+                    <div id="ratio-em-card" class="factor-card">
+                        <div class="factor-header"><span>EXPECTED MOVE</span> <span id="ratio-em-check">&#11036;</span></div>
+                        <div class="factor-value" id="ratio-em-value">--</div>
+                        <div class="factor-label" id="ratio-em-label">Implied range</div>
+                    </div>
+                </div>
+                <!-- Detail Rows -->
+                <div class="detail-grid">
+                    <div class="detail-box">
+                        <div class="detail-header blue">Volatility Premium</div>
+                        <div class="detail-content">
+                            <div><span class="stat-label">IV (30d):</span> <span id="ratio-iv-30d">--</span></div>
+                            <div><span class="stat-label">RV (20d):</span> <span id="ratio-rv-20d">--</span></div>
+                            <div><span class="stat-label">ATM IV:</span> <span id="ratio-atm-iv">--</span></div>
+                            <div><span class="stat-label">25D Put IV:</span> <span id="ratio-25d-iv">--</span></div>
+                        </div>
+                    </div>
+                    <div class="detail-box">
+                        <div class="detail-header purple">Strike Planning Levels</div>
+                        <div class="detail-content">
+                            <div><span class="stat-label">-1x EM:</span> <span id="ratio-em-lower">--</span></div>
+                            <div><span class="stat-label">-1.5x EM:</span> <span id="ratio-em-1-5x" style="color: var(--orange);">--</span></div>
+                            <div><span class="stat-label">-2x EM:</span> <span id="ratio-em-2x" style="color: var(--red);">--</span></div>
+                            <div><span class="stat-label">DTE:</span> <span id="ratio-dte">--</span></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Passing Factors -->
+                <div class="interpretation-box purple">
+                    <div style="font-weight: 600; color: var(--purple); margin-bottom: 6px;">Passing Factors</div>
+                    <div id="ratio-passing-factors">None yet - load a ticker to analyze</div>
+                </div>
+            </div>
+        </div>
 
-            <!-- GEX by Strike Table -->
+        <!-- GEX by Strike Table -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <span>GEX by Strike</span>
+                <span class="level-count" id="gex-strike-count">-- levels</span>
+            </div>
+            <div class="card-body table-body" id="gex-table-container">
+                <table class="gex-table">
+                    <thead>
+                        <tr>
+                            <th>Strike</th>
+                            <th>Call GEX</th>
+                            <th>Put GEX</th>
+                            <th>Net GEX</th>
+                            <th>Call OI</th>
+                            <th>Put OI</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gex-table-body">
+                        <tr><td colspan="6" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Whale Trades + Unusual Activity -->
+        <div class="grid-2">
             <div class="card">
                 <div class="card-header">
-                    <span>📊 GEX by Strike</span>
-                    <span class="level-count" id="gex-levels-count">-- levels</span>
+                    <span>Whale Trades (>$50K)</span>
+                    <button class="btn btn-ghost" onclick="loadWhaleTrades()">Refresh</button>
                 </div>
-                <div class="card-body table-body" id="gex-table-container">
-                    <table class="gex-table">
-                        <thead>
-                            <tr>
-                                <th>Strike</th>
-                                <th>Call GEX</th>
-                                <th>Put GEX</th>
-                                <th>Net GEX</th>
-                                <th>Call OI</th>
-                                <th>Put OI</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gex-table-body">
-                            <tr><td colspan="6" class="loading">Loading...</td></tr>
-                        </tbody>
-                    </table>
+                <div class="card-body" style="padding: 0;">
+                    <div id="whale-trades-container" style="max-height: 300px; overflow-y: auto;">
+                        <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+                            Click Refresh to load whale trades
+                        </div>
+                    </div>
                 </div>
             </div>
-        </section>
+            <div class="card">
+                <div class="card-header">
+                    <span>Unusual Activity</span>
+                    <button class="btn btn-ghost" onclick="loadUnusualActivity()">Refresh</button>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <div id="unusual-activity-container" style="max-height: 300px; overflow-y: auto;">
+                        <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+                            Click Refresh to scan unusual activity
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Options Screener (Collapsible) -->
+        <div class="sidebar-accordion" onclick="toggleAccordion(this)" style="margin-bottom: 12px; margin-top: 20px;">
+            <div class="accordion-header">
+                <span>Options Screener</span>
+                <span class="accordion-icon">+</span>
+            </div>
+            <div class="accordion-content">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Min Premium ($K)</label>
+                        <input type="number" id="screener-min-premium" value="50" min="1" style="width: 100%; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; font-size: 0.8rem;" onclick="event.stopPropagation()" />
+                    </div>
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Min IV Rank (%)</label>
+                        <input type="number" id="screener-min-iv" value="50" min="0" max="100" style="width: 100%; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; font-size: 0.8rem;" onclick="event.stopPropagation()" />
+                    </div>
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Sentiment</label>
+                        <select id="screener-sentiment" style="width: 100%; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; font-size: 0.8rem;" onclick="event.stopPropagation()">
+                            <option value="">Any</option>
+                            <option value="bullish">Bullish</option>
+                            <option value="bearish">Bearish</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Tickers (comma sep)</label>
+                        <input type="text" id="screener-tickers" placeholder="NVDA,AAPL,TSLA" style="width: 100%; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; font-size: 0.8rem;" onclick="event.stopPropagation()" />
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); runOptionsScreener()" style="padding: 8px 20px;">Screen</button>
+                    </div>
+                </div>
+                <div id="screener-results">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
+                        Configure filters and click Screen to find options opportunities
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smart Money Flow (Collapsible) -->
+        <div class="sidebar-accordion" onclick="toggleAccordion(this)" style="margin-bottom: 20px;">
+            <div class="accordion-header">
+                <span>Smart Money Flow Analysis</span>
+                <span class="accordion-icon">+</span>
+            </div>
+            <div class="accordion-content">
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <input type="text" id="flow-ticker-input" placeholder="Enter ticker (e.g., NVDA)" style="flex: 1; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 0.85rem;" onclick="event.stopPropagation()" onkeypress="if(event.key==='Enter') loadSmartMoneyFlow()" />
+                    <button class="btn btn-primary" onclick="event.stopPropagation(); loadSmartMoneyFlow()" style="padding: 10px 20px;">Analyze</button>
+                </div>
+                <div id="smart-money-flow-container">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
+                        Enter a ticker to analyze institutional and smart money options flow
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer -->
@@ -262,6 +688,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js"></script>
+    <script src="js/app.js?v=20260206b"></script>
 </body>
 </html>
