@@ -779,7 +779,7 @@ function renderGexPriceLadder(levelsData, currentPrice) {
     }
 
     let html = `
-        <div style="background: var(--bg-hover); border-radius: 8px; padding: 16px; margin-top: 16px;">
+        <div style="background: var(--bg-hover); border-radius: 8px; padding: 16px; margin-top: 16px; margin-bottom: 16px;">
             <div style="font-size: 0.75rem; font-weight: 600; color: var(--orange); margin-bottom: 12px;">
                 GEX PRICE LADDER
             </div>

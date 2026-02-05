@@ -440,6 +440,7 @@ body {
     background: var(--bg-hover);
     border-radius: 8px;
     font-size: 0.8rem;
+    margin-bottom: 16px;
 }
 
 .interpretation-box.orange {
@@ -567,12 +568,13 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
-    margin-bottom: 12px;
+    margin-top: 16px;
+    margin-bottom: 16px;
 }
 
 .zone-box {
     background: var(--bg-hover);
-    padding: 12px;
+    padding: 16px;
     border-radius: 8px;
 }
 
