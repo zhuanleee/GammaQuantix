@@ -2346,25 +2346,28 @@ async function runOptionsScreener() {
             let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 12px;">';
             html += '<thead><tr style="background: var(--bg-hover); border-bottom: 1px solid var(--border);">';
             html += '<th style="padding: 10px; text-align: left;">Ticker</th>';
-            html += '<th style="padding: 10px; text-align: left;">Type</th>';
-            html += '<th style="padding: 10px; text-align: right;">Strike</th>';
-            html += '<th style="padding: 10px; text-align: right;">Premium</th>';
+            html += '<th style="padding: 10px; text-align: right;">Price</th>';
+            html += '<th style="padding: 10px; text-align: right;">P/C Ratio</th>';
             html += '<th style="padding: 10px; text-align: right;">IV Rank</th>';
+            html += '<th style="padding: 10px; text-align: right;">Max Pain</th>';
             html += '<th style="padding: 10px; text-align: center;">Sentiment</th>';
             html += '</tr></thead><tbody>';
 
             results.slice(0, 20).forEach(r => {
-                const sentColor = r.sentiment === 'bullish' ? 'var(--green)' : r.sentiment === 'bearish' ? 'var(--red)' : 'var(--text-muted)';
-                const premium = (r.premium || 0) / 1000;
+                const sentLabel = (r.sentiment_label || r.sentiment || 'neutral').toLowerCase();
+                const sentColor = sentLabel.includes('bullish') ? 'var(--green)' : sentLabel.includes('bearish') ? 'var(--red)' : 'var(--text-muted)';
                 const ivRank = r.iv_rank || 0;
+                const pcRatio = r.put_call_ratio || 0;
+                const price = r.current_price || 0;
+                const maxPain = r.max_pain || 0;
 
                 html += `<tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 10px; font-weight: 600;">${r.ticker || '--'}</td>
-                    <td style="padding: 10px;">${(r.type || 'C').toUpperCase()}</td>
-                    <td style="padding: 10px; text-align: right;">$${(r.strike || 0).toLocaleString()}</td>
-                    <td style="padding: 10px; text-align: right; font-weight: 600;">$${premium.toLocaleString(undefined, {maximumFractionDigits: 0})}K</td>
+                    <td style="padding: 10px; text-align: right;">$${price.toFixed(2)}</td>
+                    <td style="padding: 10px; text-align: right;">${pcRatio.toFixed(2)}</td>
                     <td style="padding: 10px; text-align: right;">${ivRank.toFixed(0)}%</td>
-                    <td style="padding: 10px; text-align: center; color: ${sentColor}; font-weight: 600; text-transform: uppercase;">${r.sentiment || 'neutral'}</td>
+                    <td style="padding: 10px; text-align: right;">$${maxPain.toLocaleString()}</td>
+                    <td style="padding: 10px; text-align: center; color: ${sentColor}; font-weight: 600; text-transform: uppercase;">${sentLabel}</td>
                 </tr>`;
             });
 
@@ -2388,7 +2391,8 @@ async function loadSmartMoneyFlow() {
     if (!ticker) ticker = optionsAnalysisTicker;
     if (!ticker) ticker = document.getElementById('ticker-input')?.value.trim().toUpperCase();
     if (!ticker) {
-        alert('Please enter a ticker symbol');
+        const container = document.getElementById('smart-money-flow-container');
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--red);">Please enter a ticker symbol</div>';
         return;
     }
 
