@@ -451,8 +451,8 @@ async function loadOptionsForExpiry() {
 
         // Render Expected Move card
         const atmIV = sentiment.current_iv || sentiment.atm_iv || sentiment.iv_30 || (sentiment.skew && sentiment.skew.call_iv) || 0;
-        if (currentPrice > 0 && atmIV > 0 && dte >= 0) {
-            renderExpectedMove(currentPrice, atmIV, dte || 1);
+        if (currentPrice > 0 && atmIV > 0) {
+            renderExpectedMove(currentPrice, atmIV, Math.max(dte, 1));
         }
 
     } catch (e) {
