@@ -1311,8 +1311,19 @@ function renderPriceChart() {
     }
 
     if (!optionsVizData.candles || optionsVizData.candles.length === 0) {
-        container.innerHTML = '<div class="chart-loading">No price data available</div>';
-        return;
+        // Create a synthetic candle from current price so chart can render and live updates work
+        if (optionsVizData.currentPrice > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const p = optionsVizData.currentPrice;
+            optionsVizData.candles = [{
+                time: Math.floor(today.getTime() / 1000),
+                open: p, high: p, low: p, close: p
+            }];
+        } else {
+            container.innerHTML = '<div class="chart-loading">No price data available</div>';
+            return;
+        }
     }
 
     container.innerHTML = '';
