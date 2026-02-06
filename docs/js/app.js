@@ -2608,26 +2608,30 @@ function updateSentimentGauge(pcRatio, vix) {
     const label = document.getElementById('sentiment-label');
     const description = document.getElementById('sentiment-description');
 
+    // Build dynamic description based on actual inputs
+    const pcDesc = pcRatio > 1.2 ? 'High P/C' : pcRatio < 0.7 ? 'Low P/C' : 'Neutral P/C';
+    const vixDesc = vix > 25 ? 'High VIX' : vix < 15 ? 'Low VIX' : 'Normal VIX';
+
     if (score >= 75) {
         label.textContent = 'BULLISH';
         label.style.color = 'var(--green)';
-        description.textContent = 'Low P/C + Low VIX = Risk On';
+        description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk On';
     } else if (score >= 60) {
         label.textContent = 'LEAN BULLISH';
         label.style.color = 'var(--green)';
-        description.textContent = 'Slightly bullish positioning';
+        description.textContent = pcDesc + ' + ' + vixDesc;
     } else if (score >= 40) {
         label.textContent = 'NEUTRAL';
         label.style.color = 'var(--text)';
-        description.textContent = 'Mixed signals';
+        description.textContent = pcDesc + ' + ' + vixDesc + ' = Mixed signals';
     } else if (score >= 25) {
         label.textContent = 'LEAN BEARISH';
         label.style.color = 'var(--red)';
-        description.textContent = 'Elevated caution';
+        description.textContent = pcDesc + ' + ' + vixDesc + ' = Elevated caution';
     } else {
         label.textContent = 'BEARISH';
         label.style.color = 'var(--red)';
-        description.textContent = 'High P/C + High VIX = Risk Off';
+        description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk Off';
     }
 }
 
