@@ -119,7 +119,16 @@ function getFuturesInfo(ticker) {
 function formatExpirationOptions(expirations, selectedIndex = 0) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // Auto-select first non-expired expiration if default would be expired
+    if (selectedIndex === 0) {
+        for (let i = 0; i < expirations.length; i++) {
+            const exp = typeof expirations[i] === 'string' ? expirations[i] : expirations[i].date;
+            if (exp >= todayStr) { selectedIndex = i; break; }
+        }
+    }
 
     const groups = {
         thisWeek: [],
