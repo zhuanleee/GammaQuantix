@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260206v">
+    <link rel="stylesheet" href="css/styles.css?v=20260206w">
 </head>
 <body>
     <!-- Header -->
@@ -135,6 +135,10 @@
 
         <!-- Tab Bar -->
         <div class="tab-bar">
+            <button class="tab-btn" data-tab="tab-chart" onclick="showTab('tab-chart')" title="Full-screen price chart with technical indicators, GEX overlays, and volume">
+                Chart
+                <span class="tab-accent"></span>
+            </button>
             <button class="tab-btn active" data-tab="tab-analysis" onclick="showTab('tab-analysis')" title="Options sentiment, max pain, IV rank, expected move, and IV smile">
                 Analysis
                 <span class="tab-accent"></span>
@@ -143,7 +147,7 @@
                 Chain & Flow
                 <span class="tab-accent"></span>
             </button>
-            <button class="tab-btn" data-tab="tab-gex" onclick="showTab('tab-gex')" title="Price chart with GEX overlays, volume profile, and detailed GEX dashboard">
+            <button class="tab-btn" data-tab="tab-gex" onclick="showTab('tab-gex')" title="GEX dashboard with regime analysis, key levels, and strike data">
                 GEX
                 <span class="tab-accent"></span>
             </button>
@@ -420,13 +424,11 @@
 
         </div><!-- end tab-chain-flow -->
 
-        <!-- ===== TAB: GEX ===== -->
-        <div class="tab-content" id="tab-gex">
-
-            <!-- Options Visualization Chart -->
-            <div id="options-viz-container" class="card" style="display: none; margin-bottom: 20px;">
+        <!-- ===== TAB: CHART ===== -->
+        <div class="tab-content" id="tab-chart">
+            <div id="options-viz-container" class="card" style="display: none;">
                 <div class="card-header">
-                    <div class="card-title">OPTIONS VISUALIZATION <span id="viz-ticker-label"></span></div>
+                    <div class="card-title">CHART <span id="viz-ticker-label"></span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <div class="interval-selector">
                             <button class="interval-btn" onclick="setInterval_('1m')">1m</button>
@@ -517,8 +519,8 @@
                         <span class="toggle-label vol">Vol</span>
                     </label>
                 </div>
-                <div class="card-body chart-body">
-                    <div id="price-chart-container" class="chart-container">
+                <div class="card-body chart-body" style="min-height: 600px;">
+                    <div id="price-chart-container" class="chart-container" style="min-height: 500px;">
                         <div class="chart-loading">Loading price data...</div>
                     </div>
                     <div id="rsi-chart-container" class="chart-container rsi-pane" style="display:none;">
@@ -551,6 +553,10 @@
                     </div>
                 </div>
             </div>
+        </div><!-- end tab-chart -->
+
+        <!-- ===== TAB: GEX ===== -->
+        <div class="tab-content" id="tab-gex">
 
             <!-- GEX Dashboard -->
             <div id="gex-dashboard-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--orange);">
@@ -824,6 +830,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260206v"></script>
+    <script src="js/app.js?v=20260206w"></script>
 </body>
 </html>

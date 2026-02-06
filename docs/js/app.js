@@ -3119,9 +3119,8 @@ function showTab(tabId) {
     if (activeContent) activeContent.classList.add('active');
 
     // Re-render charts that were created while tab was hidden (0 dimensions)
-    if (tabId === 'tab-gex') {
+    if (tabId === 'tab-chart') {
         setTimeout(() => {
-            // Fully re-render both charts so they pick up correct container dimensions
             if (optionsVizData.candles && optionsVizData.candles.length > 0) {
                 renderPriceChart();
             }

@@ -1177,11 +1177,13 @@ select:focus {
     opacity: 1;
 }
 
+.tab-btn[data-tab="tab-chart"] .tab-accent { background: var(--cyan); }
 .tab-btn[data-tab="tab-analysis"] .tab-accent { background: var(--blue); }
 .tab-btn[data-tab="tab-chain-flow"] .tab-accent { background: var(--green); }
 .tab-btn[data-tab="tab-gex"] .tab-accent { background: var(--orange); }
 .tab-btn[data-tab="tab-strategy"] .tab-accent { background: var(--purple); }
 
+.tab-btn[data-tab="tab-chart"].active { color: var(--cyan); }
 .tab-btn[data-tab="tab-analysis"].active { color: var(--blue); }
 .tab-btn[data-tab="tab-chain-flow"].active { color: var(--green); }
 .tab-btn[data-tab="tab-gex"].active { color: var(--orange); }
