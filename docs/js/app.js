@@ -2,6 +2,16 @@
 // Version: 2.0.0
 console.log('Gamma Quantix v2.0.0 loaded');
 
+// Convert title attributes to data-tip for styled CSS tooltips (suppresses native tooltips)
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[title]').forEach(el => {
+        if (el.title && el.title.length > 0) {
+            el.setAttribute('data-tip', el.title);
+            el.removeAttribute('title');
+        }
+    });
+});
+
 // API Configuration
 const API_BASE = 'https://zhuanleee--stockstory-api-create-fastapi-app.modal.run';
 
