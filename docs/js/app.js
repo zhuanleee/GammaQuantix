@@ -1563,7 +1563,7 @@ function startLivePriceUpdates() {
                 if (!data.ok || !data.data) return;
                 const price = data.data.last || data.data.price || data.data.mid ||
                              ((data.data.bid + data.data.ask) / 2);
-                if (price && price > 0 && priceSeries) {
+                if (price && price > 0) {
                     updateLivePrice(price);
                 }
             } catch (e) {}
@@ -1612,7 +1612,7 @@ function startLivePricePolling() {
             const price = data.data.last || data.data.price || data.data.mid ||
                          ((data.data.bid + data.data.ask) / 2);
 
-            if (price && price > 0 && priceSeries) {
+            if (price && price > 0) {
                 updateLivePrice(price);
             }
         } catch (e) {}
@@ -1620,39 +1620,71 @@ function startLivePricePolling() {
 }
 
 function updateLivePrice(price) {
-    if (!priceSeries || !price || price <= 0) return;
+    if (!price || price <= 0) return;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayTimestamp = Math.floor(today.getTime() / 1000);
+    // Update candlestick chart if it exists
+    if (priceSeries && optionsVizData.candles.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayTimestamp = Math.floor(today.getTime() / 1000);
 
-    const lastCandle = optionsVizData.candles[optionsVizData.candles.length - 1];
+        const lastCandle = optionsVizData.candles[optionsVizData.candles.length - 1];
 
-    if (lastCandle && lastCandle.time >= todayTimestamp) {
-        const updatedCandle = {
-            time: lastCandle.time,
-            open: lastCandle.open,
-            high: Math.max(lastCandle.high, price),
-            low: Math.min(lastCandle.low, price),
-            close: price
-        };
-        priceSeries.update(updatedCandle);
-        optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
-    } else {
-        const newCandle = {
-            time: todayTimestamp,
-            open: price,
-            high: price,
-            low: price,
-            close: price
-        };
-        priceSeries.update(newCandle);
+        if (lastCandle && lastCandle.time >= todayTimestamp) {
+            const updatedCandle = {
+                time: lastCandle.time,
+                open: lastCandle.open,
+                high: Math.max(lastCandle.high, price),
+                low: Math.min(lastCandle.low, price),
+                close: price
+            };
+            priceSeries.update(updatedCandle);
+            optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
+        } else {
+            const newCandle = {
+                time: todayTimestamp,
+                open: price,
+                high: price,
+                low: price,
+                close: price
+            };
+            priceSeries.update(newCandle);
+        }
     }
 
     optionsVizData.currentPrice = price;
+    optionsChartData.currentPrice = price;
+
+    // Update ALL price displays across the page
     const priceEl = document.getElementById('viz-current-price');
-    if (priceEl) {
-        priceEl.textContent = `$${price.toFixed(2)}`;
+    if (priceEl) priceEl.textContent = `$${price.toFixed(2)}`;
+
+    // Analysis tab current price
+    const oaPriceEl = document.getElementById('oa-current-price');
+    if (oaPriceEl) oaPriceEl.textContent = `$${price.toFixed(2)}`;
+
+    // GEX dashboard distance percentages
+    const callWall = optionsVizData.callWall;
+    const putWall = optionsVizData.putWall;
+    const gammaFlip = optionsVizData.gammaFlip;
+
+    const cwDistEl = document.getElementById('gex-call-wall-dist');
+    if (cwDistEl && callWall > 0) {
+        const cwDist = ((callWall - price) / price * 100).toFixed(1);
+        cwDistEl.textContent = `${cwDist >= 0 ? '+' : ''}${cwDist}% from price`;
+    }
+    const pwDistEl = document.getElementById('gex-put-wall-dist');
+    if (pwDistEl && putWall > 0) {
+        const pwDist = ((putWall - price) / price * 100).toFixed(1);
+        pwDistEl.textContent = `${pwDist >= 0 ? '+' : ''}${pwDist}% from price`;
+    }
+
+    // Max pain distance on analysis tab
+    const mpDistEl = document.getElementById('oa-mp-dist');
+    if (mpDistEl && optionsVizData.maxPain > 0) {
+        const mpDist = ((optionsVizData.maxPain - price) / price * 100);
+        mpDistEl.textContent = `${mpDist >= 0 ? '+' : ''}${mpDist.toFixed(1)}%`;
+        mpDistEl.className = mpDist >= 0 ? 'mp-dist positive' : 'mp-dist negative';
     }
 
     updateVizInfoBar();
