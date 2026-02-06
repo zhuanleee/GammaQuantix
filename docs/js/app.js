@@ -1124,15 +1124,15 @@ async function loadOptionsViz(ticker) {
             ? `${API_BASE}/options/max-pain?ticker=${tickerParam}${expiry ? '&expiration=' + expiry : ''}`
             : `${API_BASE}/options/max-pain/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
 
-        const candlesUrl = `${API_BASE}/market/candles?ticker=${tickerParam}&days=${days}`;
-        const volumeProfileUrl = `${API_BASE}/volume-profile/${isFutures ? 'SPY' : ticker}?days=30`;
+        const candlesUrl = isFutures ? null : `${API_BASE}/market/candles?ticker=${tickerParam}&days=${days}`;
+        const volumeProfileUrl = isFutures ? null : `${API_BASE}/volume-profile/${ticker}?days=30`;
 
         const [gexLevelsRes, gexRes, maxPainRes, candlesRes, vpRes] = await Promise.all([
             fetch(gexLevelsUrl),
             fetch(gexUrl),
             fetch(maxPainUrl),
-            fetch(candlesUrl).catch(e => null),
-            fetch(volumeProfileUrl).catch(e => null)
+            candlesUrl ? fetch(candlesUrl).catch(e => null) : Promise.resolve(null),
+            volumeProfileUrl ? fetch(volumeProfileUrl).catch(e => null) : Promise.resolve(null)
         ]);
 
         if (!gexLevelsRes.ok) throw new Error(`GEX Levels API error: ${gexLevelsRes.status}`);
@@ -1171,7 +1171,7 @@ async function loadOptionsViz(ticker) {
             optionsVizData.candles = [];
         }
 
-        // Parse volume profile
+        // Parse volume profile (skip for futures - no relevant VP data)
         if (vpRes && vpRes.ok) {
             try {
                 const vpData = await vpRes.json();
@@ -1183,6 +1183,10 @@ async function loadOptionsViz(ticker) {
             } catch (e) {
                 console.warn('Error parsing volume profile:', e);
             }
+        } else {
+            optionsVizData.val = 0;
+            optionsVizData.poc = 0;
+            optionsVizData.vah = 0;
         }
 
         // Extract levels
@@ -1338,7 +1342,7 @@ function renderPriceChart() {
             horzLines: { color: 'rgba(255,255,255,0.05)' },
         },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)', autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
         timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
         width: container.clientWidth,
         height: container.clientHeight || 300,
