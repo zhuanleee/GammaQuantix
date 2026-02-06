@@ -1464,10 +1464,13 @@ function renderPriceChart() {
         // Create a synthetic candle from current price so chart can render and live updates work
         if (optionsVizData.currentPrice > 0) {
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const isDaily = selectedInterval === '1d' || selectedInterval === '1w';
             const p = optionsVizData.currentPrice;
+            const t = isDaily
+                ? today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
+                : Math.floor(today.getTime() / 1000);
             optionsVizData.candles = [{
-                time: Math.floor(today.getTime() / 1000),
+                time: t,
                 open: p, high: p, low: p, close: p, volume: 0
             }];
         } else {
@@ -1741,11 +1744,11 @@ function updateLivePrice(price) {
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             }
         } else {
+            // Daily/weekly: use YYYY-MM-DD strings to match candle data format
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayTimestamp = Math.floor(today.getTime() / 1000);
+            const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
-            if (lastCandle && lastCandle.time >= todayTimestamp) {
+            if (lastCandle && lastCandle.time === todayStr) {
                 const updatedCandle = {
                     time: lastCandle.time,
                     open: lastCandle.open,
@@ -1758,7 +1761,7 @@ function updateLivePrice(price) {
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             } else {
                 const newCandle = {
-                    time: todayTimestamp,
+                    time: todayStr,
                     open: price,
                     high: price,
                     low: price,
