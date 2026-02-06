@@ -2514,16 +2514,26 @@ function showTab(tabId) {
 
     // Re-render charts that need container dimensions (they get 0 width when hidden)
     if (tabId === 'tab-gex') {
-        if (priceChart && document.getElementById('price-chart-container')?.clientWidth > 0) {
-            priceChart.applyOptions({ width: document.getElementById('price-chart-container').clientWidth });
-            priceChart.timeScale().fitContent();
-        }
-        if (optionsVizChart) {
-            try { optionsVizChart.render(); } catch(e) {}
-        }
+        setTimeout(() => {
+            const priceContainer = document.getElementById('price-chart-container');
+            if (priceChart && priceContainer && priceContainer.clientWidth > 0) {
+                priceChart.resize(priceContainer.clientWidth, priceContainer.clientHeight || 300);
+                priceChart.timeScale().fitContent();
+            }
+            const gexContainer = document.getElementById('gex-chart-container');
+            if (optionsVizChart && gexContainer && gexContainer.clientWidth > 0) {
+                try {
+                    optionsVizChart.updateOptions({
+                        chart: { width: gexContainer.clientWidth, height: gexContainer.clientHeight || 200 }
+                    });
+                } catch(e) {}
+            }
+        }, 50);
     }
     if (tabId === 'tab-analysis' && ivSmileChart) {
-        try { ivSmileChart.render(); } catch(e) {}
+        setTimeout(() => {
+            try { ivSmileChart.updateOptions({ chart: { width: document.getElementById('iv-smile-chart')?.clientWidth } }); } catch(e) {}
+        }, 50);
     }
 }
 
