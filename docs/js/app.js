@@ -521,7 +521,8 @@ async function loadGexDashboard() {
     container.style.display = 'block';
     document.getElementById('gex-ticker').textContent = ticker;
 
-    // Reset fields
+    // Reset retry flag and fields
+    window._combinedRetried = false;
     const resetFields = ['gex-regime-badge', 'gex-regime-confidence', 'gex-regime-strategy',
         'gex-regime-recommendation', 'combined-regime-badge', 'combined-risk-level',
         'combined-position-size', 'combined-recommendation', 'gex-call-wall', 'gex-put-wall',
@@ -601,7 +602,7 @@ async function loadGexDashboard() {
             else riskEl.style.color = 'var(--text)';
 
             document.getElementById('combined-position-size').textContent =
-                c.position_sizing ? `${(c.position_sizing * 100).toFixed(0)}%` : '--';
+                (c.position_multiplier || c.position_sizing) ? `${((c.position_multiplier || c.position_sizing) * 100).toFixed(0)}%` : '--';
             document.getElementById('combined-recommendation').textContent =
                 c.recommendation || '--';
 
@@ -621,6 +622,55 @@ async function loadGexDashboard() {
                 sentimentEl.style.color = 'var(--green)';
             } else {
                 sentimentEl.style.color = 'var(--text-muted)';
+            }
+        } else if (!combinedData.ok) {
+            // Retry once on failure (stale container / DXLinkStreamer timeout)
+            if (!window._combinedRetried) {
+                window._combinedRetried = true;
+                setTimeout(() => {
+                    const retryUrl = isFutures
+                        ? `${API_BASE}/options/combined-regime?ticker=${encodeURIComponent(ticker)}${expiryParam}`
+                        : `${API_BASE}/options/combined-regime/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
+                    fetch(retryUrl).then(r => r.json()).then(retryData => {
+                        if (retryData.ok && retryData.data) {
+                            const c = retryData.data;
+                            const badge = document.getElementById('combined-regime-badge');
+                            badge.textContent = (c.combined_regime || '--').toUpperCase().replace('_', ' ');
+                            const regimeColors = {
+                                'opportunity': { bg: 'rgba(34, 197, 94, 0.2)', color: 'var(--green)' },
+                                'melt_up': { bg: 'rgba(59, 130, 246, 0.2)', color: 'var(--blue)' },
+                                'high_risk': { bg: 'rgba(251, 191, 36, 0.2)', color: 'var(--orange)' },
+                                'danger': { bg: 'rgba(239, 68, 68, 0.2)', color: 'var(--red)' }
+                            };
+                            const colors = regimeColors[c.combined_regime] || { bg: 'var(--bg)', color: 'var(--text-muted)' };
+                            badge.style.background = colors.bg;
+                            badge.style.color = colors.color;
+                            document.getElementById('combined-risk-level').textContent = c.risk_level || '--';
+                            document.getElementById('combined-position-size').textContent =
+                                (c.position_multiplier || c.position_sizing) ? `${((c.position_multiplier || c.position_sizing) * 100).toFixed(0)}%` : '--';
+                            document.getElementById('combined-recommendation').textContent = c.recommendation || '--';
+                            const zscoreEl = document.getElementById('gex-pc-zscore');
+                            zscoreEl.textContent = c.pc_zscore !== undefined ? c.pc_zscore.toFixed(2) : '--';
+                            const sentimentEl = document.getElementById('gex-pc-sentiment');
+                            sentimentEl.textContent = c.pc_sentiment || '--';
+                        } else {
+                            // Give up - show dashes
+                            document.getElementById('combined-regime-badge').textContent = '--';
+                            document.getElementById('combined-risk-level').textContent = '--';
+                            document.getElementById('combined-position-size').textContent = '--';
+                            document.getElementById('combined-recommendation').textContent = '--';
+                            document.getElementById('gex-pc-zscore').textContent = '--';
+                            document.getElementById('gex-pc-sentiment').textContent = '--';
+                        }
+                    }).catch(() => {
+                        document.getElementById('combined-regime-badge').textContent = '--';
+                        document.getElementById('combined-risk-level').textContent = '--';
+                        document.getElementById('combined-position-size').textContent = '--';
+                        document.getElementById('combined-recommendation').textContent = '--';
+                        document.getElementById('gex-pc-zscore').textContent = '--';
+                        document.getElementById('gex-pc-sentiment').textContent = '--';
+                    });
+                }, 2000);
             }
         }
 
