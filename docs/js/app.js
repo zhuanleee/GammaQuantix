@@ -2512,22 +2512,14 @@ function showTab(tabId) {
     const activeContent = document.getElementById(tabId);
     if (activeContent) activeContent.classList.add('active');
 
-    // Re-render charts that need container dimensions (they get 0 width when hidden)
+    // Re-render charts that were created while tab was hidden (0 dimensions)
     if (tabId === 'tab-gex') {
         setTimeout(() => {
-            const priceContainer = document.getElementById('price-chart-container');
-            if (priceChart && priceContainer && priceContainer.clientWidth > 0) {
-                priceChart.resize(priceContainer.clientWidth, priceContainer.clientHeight || 300);
-                priceChart.timeScale().fitContent();
+            // Fully re-render both charts so they pick up correct container dimensions
+            if (optionsVizData.candles && optionsVizData.candles.length > 0) {
+                renderPriceChart();
             }
-            const gexContainer = document.getElementById('gex-chart-container');
-            if (optionsVizChart && gexContainer && gexContainer.clientWidth > 0) {
-                try {
-                    optionsVizChart.updateOptions({
-                        chart: { width: gexContainer.clientWidth, height: gexContainer.clientHeight || 200 }
-                    });
-                } catch(e) {}
-            }
+            renderVizGexChart();
         }, 50);
     }
     if (tabId === 'tab-analysis' && ivSmileChart) {
