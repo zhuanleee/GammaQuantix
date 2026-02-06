@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260206z">
+    <link rel="stylesheet" href="css/styles.css?v=20260207a">
 </head>
 <body>
     <!-- Header -->
@@ -428,7 +428,7 @@
         <div class="tab-content" id="tab-chart">
             <div id="options-viz-container" class="card" style="display: none;">
                 <div class="card-header">
-                    <div class="card-title">CHART <span id="viz-ticker-label"></span></div>
+                    <div class="card-title">CHART <span id="viz-ticker-label"></span> <span id="live-status" style="font-size: 0.65rem; font-weight: 500; margin-left: 8px; display: none;"><span id="live-status-dot" style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle;"></span><span id="live-status-text"></span></span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <div class="interval-selector">
                             <button class="interval-btn" onclick="setInterval_('1m')">1m</button>
@@ -830,6 +830,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260206z4"></script>
+    <script src="js/app.js?v=20260207a"></script>
 </body>
 </html>

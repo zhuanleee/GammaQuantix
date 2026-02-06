@@ -76,6 +76,8 @@ let priceSeries = null;
 let priceLines = {};
 let livePriceInterval = null;
 let livePriceWs = null;
+let wsRetries = 0;
+const MAX_WS_RETRIES = 2;
 
 let optionsVizData = {
     gexByStrike: [],
@@ -320,8 +322,8 @@ async function loadOptionsAnalysis() {
     optionsAnalysisTicker = ticker;
     localStorage.setItem('gq_ticker', ticker);
 
-    // Switch to Analysis tab
-    showTab('tab-analysis');
+    // Switch to Analysis tab only on first load; otherwise stay on current tab
+    if (!activeTab || activeTab === 'tab-analysis') showTab('tab-analysis');
 
     const container = document.getElementById('options-analysis-container');
     container.style.display = 'block';
@@ -1685,6 +1687,11 @@ function startLivePriceUpdates() {
     try {
         livePriceWs = new WebSocket(wsUrl);
 
+        livePriceWs.onopen = () => {
+            wsRetries = 0;
+            updateConnectionStatus('live');
+        };
+
         livePriceWs.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
@@ -1699,18 +1706,28 @@ function startLivePriceUpdates() {
 
         livePriceWs.onclose = () => {
             livePriceWs = null;
-            // Auto-reconnect after 5 seconds if still on same ticker
-            setTimeout(() => {
-                if (optionsAnalysisTicker === ticker) startLivePriceUpdates();
-            }, 5000);
+            // Auto-reconnect after 5 seconds if still on same ticker (only if not error-triggered)
+            if (wsRetries === 0) {
+                setTimeout(() => {
+                    if (optionsAnalysisTicker === ticker) startLivePriceUpdates();
+                }, 5000);
+            }
         };
 
         livePriceWs.onerror = () => {
-            // Fall back to REST polling if WebSocket fails
             if (livePriceWs) { livePriceWs.close(); livePriceWs = null; }
-            startLivePricePolling();
+            wsRetries++;
+            if (wsRetries <= MAX_WS_RETRIES) {
+                setTimeout(() => startLivePriceUpdates(), 2000);
+            } else {
+                updateConnectionStatus('polling');
+                startLivePricePolling();
+                // Retry WebSocket every 30s while polling
+                setTimeout(() => { wsRetries = 0; startLivePriceUpdates(); }, 30000);
+            }
         };
     } catch (e) {
+        updateConnectionStatus('polling');
         startLivePricePolling();
     }
 
@@ -1747,6 +1764,23 @@ function startLivePricePolling() {
     }, 5000);
 }
 
+function updateConnectionStatus(mode) {
+    const statusEl = document.getElementById('live-status');
+    const dotEl = document.getElementById('live-status-dot');
+    const textEl = document.getElementById('live-status-text');
+    if (!statusEl || !dotEl || !textEl) return;
+    statusEl.style.display = 'inline';
+    if (mode === 'live') {
+        dotEl.style.background = '#10b981';
+        textEl.textContent = 'Live';
+        textEl.style.color = '#10b981';
+    } else {
+        dotEl.style.background = '#f59e0b';
+        textEl.textContent = 'Delayed';
+        textEl.style.color = '#f59e0b';
+    }
+}
+
 function updateLivePrice(price) {
     if (!price || price <= 0) return;
 
@@ -1770,8 +1804,8 @@ function updateLivePrice(price) {
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             }
         } else {
-            // Daily/weekly: use YYYY-MM-DD strings to match candle data format
-            const today = new Date();
+            // Daily/weekly: use YYYY-MM-DD strings to match candle data format (US/Eastern to match Yahoo Finance)
+            const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
             const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
 
             if (lastCandle && lastCandle.time === todayStr) {
@@ -1795,6 +1829,7 @@ function updateLivePrice(price) {
                     volume: 0
                 };
                 priceSeries.update(newCandle);
+                optionsVizData.candles.push(newCandle);
             }
         }
     }
