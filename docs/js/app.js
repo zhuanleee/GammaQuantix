@@ -1183,14 +1183,14 @@ async function loadOptionsViz(ticker) {
             ? `${API_BASE}/options/max-pain?ticker=${tickerParam}${expiry ? '&expiration=' + expiry : ''}`
             : `${API_BASE}/options/max-pain/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
 
-        const candlesUrl = isFutures ? null : `${API_BASE}/market/candles?ticker=${tickerParam}&days=${days}`;
+        const candlesUrl = `${API_BASE}/market/candles?ticker=${tickerParam}&days=${days}`;
         const volumeProfileUrl = isFutures ? null : `${API_BASE}/volume-profile/${ticker}?days=30`;
 
         const [gexLevelsRes, gexRes, maxPainRes, candlesRes, vpRes] = await Promise.all([
             fetch(gexLevelsUrl),
             fetch(gexUrl),
             fetch(maxPainUrl),
-            candlesUrl ? fetch(candlesUrl).catch(e => null) : Promise.resolve(null),
+            fetch(candlesUrl).catch(e => null),
             volumeProfileUrl ? fetch(volumeProfileUrl).catch(e => null) : Promise.resolve(null)
         ]);
 
