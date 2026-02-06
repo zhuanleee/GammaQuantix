@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260206u">
+    <link rel="stylesheet" href="css/styles.css?v=20260206v">
 </head>
 <body>
     <!-- Header -->
@@ -428,6 +428,15 @@
                 <div class="card-header">
                     <div class="card-title">OPTIONS VISUALIZATION <span id="viz-ticker-label"></span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
+                        <div class="interval-selector">
+                            <button class="interval-btn" onclick="setInterval_('1m')">1m</button>
+                            <button class="interval-btn" onclick="setInterval_('5m')">5m</button>
+                            <button class="interval-btn" onclick="setInterval_('15m')">15m</button>
+                            <button class="interval-btn" onclick="setInterval_('1h')">1h</button>
+                            <button class="interval-btn" onclick="setInterval_('4h')">4h</button>
+                            <button class="interval-btn active" onclick="setInterval_('1d')">1D</button>
+                            <button class="interval-btn" onclick="setInterval_('1w')">1W</button>
+                        </div>
                         <select id="viz-timeframe" onchange="refreshOptionsViz()" title="Chart timeframe - select how far back to show price history">
                             <option value="5">5D</option>
                             <option value="30" selected>1M</option>
@@ -476,9 +485,43 @@
                         <span class="toggle-label">GEX Chart</span>
                     </label>
                 </div>
+                <!-- Indicator Toggle Panel -->
+                <div class="toggle-panel-indicators">
+                    <label class="toggle-item" title="Simple Moving Average (20 period) - short-term trend">
+                        <input type="checkbox" id="viz-toggle-sma20" onchange="updateIndicators()">
+                        <span class="toggle-label sma20">SMA 20</span>
+                    </label>
+                    <label class="toggle-item" title="Simple Moving Average (50 period) - medium-term trend">
+                        <input type="checkbox" id="viz-toggle-sma50" onchange="updateIndicators()">
+                        <span class="toggle-label sma50">SMA 50</span>
+                    </label>
+                    <label class="toggle-item" title="Simple Moving Average (200 period) - long-term trend">
+                        <input type="checkbox" id="viz-toggle-sma200" onchange="updateIndicators()">
+                        <span class="toggle-label sma200">SMA 200</span>
+                    </label>
+                    <label class="toggle-item" title="Volume Weighted Average Price - institutional fair value">
+                        <input type="checkbox" id="viz-toggle-vwap" onchange="updateIndicators()">
+                        <span class="toggle-label vwap">VWAP</span>
+                    </label>
+                    <label class="toggle-item" title="Bollinger Bands (20, 2) - volatility envelope around SMA 20">
+                        <input type="checkbox" id="viz-toggle-bb" onchange="updateIndicators()">
+                        <span class="toggle-label bb">BB</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <label class="toggle-item" title="Relative Strength Index (14) - momentum oscillator 0-100">
+                        <input type="checkbox" id="viz-toggle-rsi" onchange="toggleRsiChart()">
+                        <span class="toggle-label rsi">RSI</span>
+                    </label>
+                    <label class="toggle-item" title="Volume bars at bottom of price chart">
+                        <input type="checkbox" id="viz-toggle-volume" checked onchange="toggleVolumeSeries()">
+                        <span class="toggle-label vol">Vol</span>
+                    </label>
+                </div>
                 <div class="card-body chart-body">
                     <div id="price-chart-container" class="chart-container">
                         <div class="chart-loading">Loading price data...</div>
+                    </div>
+                    <div id="rsi-chart-container" class="chart-container rsi-pane" style="display:none;">
                     </div>
                     <div id="gex-chart-container" class="chart-container" style="height: 200px;">
                         <div class="chart-loading">Loading GEX data...</div>
@@ -781,6 +824,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260206u"></script>
+    <script src="js/app.js?v=20260206v"></script>
 </body>
 </html>

@@ -1331,3 +1331,62 @@ select:focus {
         font-size: 0.7rem;
     }
 }
+
+/* Interval Selector */
+.interval-selector {
+    display: flex;
+    gap: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.interval-btn {
+    padding: 3px 8px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.interval-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.interval-btn.active {
+    background: var(--blue);
+    color: white;
+}
+
+/* Indicator Toggle Panel */
+.toggle-panel-indicators {
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.75rem;
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.toggle-label.sma20 { color: var(--yellow); }
+.toggle-label.sma50 { color: var(--cyan); }
+.toggle-label.sma200 { color: var(--magenta); }
+.toggle-label.vwap { color: #fbbf24; }
+.toggle-label.bb { color: #818cf8; }
+.toggle-label.rsi { color: var(--purple); }
+.toggle-label.vol { color: var(--text-muted); }
+
+/* RSI Pane */
+.rsi-pane {
+    height: 100px;
+    min-height: 100px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}

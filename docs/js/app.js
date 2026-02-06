@@ -97,6 +97,17 @@ let optionsVizData = {
     vpPosition: 'In Range'
 };
 
+// Technical indicator state
+let volumeSeries = null;
+let indicatorSeries = {};    // {sma20, sma50, sma200, vwap, bbMiddle, bbUpper, bbLower}
+let rsiChart = null;
+let rsiSeries = null;
+let selectedInterval = '1d';
+const INTERVAL_DAYS_MAP = {
+    '1m': 1, '5m': 5, '15m': 10, '30m': 15,
+    '1h': 30, '4h': 60, '1d': null, '1w': null
+};
+
 // Tab state
 let activeTab = 'tab-analysis';
 let ivSmileChart = null;
@@ -1241,7 +1252,8 @@ async function loadOptionsViz(ticker) {
             ? `${API_BASE}/options/max-pain?ticker=${tickerParam}${expiry ? '&expiration=' + expiry : ''}`
             : `${API_BASE}/options/max-pain/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
 
-        const candlesUrl = `${API_BASE}/market/candles?ticker=${tickerParam}&days=${days}`;
+        const effectiveDays = INTERVAL_DAYS_MAP[selectedInterval] || days;
+        const candlesUrl = `${API_BASE}/market/candles?ticker=${tickerParam}&days=${effectiveDays}&interval=${selectedInterval}`;
         const volumeProfileUrl = isFutures ? null : `${API_BASE}/volume-profile/${ticker}?days=30`;
 
         const [gexLevelsRes, gexRes, maxPainRes, candlesRes, vpRes] = await Promise.all([
@@ -1277,7 +1289,8 @@ async function loadOptionsViz(ticker) {
                     open: c.open || c.o,
                     high: c.high || c.h,
                     low: c.low || c.l,
-                    close: c.close || c.c
+                    close: c.close || c.c,
+                    volume: c.volume || c.v || 0
                 })).filter(c => c.time && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
                 .filter(c => c.low >= c.open * 0.5 && c.high <= c.open * 2);
             } catch (e) {
@@ -1428,6 +1441,8 @@ function renderPriceChart() {
         priceChart.remove();
         priceChart = null;
         priceSeries = null;
+        volumeSeries = null;
+        indicatorSeries = {};
         priceLines = {};
     }
 
@@ -1439,7 +1454,7 @@ function renderPriceChart() {
             const p = optionsVizData.currentPrice;
             optionsVizData.candles = [{
                 time: Math.floor(today.getTime() / 1000),
-                open: p, high: p, low: p, close: p
+                open: p, high: p, low: p, close: p, volume: 0
             }];
         } else {
             container.innerHTML = '<div class="chart-loading">No price data available</div>';
@@ -1476,7 +1491,19 @@ function renderPriceChart() {
 
     priceSeries.setData(optionsVizData.candles);
 
+    // Volume histogram
+    if (document.getElementById('viz-toggle-volume')?.checked) {
+        addVolumeSeries();
+    }
+
     updatePriceChartLevels();
+    updateIndicators();
+
+    // RSI chart if enabled
+    if (document.getElementById('viz-toggle-rsi')?.checked) {
+        renderRsiChart();
+        document.getElementById('rsi-chart-container').style.display = 'block';
+    }
 
     priceChart.timeScale().fitContent();
 
@@ -1682,31 +1709,50 @@ function updateLivePrice(price) {
 
     // Update candlestick chart if it exists
     if (priceSeries && optionsVizData.candles.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayTimestamp = Math.floor(today.getTime() / 1000);
-
+        const isIntraday = INTERVAL_DAYS_MAP[selectedInterval] !== null;
         const lastCandle = optionsVizData.candles[optionsVizData.candles.length - 1];
 
-        if (lastCandle && lastCandle.time >= todayTimestamp) {
-            const updatedCandle = {
-                time: lastCandle.time,
-                open: lastCandle.open,
-                high: Math.max(lastCandle.high, price),
-                low: Math.min(lastCandle.low, price),
-                close: price
-            };
-            priceSeries.update(updatedCandle);
-            optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
+        if (isIntraday) {
+            // For intraday, update the last candle directly
+            if (lastCandle) {
+                const updatedCandle = {
+                    time: lastCandle.time,
+                    open: lastCandle.open,
+                    high: Math.max(lastCandle.high, price),
+                    low: Math.min(lastCandle.low, price),
+                    close: price,
+                    volume: lastCandle.volume || 0
+                };
+                priceSeries.update(updatedCandle);
+                optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
+            }
         } else {
-            const newCandle = {
-                time: todayTimestamp,
-                open: price,
-                high: price,
-                low: price,
-                close: price
-            };
-            priceSeries.update(newCandle);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayTimestamp = Math.floor(today.getTime() / 1000);
+
+            if (lastCandle && lastCandle.time >= todayTimestamp) {
+                const updatedCandle = {
+                    time: lastCandle.time,
+                    open: lastCandle.open,
+                    high: Math.max(lastCandle.high, price),
+                    low: Math.min(lastCandle.low, price),
+                    close: price,
+                    volume: lastCandle.volume || 0
+                };
+                priceSeries.update(updatedCandle);
+                optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
+            } else {
+                const newCandle = {
+                    time: todayTimestamp,
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
+                    volume: 0
+                };
+                priceSeries.update(newCandle);
+            }
         }
     }
 
@@ -1942,6 +1988,356 @@ function refreshOptionsViz() {
         return;
     }
     loadOptionsViz(ticker);
+}
+
+// =============================================================================
+// INTERVAL SELECTION
+// =============================================================================
+function setInterval_(interval) {
+    selectedInterval = interval;
+
+    // Toggle active class on buttons
+    document.querySelectorAll('.interval-btn').forEach(btn => btn.classList.remove('active'));
+    const buttons = document.querySelectorAll('.interval-btn');
+    buttons.forEach(btn => {
+        const label = btn.textContent.trim().toLowerCase();
+        if (label === interval || (interval === '1d' && label === '1d') || (interval === '1w' && label === '1w')) {
+            btn.classList.add('active');
+        }
+    });
+
+    const tfSelect = document.getElementById('viz-timeframe');
+    if (INTERVAL_DAYS_MAP[interval] !== null) {
+        // Intraday: disable timeframe dropdown since days are auto-mapped
+        if (tfSelect) tfSelect.disabled = true;
+    } else {
+        // Daily/weekly: re-enable timeframe dropdown
+        if (tfSelect) tfSelect.disabled = false;
+    }
+
+    refreshOptionsViz();
+}
+
+// =============================================================================
+// VOLUME SERIES
+// =============================================================================
+function addVolumeSeries() {
+    if (!priceChart || !optionsVizData.candles || optionsVizData.candles.length === 0) return;
+
+    volumeSeries = priceChart.addHistogramSeries({
+        priceFormat: { type: 'volume' },
+        priceScaleId: 'volume',
+        scaleMargins: { top: 0.8, bottom: 0 },
+    });
+
+    priceChart.priceScale('volume').applyOptions({
+        scaleMargins: { top: 0.8, bottom: 0 },
+    });
+
+    const volData = optionsVizData.candles.map(c => ({
+        time: c.time,
+        value: c.volume || 0,
+        color: c.close >= c.open ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'
+    }));
+
+    volumeSeries.setData(volData);
+}
+
+function toggleVolumeSeries() {
+    const show = document.getElementById('viz-toggle-volume')?.checked;
+    if (show) {
+        if (!volumeSeries && priceChart) {
+            addVolumeSeries();
+        }
+    } else {
+        if (volumeSeries && priceChart) {
+            try { priceChart.removeSeries(volumeSeries); } catch(e) {}
+            volumeSeries = null;
+        }
+    }
+}
+
+// =============================================================================
+// TECHNICAL INDICATOR CALCULATIONS
+// =============================================================================
+function calcSMA(candles, period) {
+    const result = [];
+    for (let i = period - 1; i < candles.length; i++) {
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sum += candles[j].close;
+        }
+        result.push({ time: candles[i].time, value: sum / period });
+    }
+    return result;
+}
+
+function calcVWAP(candles, resetDaily) {
+    const result = [];
+    let cumVol = 0, cumTP = 0;
+    let prevDate = null;
+
+    for (let i = 0; i < candles.length; i++) {
+        const c = candles[i];
+        const tp = (c.high + c.low + c.close) / 3;
+        const vol = c.volume || 0;
+
+        // Reset daily for intraday intervals
+        if (resetDaily && vol > 0) {
+            const d = new Date(typeof c.time === 'number' ? c.time * 1000 : c.time);
+            const dateStr = d.toISOString().slice(0, 10);
+            if (dateStr !== prevDate) {
+                cumVol = 0;
+                cumTP = 0;
+                prevDate = dateStr;
+            }
+        }
+
+        cumVol += vol;
+        cumTP += tp * vol;
+
+        if (cumVol > 0) {
+            result.push({ time: c.time, value: cumTP / cumVol });
+        }
+    }
+    return result;
+}
+
+function calcBollingerBands(candles, period, mult) {
+    const middle = [], upper = [], lower = [];
+    for (let i = period - 1; i < candles.length; i++) {
+        let sum = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sum += candles[j].close;
+        }
+        const mean = sum / period;
+
+        let sqSum = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sqSum += (candles[j].close - mean) ** 2;
+        }
+        const std = Math.sqrt(sqSum / period);
+
+        middle.push({ time: candles[i].time, value: mean });
+        upper.push({ time: candles[i].time, value: mean + mult * std });
+        lower.push({ time: candles[i].time, value: mean - mult * std });
+    }
+    return { middle, upper, lower };
+}
+
+function calcRSI(candles, period) {
+    if (candles.length < period + 1) return [];
+
+    const result = [];
+    let avgGain = 0, avgLoss = 0;
+
+    // Initial average
+    for (let i = 1; i <= period; i++) {
+        const change = candles[i].close - candles[i - 1].close;
+        if (change > 0) avgGain += change;
+        else avgLoss += Math.abs(change);
+    }
+    avgGain /= period;
+    avgLoss /= period;
+
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    result.push({ time: candles[period].time, value: 100 - (100 / (1 + rs)) });
+
+    // Smoothed
+    for (let i = period + 1; i < candles.length; i++) {
+        const change = candles[i].close - candles[i - 1].close;
+        const gain = change > 0 ? change : 0;
+        const loss = change < 0 ? Math.abs(change) : 0;
+
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+
+        const rs2 = avgLoss === 0 ? 100 : avgGain / avgLoss;
+        result.push({ time: candles[i].time, value: 100 - (100 / (1 + rs2)) });
+    }
+    return result;
+}
+
+// =============================================================================
+// UPDATE INDICATORS ON PRICE CHART
+// =============================================================================
+function updateIndicators() {
+    if (!priceChart || !priceSeries) return;
+
+    // Remove existing indicator series
+    Object.values(indicatorSeries).forEach(s => {
+        if (s) {
+            try { priceChart.removeSeries(s); } catch(e) {}
+        }
+    });
+    indicatorSeries = {};
+
+    const candles = optionsVizData.candles;
+    if (!candles || candles.length < 2) return;
+
+    const addLine = (id, data, color, lineWidth, lineStyle) => {
+        if (data.length === 0) return;
+        const series = priceChart.addLineSeries({
+            color: color,
+            lineWidth: lineWidth || 1,
+            lineStyle: lineStyle || LightweightCharts.LineStyle.Solid,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+        });
+        series.setData(data);
+        indicatorSeries[id] = series;
+    };
+
+    // SMA 20
+    if (document.getElementById('viz-toggle-sma20')?.checked) {
+        addLine('sma20', calcSMA(candles, 20), '#eab308', 1);
+    }
+
+    // SMA 50
+    if (document.getElementById('viz-toggle-sma50')?.checked) {
+        addLine('sma50', calcSMA(candles, 50), '#06b6d4', 1);
+    }
+
+    // SMA 200
+    if (document.getElementById('viz-toggle-sma200')?.checked) {
+        addLine('sma200', calcSMA(candles, 200), '#d946ef', 1);
+    }
+
+    // VWAP
+    if (document.getElementById('viz-toggle-vwap')?.checked) {
+        const isIntraday = INTERVAL_DAYS_MAP[selectedInterval] !== null;
+        addLine('vwap', calcVWAP(candles, isIntraday), '#fbbf24', 2);
+    }
+
+    // Bollinger Bands
+    if (document.getElementById('viz-toggle-bb')?.checked) {
+        const bb = calcBollingerBands(candles, 20, 2);
+        addLine('bbMiddle', bb.middle, '#818cf8', 1);
+        addLine('bbUpper', bb.upper, 'rgba(129, 140, 248, 0.6)', 1, LightweightCharts.LineStyle.Dashed);
+        addLine('bbLower', bb.lower, 'rgba(129, 140, 248, 0.6)', 1, LightweightCharts.LineStyle.Dashed);
+    }
+}
+
+// =============================================================================
+// RSI CHART
+// =============================================================================
+function renderRsiChart() {
+    const container = document.getElementById('rsi-chart-container');
+    if (!container) return;
+
+    // Destroy existing
+    if (rsiChart) {
+        try { rsiChart.remove(); } catch(e) {}
+        rsiChart = null;
+        rsiSeries = null;
+    }
+
+    const candles = optionsVizData.candles;
+    if (!candles || candles.length < 16) {
+        container.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">Not enough data for RSI</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    rsiChart = LightweightCharts.createChart(container, {
+        layout: {
+            background: { type: 'solid', color: 'transparent' },
+            textColor: '#9ca3af',
+        },
+        grid: {
+            vertLines: { color: 'rgba(255,255,255,0.03)' },
+            horzLines: { color: 'rgba(255,255,255,0.03)' },
+        },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: {
+            borderColor: 'rgba(255,255,255,0.1)',
+            autoScale: false,
+            scaleMargins: { top: 0.05, bottom: 0.05 },
+        },
+        timeScale: { visible: false },
+        width: container.clientWidth,
+        height: 100,
+    });
+
+    // Force scale 0-100
+    rsiSeries = rsiChart.addLineSeries({
+        color: '#a855f7',
+        lineWidth: 1.5,
+        priceLineVisible: false,
+        lastValueVisible: true,
+    });
+
+    const rsiData = calcRSI(candles, 14);
+    rsiSeries.setData(rsiData);
+
+    // Overbought line at 70
+    rsiSeries.createPriceLine({
+        price: 70,
+        color: 'rgba(239, 68, 68, 0.5)',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: '',
+    });
+
+    // Oversold line at 30
+    rsiSeries.createPriceLine({
+        price: 30,
+        color: 'rgba(34, 197, 94, 0.5)',
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: '',
+    });
+
+    // Sync visible range with main chart
+    if (priceChart) {
+        priceChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+            if (rsiChart && range) {
+                try { rsiChart.timeScale().setVisibleLogicalRange(range); } catch(e) {}
+            }
+        });
+    }
+
+    // Crosshair sync: main → RSI
+    if (priceChart) {
+        priceChart.subscribeCrosshairMove(param => {
+            if (!rsiChart || !param || !param.time) return;
+            try { rsiChart.setCrosshairPosition(undefined, param.time, rsiSeries); } catch(e) {}
+        });
+        rsiChart.subscribeCrosshairMove(param => {
+            if (!priceChart || !param || !param.time) return;
+            try { priceChart.setCrosshairPosition(undefined, param.time, priceSeries); } catch(e) {}
+        });
+    }
+
+    // ResizeObserver
+    const ro = new ResizeObserver(() => {
+        if (rsiChart && container.clientWidth > 0) {
+            rsiChart.applyOptions({ width: container.clientWidth });
+        }
+    });
+    ro.observe(container);
+}
+
+function toggleRsiChart() {
+    const show = document.getElementById('viz-toggle-rsi')?.checked;
+    const container = document.getElementById('rsi-chart-container');
+    if (!container) return;
+
+    if (show) {
+        container.style.display = 'block';
+        renderRsiChart();
+    } else {
+        container.style.display = 'none';
+        if (rsiChart) {
+            try { rsiChart.remove(); } catch(e) {}
+            rsiChart = null;
+            rsiSeries = null;
+        }
+    }
 }
 
 // =============================================================================
