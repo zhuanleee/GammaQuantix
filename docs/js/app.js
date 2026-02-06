@@ -334,6 +334,9 @@ async function loadOptionsAnalysis() {
         document.getElementById('oa-sentiment').style.background = 'rgba(239,68,68,0.2)';
         document.getElementById('oa-sentiment').style.color = 'var(--red)';
     }
+
+    // Always load chart visualization regardless of analysis errors
+    loadOptionsViz(optionsAnalysisTicker);
 }
 
 // =============================================================================
@@ -524,9 +527,6 @@ async function loadOptionsForExpiry() {
 
         // Load Ratio Spread Score
         loadRatioSpreadScore();
-
-        // Load Options Visualization
-        loadOptionsViz(ticker);
 
         // Render Expected Move card
         const atmIV = sentiment.current_iv || sentiment.atm_iv || sentiment.iv_30 || (sentiment.skew && sentiment.skew.call_iv) || 0;
@@ -3134,10 +3134,13 @@ function showTab(tabId) {
 
     // Re-render charts that were created while tab was hidden (0 dimensions)
     if (tabId === 'tab-chart') {
+        // Ensure viz container is visible if a ticker is selected
+        const vizContainer = document.getElementById('options-viz-container');
+        if (vizContainer && optionsAnalysisTicker) {
+            vizContainer.style.display = 'block';
+        }
         setTimeout(() => {
-            if (optionsVizData.candles && optionsVizData.candles.length > 0) {
-                renderPriceChart();
-            }
+            renderPriceChart();
             renderVizGexChart();
         }, 50);
     }
