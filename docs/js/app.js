@@ -1487,8 +1487,9 @@ function startLivePriceUpdates() {
     if (!ticker) return;
 
     const wsBase = API_BASE.replace('https://', 'wss://').replace('http://', 'ws://');
-    const tickerParam = encodeURIComponent(ticker);
-    const wsUrl = `${wsBase}/ws/quote/${tickerParam}`;
+    // Strip leading / from futures tickers (e.g., /ES → ES) to avoid URL path issues
+    const wsTicker = ticker.startsWith('/') ? ticker.substring(1) : ticker;
+    const wsUrl = `${wsBase}/ws/quote/${encodeURIComponent(wsTicker)}`;
 
     try {
         livePriceWs = new WebSocket(wsUrl);
