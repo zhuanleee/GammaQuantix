@@ -1290,7 +1290,7 @@ async function loadOptionsViz(ticker) {
                     // For daily/weekly, convert unix timestamp to YYYY-MM-DD string
                     if (isDaily && typeof t === 'number') {
                         const d = new Date(t * 1000);
-                        t = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                        t = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
                     }
                     return {
                         time: t,
