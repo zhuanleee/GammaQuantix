@@ -1109,7 +1109,7 @@ async function loadOptionsViz(ticker) {
         const isFutures = ticker.startsWith('/');
         const tickerParam = encodeURIComponent(ticker);
         const expiry = document.getElementById('oa-expiry-select')?.value || '';
-        const days = 30;
+        const days = parseInt(document.getElementById('viz-timeframe')?.value) || 30;
 
         const gexLevelsUrl = isFutures
             ? `${API_BASE}/options/gex-levels?ticker=${tickerParam}${expiry ? '&expiration=' + expiry : ''}`
@@ -1160,7 +1160,8 @@ async function loadOptionsViz(ticker) {
                     high: c.high || c.h,
                     low: c.low || c.l,
                     close: c.close || c.c
-                })).filter(c => c.time && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0);
+                })).filter(c => c.time && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
+                .filter(c => c.low >= c.open * 0.5 && c.high <= c.open * 2);
             } catch (e) {
                 console.error('Error parsing candle data:', e);
                 optionsVizData.candles = [];

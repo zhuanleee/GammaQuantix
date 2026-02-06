@@ -428,10 +428,13 @@
                 <div class="card-header">
                     <div class="card-title">OPTIONS VISUALIZATION <span id="viz-ticker-label"></span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <select id="viz-timeframe" onchange="updateOptionsViz()">
+                        <select id="viz-timeframe" onchange="refreshOptionsViz()">
                             <option value="5">5D</option>
                             <option value="30" selected>1M</option>
                             <option value="90">3M</option>
+                            <option value="180">6M</option>
+                            <option value="365">1Y</option>
+                            <option value="1825">5Y</option>
                         </select>
                         <button class="btn btn-ghost" onclick="refreshOptionsViz()" title="Refresh">Refresh</button>
                     </div>
@@ -778,6 +781,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260206k"></script>
+    <script src="js/app.js?v=20260206m"></script>
 </body>
 </html>
