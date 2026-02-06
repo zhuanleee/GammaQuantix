@@ -17,6 +17,7 @@ let priceChart = null;
 let priceSeries = null;
 let priceLines = {};
 let livePriceInterval = null;
+let livePriceWs = null;
 
 let optionsVizData = {
     gexByStrike: [],
@@ -1467,10 +1468,55 @@ function updatePriceChartLevels() {
 // LIVE PRICE UPDATES
 // =============================================================================
 function startLivePriceUpdates() {
-    if (livePriceInterval) {
-        clearInterval(livePriceInterval);
+    // Clean up existing connections
+    if (livePriceWs) { livePriceWs.close(); livePriceWs = null; }
+    if (livePriceInterval) { clearInterval(livePriceInterval); livePriceInterval = null; }
+
+    const ticker = optionsAnalysisTicker;
+    if (!ticker) return;
+
+    const wsBase = API_BASE.replace('https://', 'wss://').replace('http://', 'ws://');
+    const tickerParam = encodeURIComponent(ticker);
+    const wsUrl = `${wsBase}/ws/quote/${tickerParam}`;
+
+    try {
+        livePriceWs = new WebSocket(wsUrl);
+
+        livePriceWs.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (!data.ok || !data.data) return;
+                const price = data.data.last || data.data.price || data.data.mid ||
+                             ((data.data.bid + data.data.ask) / 2);
+                if (price && price > 0 && priceSeries) {
+                    updateLivePrice(price);
+                }
+            } catch (e) {}
+        };
+
+        livePriceWs.onclose = () => {
+            livePriceWs = null;
+            // Auto-reconnect after 5 seconds if still on same ticker
+            setTimeout(() => {
+                if (optionsAnalysisTicker === ticker) startLivePriceUpdates();
+            }, 5000);
+        };
+
+        livePriceWs.onerror = () => {
+            // Fall back to REST polling if WebSocket fails
+            if (livePriceWs) { livePriceWs.close(); livePriceWs = null; }
+            startLivePricePolling();
+        };
+    } catch (e) {
+        startLivePricePolling();
     }
 
+    updateLivePrice(optionsVizData.currentPrice);
+}
+
+function startLivePricePolling() {
+    // Fallback: REST polling every 5 seconds
+    if (livePriceInterval) clearInterval(livePriceInterval);
     const ticker = optionsAnalysisTicker;
     if (!ticker) return;
 
@@ -1496,8 +1542,6 @@ function startLivePriceUpdates() {
             }
         } catch (e) {}
     }, 5000);
-
-    updateLivePrice(optionsVizData.currentPrice);
 }
 
 function updateLivePrice(price) {
