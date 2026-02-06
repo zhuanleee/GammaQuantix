@@ -450,7 +450,7 @@ async function loadOptionsForExpiry() {
         loadOptionsViz(ticker);
 
         // Render Expected Move card
-        const atmIV = sentiment.atm_iv || sentiment.iv_30 || (ivRank / 100) || 0;
+        const atmIV = sentiment.current_iv || sentiment.atm_iv || sentiment.iv_30 || (sentiment.skew && sentiment.skew.call_iv) || 0;
         if (currentPrice > 0 && atmIV > 0 && dte >= 0) {
             renderExpectedMove(currentPrice, atmIV, dte || 1);
         }
