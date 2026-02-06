@@ -38,6 +38,10 @@ let optionsVizData = {
     vpPosition: 'In Range'
 };
 
+// Tab state
+let activeTab = 'tab-analysis';
+let ivSmileChart = null;
+
 // Futures specifications
 const FUTURES_SPECS = {
     '/ES': { name: 'E-mini S&P 500', multiplier: 50 },
@@ -210,6 +214,9 @@ async function loadOptionsAnalysis() {
     if (actionInput) actionInput.value = ticker;
 
     optionsAnalysisTicker = ticker;
+
+    // Switch to Analysis tab
+    showTab('tab-analysis');
 
     const container = document.getElementById('options-analysis-container');
     container.style.display = 'block';
@@ -441,6 +448,12 @@ async function loadOptionsForExpiry() {
 
         // Load Options Visualization
         loadOptionsViz(ticker);
+
+        // Render Expected Move card
+        const atmIV = sentiment.atm_iv || sentiment.iv_30 || (ivRank / 100) || 0;
+        if (currentPrice > 0 && atmIV > 0 && dte >= 0) {
+            renderExpectedMove(currentPrice, atmIV, dte || 1);
+        }
 
     } catch (e) {
         console.error('Options analysis error:', e);
@@ -1930,6 +1943,7 @@ function updateSentimentGauge(pcRatio, vix) {
 // WHALE TRADES
 // =============================================================================
 async function loadWhaleTrades() {
+    showTab('tab-chain-flow');
     const container = document.getElementById('whale-trades-container');
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Loading whale trades...</div>';
 
@@ -1976,6 +1990,7 @@ async function loadWhaleTrades() {
 // UNUSUAL ACTIVITY
 // =============================================================================
 async function loadUnusualActivity() {
+    showTab('tab-chain-flow');
     const container = document.getElementById('unusual-activity-container');
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Scanning unusual activity...</div>';
 
@@ -2313,6 +2328,9 @@ async function loadOptionsChain() {
 
         console.log('Options chain loaded for', ticker);
 
+        // Render IV Smile chart from chain data
+        renderIVSmile(chain.calls || [], chain.puts || [], currentPrice);
+
     } catch (e) {
         console.error('Failed to load options chain:', e);
         document.getElementById('calls-table-body').innerHTML =
@@ -2400,14 +2418,8 @@ async function loadSmartMoneyFlow() {
     const flowInput = document.getElementById('flow-ticker-input');
     if (flowInput) flowInput.value = ticker;
 
-    // Auto-open the accordion if closed
-    const accordions = document.querySelectorAll('.sidebar-accordion');
-    accordions.forEach(acc => {
-        const header = acc.querySelector('.accordion-header span:first-child');
-        if (header && header.textContent.includes('Smart Money') && !acc.classList.contains('open')) {
-            acc.classList.add('open');
-        }
-    });
+    // Switch to Chain & Flow tab
+    showTab('tab-chain-flow');
 
     const container = document.getElementById('smart-money-flow-container');
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Analyzing flow...</div>';
@@ -2482,6 +2494,229 @@ async function loadSmartMoneyFlow() {
         console.error('Failed to load smart money flow:', e);
         container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--red);">Failed to analyze flow</div>';
     }
+}
+
+// =============================================================================
+// TAB SWITCHING
+// =============================================================================
+function showTab(tabId) {
+    activeTab = tabId;
+
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    const activeContent = document.getElementById(tabId);
+    if (activeContent) activeContent.classList.add('active');
+
+    // Re-render charts that need container dimensions (they get 0 width when hidden)
+    if (tabId === 'tab-gex') {
+        if (priceChart && document.getElementById('price-chart-container')?.clientWidth > 0) {
+            priceChart.applyOptions({ width: document.getElementById('price-chart-container').clientWidth });
+            priceChart.timeScale().fitContent();
+        }
+        if (optionsVizChart) {
+            try { optionsVizChart.render(); } catch(e) {}
+        }
+    }
+    if (tabId === 'tab-analysis' && ivSmileChart) {
+        try { ivSmileChart.render(); } catch(e) {}
+    }
+}
+
+// =============================================================================
+// EXPECTED MOVE
+// =============================================================================
+function computeExpectedMove(price, iv, dte) {
+    if (!price || !iv || !dte || dte <= 0) return null;
+    const ivDecimal = iv > 1 ? iv / 100 : iv;
+    const timeFactor = Math.sqrt(dte / 365);
+    const sd1 = price * ivDecimal * timeFactor;
+    const sd15 = sd1 * 1.5;
+    const sd2 = sd1 * 2;
+    return {
+        sd1Upper: price + sd1,
+        sd1Lower: price - sd1,
+        sd15Upper: price + sd15,
+        sd15Lower: price - sd15,
+        sd2Upper: price + sd2,
+        sd2Lower: price - sd2,
+        sd1Amount: sd1
+    };
+}
+
+function renderExpectedMove(price, iv, dte) {
+    const card = document.getElementById('expected-move-card');
+    if (!card) return;
+
+    const em = computeExpectedMove(price, iv, dte);
+    if (!em) {
+        card.style.display = 'none';
+        return;
+    }
+
+    card.style.display = 'block';
+
+    // Update DTE badge
+    document.getElementById('em-dte-badge').textContent = `${dte} DTE | IV: ${(iv > 1 ? iv : iv * 100).toFixed(1)}%`;
+
+    // Update price levels
+    document.getElementById('em-sd2-lower').textContent = `$${em.sd2Lower.toFixed(2)}`;
+    document.getElementById('em-sd1-lower').textContent = `$${em.sd1Lower.toFixed(2)}`;
+    document.getElementById('em-current').textContent = `$${price.toFixed(2)}`;
+    document.getElementById('em-sd1-upper').textContent = `$${em.sd1Upper.toFixed(2)}`;
+    document.getElementById('em-sd2-upper').textContent = `$${em.sd2Upper.toFixed(2)}`;
+
+    // Render range bars
+    const container = document.getElementById('em-range-container');
+    const totalRange = em.sd2Upper - em.sd2Lower;
+    const toPercent = (val) => ((val - em.sd2Lower) / totalRange) * 100;
+
+    const sd2Left = 0;
+    const sd2Width = 100;
+    const sd15Left = toPercent(em.sd15Lower);
+    const sd15Width = toPercent(em.sd15Upper) - sd15Left;
+    const sd1Left = toPercent(em.sd1Lower);
+    const sd1Width = toPercent(em.sd1Upper) - sd1Left;
+    const currentPos = toPercent(price);
+
+    container.innerHTML = `
+        <div class="em-range-bar sd2" style="left: ${sd2Left}%; width: ${sd2Width}%;"></div>
+        <div class="em-range-bar sd15" style="left: ${sd15Left}%; width: ${sd15Width}%;"></div>
+        <div class="em-range-bar sd1" style="left: ${sd1Left}%; width: ${sd1Width}%;"></div>
+        <div class="em-current-marker" style="left: ${currentPos}%;"></div>
+    `;
+}
+
+// =============================================================================
+// IV SMILE / SKEW CHART
+// =============================================================================
+function renderIVSmile(calls, puts, currentPrice) {
+    const container = document.getElementById('iv-smile-container');
+    const chartDiv = document.getElementById('iv-smile-chart');
+    if (!container || !chartDiv) return;
+
+    // Extract IV data from calls and puts
+    const callIVData = [];
+    const putIVData = [];
+
+    if (calls && calls.length > 0) {
+        calls.forEach(c => {
+            if (c.strike && c.implied_volatility && c.implied_volatility > 0) {
+                callIVData.push({ x: c.strike, y: parseFloat((c.implied_volatility * 100).toFixed(1)) });
+            }
+        });
+    }
+
+    if (puts && puts.length > 0) {
+        puts.forEach(p => {
+            if (p.strike && p.implied_volatility && p.implied_volatility > 0) {
+                putIVData.push({ x: p.strike, y: parseFloat((p.implied_volatility * 100).toFixed(1)) });
+            }
+        });
+    }
+
+    if (callIVData.length < 3 && putIVData.length < 3) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // Filter to strikes near ATM (±15% of current price)
+    const filterNearATM = (data) => {
+        if (!currentPrice || currentPrice <= 0) return data;
+        const low = currentPrice * 0.85;
+        const high = currentPrice * 1.15;
+        return data.filter(d => d.x >= low && d.x <= high);
+    };
+
+    const filteredCalls = filterNearATM(callIVData).sort((a, b) => a.x - b.x);
+    const filteredPuts = filterNearATM(putIVData).sort((a, b) => a.x - b.x);
+
+    if (filteredCalls.length < 2 && filteredPuts.length < 2) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+
+    const xAxisAnnotations = [];
+    if (currentPrice > 0) {
+        xAxisAnnotations.push({
+            x: currentPrice,
+            borderColor: '#ffffff',
+            borderWidth: 2,
+            label: {
+                text: `ATM: $${currentPrice.toFixed(0)}`,
+                style: { color: '#fff', background: 'rgba(0,0,0,0.7)', fontSize: '10px' },
+                position: 'top'
+            }
+        });
+    }
+
+    const series = [];
+    if (filteredCalls.length >= 2) {
+        series.push({ name: 'Call IV', data: filteredCalls });
+    }
+    if (filteredPuts.length >= 2) {
+        series.push({ name: 'Put IV', data: filteredPuts });
+    }
+
+    const colors = [];
+    if (filteredCalls.length >= 2) colors.push('#22c55e');
+    if (filteredPuts.length >= 2) colors.push('#ef4444');
+
+    const options = {
+        chart: {
+            type: 'line',
+            height: 200,
+            background: 'transparent',
+            toolbar: { show: false },
+            animations: { enabled: true, speed: 400 }
+        },
+        theme: { mode: 'dark' },
+        series: series,
+        colors: colors,
+        stroke: { width: 2, curve: 'smooth' },
+        xaxis: {
+            type: 'numeric',
+            labels: {
+                formatter: val => `$${parseFloat(val).toFixed(0)}`,
+                style: { colors: '#71717a', fontSize: '10px' }
+            },
+            title: { text: 'Strike Price', style: { color: '#71717a', fontSize: '11px' } }
+        },
+        yaxis: {
+            labels: {
+                formatter: val => `${val.toFixed(0)}%`,
+                style: { colors: '#71717a', fontSize: '10px' }
+            },
+            title: { text: 'Implied Volatility', style: { color: '#71717a', fontSize: '11px' } }
+        },
+        tooltip: {
+            theme: 'dark',
+            x: { formatter: val => `Strike: $${parseFloat(val).toFixed(0)}` },
+            y: { formatter: val => `${val.toFixed(1)}%` }
+        },
+        legend: {
+            show: true,
+            position: 'top',
+            labels: { colors: '#9ca3af' },
+            fontSize: '11px'
+        },
+        grid: { borderColor: '#2a2a3a', strokeDashArray: 3 },
+        annotations: { xaxis: xAxisAnnotations }
+    };
+
+    if (ivSmileChart) {
+        ivSmileChart.destroy();
+        ivSmileChart = null;
+    }
+
+    ivSmileChart = new ApexCharts(chartDiv, options);
+    ivSmileChart.render();
 }
 
 console.log('Gamma Quantix initialized. API:', API_BASE);

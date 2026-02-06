@@ -1094,3 +1094,209 @@ select {
 select:focus {
     border-color: var(--blue);
 }
+
+/* Tab Bar */
+.tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    padding: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    position: relative;
+}
+
+.tab-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.tab-btn.active {
+    background: var(--bg-card);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.tab-btn .tab-accent {
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.tab-btn.active .tab-accent {
+    opacity: 1;
+}
+
+.tab-btn[data-tab="tab-analysis"] .tab-accent { background: var(--blue); }
+.tab-btn[data-tab="tab-chain-flow"] .tab-accent { background: var(--green); }
+.tab-btn[data-tab="tab-gex"] .tab-accent { background: var(--orange); }
+.tab-btn[data-tab="tab-strategy"] .tab-accent { background: var(--purple); }
+
+.tab-btn[data-tab="tab-analysis"].active { color: var(--blue); }
+.tab-btn[data-tab="tab-chain-flow"].active { color: var(--green); }
+.tab-btn[data-tab="tab-gex"].active { color: var(--orange); }
+.tab-btn[data-tab="tab-strategy"].active { color: var(--purple); }
+
+/* Tab Content */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Expected Move Card */
+.em-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.em-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.em-card-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.em-dte-badge {
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+}
+
+.em-levels-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+}
+
+.em-range-container {
+    position: relative;
+    height: 32px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.em-range-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 6px;
+}
+
+.em-range-bar.sd2 {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+.em-range-bar.sd15 {
+    background: rgba(249, 115, 22, 0.2);
+}
+
+.em-range-bar.sd1 {
+    background: rgba(34, 197, 94, 0.25);
+}
+
+.em-current-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--text);
+    z-index: 5;
+}
+
+.em-range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.em-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+.em-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.em-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+/* IV Smile Chart */
+.iv-smile-container {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.iv-smile-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+}
+
+#iv-smile-chart {
+    min-height: 200px;
+}
+
+@media (max-width: 768px) {
+    .tab-bar {
+        gap: 2px;
+        padding: 3px;
+    }
+    .tab-btn {
+        padding: 8px 12px;
+        font-size: 0.7rem;
+    }
+}
