@@ -102,7 +102,7 @@ let volumeSeries = null;
 let indicatorSeries = {};    // {sma20, sma50, sma200, vwap, bbMiddle, bbUpper, bbLower}
 let rsiChart = null;
 let rsiSeries = null;
-let selectedInterval = '1d';
+let selectedInterval = localStorage.getItem('gq_interval') || '1d';
 const INTERVAL_DAYS_MAP = {
     '1m': 1, '5m': 5, '15m': 10, '30m': 15,
     '1h': 30, '4h': 60, '1d': null, '1w': null
@@ -141,6 +141,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update market status every minute
     setInterval(updateMarketStatus, 60000);
+
+    // Restore saved interval button highlight
+    if (selectedInterval !== '1d') {
+        document.querySelectorAll('.interval-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.trim().toLowerCase() === selectedInterval) btn.classList.add('active');
+        });
+    }
+
+    // Restore saved ticker and tab from localStorage
+    const savedTicker = localStorage.getItem('gq_ticker');
+    const savedTab = localStorage.getItem('gq_tab');
+    if (savedTicker) {
+        document.getElementById('ticker-input').value = savedTicker;
+        const actionInput = document.getElementById('options-ticker-input');
+        if (actionInput) actionInput.value = savedTicker;
+        document.querySelectorAll('.ticker-btn').forEach(btn => {
+            if (btn.textContent.trim() === savedTicker) btn.style.background = 'var(--blue-bg)';
+        });
+        loadOptionsAnalysis().then(() => {
+            if (savedTab) showTab(savedTab);
+        });
+    } else if (savedTab) {
+        showTab(savedTab);
+    }
 });
 
 // =============================================================================
@@ -293,6 +318,7 @@ async function loadOptionsAnalysis() {
     if (actionInput) actionInput.value = ticker;
 
     optionsAnalysisTicker = ticker;
+    localStorage.setItem('gq_ticker', ticker);
 
     // Switch to Analysis tab
     showTab('tab-analysis');
@@ -2012,6 +2038,7 @@ function refreshOptionsViz() {
 // =============================================================================
 function setInterval_(interval) {
     selectedInterval = interval;
+    localStorage.setItem('gq_interval', interval);
 
     // Toggle active class on buttons
     document.querySelectorAll('.interval-btn').forEach(btn => btn.classList.remove('active'));
@@ -3124,6 +3151,7 @@ async function loadSmartMoneyFlow() {
 // =============================================================================
 function showTab(tabId) {
     activeTab = tabId;
+    localStorage.setItem('gq_tab', tabId);
 
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
