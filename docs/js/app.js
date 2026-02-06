@@ -2,13 +2,61 @@
 // Version: 2.0.0
 console.log('Gamma Quantix v2.0.0 loaded');
 
-// Convert title attributes to data-tip for styled CSS tooltips (suppresses native tooltips)
+// Tooltip system: converts title → data-tip, appends tooltip div to body (escapes overflow:hidden)
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[title]').forEach(el => {
         if (el.title && el.title.length > 0) {
             el.setAttribute('data-tip', el.title);
             el.removeAttribute('title');
         }
+    });
+
+    let tipEl = null;
+    let tipTimeout = null;
+
+    document.addEventListener('mouseover', e => {
+        const target = e.target.closest('[data-tip]');
+        if (!target || !target.getAttribute('data-tip')) return;
+        clearTimeout(tipTimeout);
+        if (!tipEl) {
+            tipEl = document.createElement('div');
+            tipEl.className = 'gq-tooltip';
+            document.body.appendChild(tipEl);
+        }
+        tipEl.textContent = target.getAttribute('data-tip');
+        tipEl.classList.remove('visible');
+        const rect = target.getBoundingClientRect();
+        // Position above by default
+        tipEl.style.left = rect.left + rect.width / 2 + 'px';
+        tipEl.style.transform = 'translateX(-50%)';
+        tipEl.style.top = (rect.top - 8) + 'px';
+        // Measure and adjust
+        requestAnimationFrame(() => {
+            const tipRect = tipEl.getBoundingClientRect();
+            if (tipRect.top < 4) {
+                // Show below if no room above
+                tipEl.style.top = (rect.bottom + 8) + 'px';
+            } else {
+                tipEl.style.top = (rect.top - 8 - tipRect.height) + 'px';
+            }
+            // Keep within horizontal bounds
+            const tr = tipEl.getBoundingClientRect();
+            if (tr.right > window.innerWidth - 8) {
+                tipEl.style.left = (window.innerWidth - 8 - tr.width / 2) + 'px';
+            }
+            if (tr.left < 8) {
+                tipEl.style.left = (8 + tr.width / 2) + 'px';
+            }
+            tipEl.classList.add('visible');
+        });
+    });
+
+    document.addEventListener('mouseout', e => {
+        const target = e.target.closest('[data-tip]');
+        if (!target) return;
+        tipTimeout = setTimeout(() => {
+            if (tipEl) tipEl.classList.remove('visible');
+        }, 100);
     });
 });
 
