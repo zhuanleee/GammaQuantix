@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // MARKET STATUS
 // =============================================================================
 function updateMarketStatus() {
-    const now = new Date();
+    const now = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
     const day = now.getDay();
     const hours = now.getHours();
     const minutes = now.getMinutes();
@@ -1804,11 +1804,15 @@ function updateLivePrice(price) {
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             }
         } else {
-            // Daily/weekly: use YYYY-MM-DD strings to match candle data format (US/Eastern to match Yahoo Finance)
+            // Daily/weekly: match candle time format (could be string "YYYY-MM-DD" or object {year,month,day})
             const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
-            const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+            const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
+            const lastTime = lastCandle ? lastCandle.time : null;
+            const isToday = lastTime && (typeof lastTime === 'string'
+                ? lastTime === y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0')
+                : lastTime.year === y && lastTime.month === m && lastTime.day === d);
 
-            if (lastCandle && lastCandle.time === todayStr) {
+            if (lastCandle && isToday) {
                 const updatedCandle = {
                     time: lastCandle.time,
                     open: lastCandle.open,
@@ -1820,8 +1824,11 @@ function updateLivePrice(price) {
                 priceSeries.update(updatedCandle);
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             } else {
+                // Use same time format as existing candles
+                const useObjFormat = optionsVizData.candles.length > 0 && typeof optionsVizData.candles[0].time === 'object';
+                const newTime = useObjFormat ? { year: y, month: m, day: d } : y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
                 const newCandle = {
-                    time: todayStr,
+                    time: newTime,
                     open: price,
                     high: price,
                     low: price,
