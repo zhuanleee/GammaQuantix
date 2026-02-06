@@ -1284,14 +1284,23 @@ async function loadOptionsViz(ticker) {
                 } else if (Array.isArray(candlesData)) {
                     candles = candlesData;
                 }
-                optionsVizData.candles = candles.map(c => ({
-                    time: c.time || c.date || c.t,
-                    open: c.open || c.o,
-                    high: c.high || c.h,
-                    low: c.low || c.l,
-                    close: c.close || c.c,
-                    volume: c.volume || c.v || 0
-                })).filter(c => c.time && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
+                const isDaily = selectedInterval === '1d' || selectedInterval === '1w';
+                optionsVizData.candles = candles.map(c => {
+                    let t = c.time || c.date || c.t;
+                    // For daily/weekly, convert unix timestamp to YYYY-MM-DD string
+                    if (isDaily && typeof t === 'number') {
+                        const d = new Date(t * 1000);
+                        t = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                    }
+                    return {
+                        time: t,
+                        open: c.open || c.o,
+                        high: c.high || c.h,
+                        low: c.low || c.l,
+                        close: c.close || c.c,
+                        volume: c.volume || c.v || 0
+                    };
+                }).filter(c => c.time && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
                 .filter(c => c.low >= c.open * 0.5 && c.high <= c.open * 2);
             } catch (e) {
                 console.error('Error parsing candle data:', e);
@@ -1437,6 +1446,11 @@ function renderPriceChart() {
         return;
     }
 
+    // Skip rendering if container is hidden (0 dimensions) — will re-render on tab switch
+    if (container.clientWidth === 0) {
+        return;
+    }
+
     if (priceChart) {
         priceChart.remove();
         priceChart = null;
@@ -1475,7 +1489,7 @@ function renderPriceChart() {
         },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)', autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
-        timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true },
+        timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: selectedInterval !== '1d' && selectedInterval !== '1w' },
         width: container.clientWidth,
         height: container.clientHeight || 300,
     });
