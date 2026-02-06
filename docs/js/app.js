@@ -126,7 +126,7 @@ function formatExpirationOptions(expirations, selectedIndex = 0) {
     if (selectedIndex === 0) {
         for (let i = 0; i < expirations.length; i++) {
             const exp = typeof expirations[i] === 'string' ? expirations[i] : expirations[i].date;
-            if (exp >= todayStr) { selectedIndex = i; break; }
+            if (exp > todayStr) { selectedIndex = i; break; }
         }
     }
 
