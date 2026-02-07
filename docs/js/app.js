@@ -199,6 +199,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Restore saved ticker and tab from localStorage
     const savedTicker = localStorage.getItem('gq_ticker');
     const savedTab = localStorage.getItem('gq_tab');
+
+    // Restore tab first so loadOptionsAnalysis doesn't override it
+    if (savedTab) {
+        activeTab = savedTab;
+        showTab(savedTab);
+    }
+
     if (savedTicker) {
         document.getElementById('ticker-input').value = savedTicker;
         const actionInput = document.getElementById('options-ticker-input');
@@ -206,11 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.ticker-btn').forEach(btn => {
             if (btn.textContent.trim() === savedTicker) btn.style.background = 'var(--blue-bg)';
         });
-        loadOptionsAnalysis().then(() => {
-            if (savedTab) showTab(savedTab);
-        });
-    } else if (savedTab) {
-        showTab(savedTab);
+        loadOptionsAnalysis();
     }
 });
 
