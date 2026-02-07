@@ -2847,7 +2847,17 @@ function updateSentimentGauge(pcRatio, vix) {
 
     const needle = document.getElementById('sentiment-needle');
     if (needle) {
-        needle.setAttribute('transform', `rotate(${angle}, 90, 85)`);
+        needle.setAttribute('transform', 'rotate(' + angle + ', 100, 95)');
+    }
+
+    // Update glow color based on sentiment
+    var glow = document.getElementById('sentiment-glow');
+    if (glow) {
+        var glowColor;
+        if (score >= 65) glowColor = 'rgba(34,197,94,0.12)';
+        else if (score >= 40) glowColor = 'rgba(234,179,8,0.12)';
+        else glowColor = 'rgba(239,68,68,0.12)';
+        glow.style.background = 'radial-gradient(ellipse, ' + glowColor + ' 0%, transparent 70%)';
     }
 
     const label = document.getElementById('sentiment-label');
