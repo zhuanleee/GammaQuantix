@@ -1881,6 +1881,7 @@ function updateLivePrice(price) {
                 : lastTime.year === y && lastTime.month === m && lastTime.day === d);
 
             if (lastCandle && isToday) {
+                // Today's candle exists — update OHLC
                 const updatedCandle = {
                     time: lastCandle.time,
                     open: lastCandle.open,
@@ -1892,19 +1893,24 @@ function updateLivePrice(price) {
                 priceSeries.update(updatedCandle);
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             } else {
-                // Use same time format as existing candles
-                const useObjFormat = optionsVizData.candles.length > 0 && typeof optionsVizData.candles[0].time === 'object';
-                const newTime = useObjFormat ? { year: y, month: m, day: d } : y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-                const newCandle = {
-                    time: newTime,
-                    open: price,
-                    high: price,
-                    low: price,
-                    close: price,
-                    volume: 0
-                };
-                priceSeries.update(newCandle);
-                optionsVizData.candles.push(newCandle);
+                // No candle for today — only create one on weekdays (trading days)
+                const dayOfWeek = today.getDay();
+                const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+                if (isWeekday) {
+                    const useObjFormat = optionsVizData.candles.length > 0 && typeof optionsVizData.candles[0].time === 'object';
+                    const newTime = useObjFormat ? { year: y, month: m, day: d } : y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+                    const newCandle = {
+                        time: newTime,
+                        open: price,
+                        high: price,
+                        low: price,
+                        close: price,
+                        volume: 0
+                    };
+                    priceSeries.update(newCandle);
+                    optionsVizData.candles.push(newCandle);
+                }
+                // Weekend/holiday: don't create a fake candle, just update price displays
             }
         }
     }
