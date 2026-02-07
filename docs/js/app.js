@@ -412,6 +412,8 @@ async function loadOptionsAnalysis() {
         if (expData.ok && expData.data && expData.data.expirations) {
             const expirations = expData.data.expirations;
             expirySelect.innerHTML = formatExpirationOptions(expirations, 0);
+            // Sync X-Ray expiry selector
+            syncXrayExpirySelect(expirations);
             await loadOptionsForExpiry();
         } else {
             expirySelect.innerHTML = '<option value="">No expirations</option>';
@@ -1328,6 +1330,25 @@ function toggleXraySection(id) {
     if (toggle) toggle.classList.toggle('open', !isOpen);
 }
 
+function syncXrayExpirySelect(expirations) {
+    const sel = document.getElementById('xray-expiry-select');
+    if (!sel) return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let html = '<option value="">Auto (nearest)</option>';
+    for (const exp of expirations) {
+        const d = typeof exp === 'string' ? exp : exp.date;
+        if (d <= todayStr) continue;
+        const dt = new Date(d + 'T12:00:00');
+        const dte = Math.round((dt - today) / 86400000);
+        const label = `${months[dt.getMonth()]} ${dt.getDate()} (${dte}d)`;
+        html += `<option value="${d}">${label}</option>`;
+    }
+    sel.innerHTML = html;
+}
+
 async function loadMarketXray() {
     const ticker = optionsAnalysisTicker;
     if (!ticker) return;
@@ -1349,9 +1370,10 @@ async function loadMarketXray() {
             : ticker;
     }
 
-    // Get selected expiration if available
-    const expirySelect = document.getElementById('oa-expiry-select');
-    const expiry = expirySelect ? expirySelect.value : '';
+    // Get selected expiration — prefer X-Ray's own selector, fall back to Analysis tab
+    const xrayExpirySelect = document.getElementById('xray-expiry-select');
+    const expiry = (xrayExpirySelect && xrayExpirySelect.value) ? xrayExpirySelect.value
+        : (document.getElementById('oa-expiry-select')?.value || '');
 
     try {
         const isFutures = ticker.startsWith('/');
