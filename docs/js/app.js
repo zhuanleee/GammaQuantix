@@ -1299,6 +1299,390 @@ async function loadRatioSpreadScore() {
 }
 
 // =============================================================================
+// MARKET X-RAY - INSTITUTIONAL EDGE SCANNER
+// =============================================================================
+
+function fmtNotional(n) {
+    if (n == null) return '--';
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return (n/1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return (n/1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return (n/1e3).toFixed(0) + 'K';
+    return n.toFixed(0);
+}
+
+function strengthDots(n, max) {
+    let html = '<span class="strength-dots">';
+    for (let i = 0; i < max; i++) {
+        html += `<span class="strength-dot${i < n ? ' filled' : ''}"></span>`;
+    }
+    return html + '</span>';
+}
+
+function toggleXraySection(id) {
+    const body = document.getElementById('xray-content-' + id);
+    const toggle = document.getElementById('xray-toggle-' + id);
+    if (!body) return;
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    if (toggle) toggle.classList.toggle('open', !isOpen);
+}
+
+async function loadMarketXray() {
+    const ticker = optionsAnalysisTicker;
+    if (!ticker) return;
+
+    const btn = document.getElementById('xray-scan-btn');
+    const placeholder = document.getElementById('xray-placeholder');
+    const badge = document.getElementById('xray-composite-badge');
+    const banner = document.getElementById('xray-verdict-banner');
+
+    if (btn) btn.disabled = true;
+    if (btn) btn.textContent = 'Scanning...';
+    if (placeholder) placeholder.style.display = 'none';
+
+    const tickerEl = document.getElementById('xray-ticker');
+    const futuresInfo = getFuturesInfo(ticker);
+    if (tickerEl) {
+        tickerEl.innerHTML = futuresInfo.isFutures
+            ? `${ticker} <span style="font-size:0.6rem;padding:2px 5px;background:var(--orange);color:white;border-radius:3px;">FUT</span>`
+            : ticker;
+    }
+
+    // Get selected expiration if available
+    const expirySelect = document.getElementById('oa-expiry-select');
+    const expiry = expirySelect ? expirySelect.value : '';
+
+    try {
+        const isFutures = ticker.startsWith('/');
+        const expiryParam = expiry ? `&expiration=${expiry}` : '';
+        const url = isFutures
+            ? `${API_BASE}/options/xray?ticker=${encodeURIComponent(ticker)}${expiryParam}`
+            : `${API_BASE}/options/xray/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
+
+        const response = await fetch(url);
+        const json = await response.json();
+
+        if (!json.ok || !json.data) {
+            throw new Error(json.error || 'Failed to load X-Ray data');
+        }
+
+        const d = json.data;
+
+        // Show banner
+        if (banner) banner.style.display = 'block';
+
+        // Render all 6 modules
+        renderCompositeScore(d.composite);
+        renderDealerFlow(d.dealer_flow);
+        renderSqueezePin(d.squeeze_pin);
+        renderVolSurface(d.vol_surface);
+        renderSmartMoney(d.smart_money);
+        renderTradeZones(d.trade_zones);
+
+        // Update badge
+        if (d.composite) {
+            const score = d.composite.score || 0;
+            const label = d.composite.label || 'NEUTRAL';
+            badge.textContent = `SCORE: ${score}`;
+            const colors = {
+                'STRONG BULLISH': {bg:'rgba(34,197,94,0.2)',c:'var(--green)'},
+                'BULLISH': {bg:'rgba(59,130,246,0.2)',c:'var(--blue)'},
+                'NEUTRAL': {bg:'rgba(251,191,36,0.15)',c:'var(--orange)'},
+                'BEARISH': {bg:'rgba(239,68,68,0.15)',c:'var(--red)'},
+                'STRONG BEARISH': {bg:'rgba(239,68,68,0.25)',c:'var(--red)'}
+            };
+            const clr = colors[label] || colors['NEUTRAL'];
+            badge.style.background = clr.bg;
+            badge.style.color = clr.c;
+
+            // Update verdict banner
+            document.getElementById('xray-verdict').textContent = label;
+            document.getElementById('xray-verdict').style.color = clr.c;
+            document.getElementById('xray-interpretation').textContent = d.composite.interpretation || '';
+            banner.style.background = clr.bg;
+            banner.style.borderLeft = `4px solid ${clr.c}`;
+        }
+
+        // Auto-expand composite
+        document.getElementById('xray-content-composite').style.display = 'block';
+        document.getElementById('xray-toggle-composite').classList.add('open');
+
+        console.log('Market X-Ray loaded for', ticker);
+
+    } catch (e) {
+        console.error('Market X-Ray error:', e);
+        badge.textContent = 'ERROR';
+        badge.style.background = 'var(--red-bg)';
+        badge.style.color = 'var(--red)';
+        if (banner) {
+            banner.style.display = 'block';
+            document.getElementById('xray-verdict').textContent = 'ERROR';
+            document.getElementById('xray-interpretation').textContent = e.message;
+        }
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Scan'; }
+    }
+}
+
+function renderCompositeScore(data) {
+    const el = document.getElementById('xray-content-composite');
+    if (!el || !data) { if (el) el.innerHTML = '<div style="color:var(--text-muted)">No composite data</div>'; return; }
+
+    const score = data.score || 0;
+    const label = data.label || 'NEUTRAL';
+    const scoreColor = score >= 75 ? 'var(--green)' : score >= 60 ? 'var(--blue)' : score >= 45 ? 'var(--orange)' : 'var(--red)';
+
+    let factorsHtml = '';
+    if (data.factors) {
+        data.factors.forEach(f => {
+            const pct = Math.round(f.score);
+            const barColor = f.score >= 60 ? 'var(--green)' : f.score >= 40 ? 'var(--orange)' : 'var(--red)';
+            factorsHtml += `<div class="factor-bar-row">
+                <span class="factor-bar-name">${f.name}</span>
+                <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+                <span class="factor-bar-value" style="color:${barColor}">${pct}</span>
+            </div>`;
+        });
+    }
+
+    el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+            <div class="score-ring" style="border-color:${scoreColor}">
+                <div class="score-number" style="color:${scoreColor}">${score}</div>
+                <div class="score-max">/100</div>
+            </div>
+            <div style="flex:1;min-width:200px;">
+                <div style="font-size:0.75rem;font-weight:700;color:${scoreColor};margin-bottom:8px;">${label}</div>
+                ${factorsHtml}
+            </div>
+        </div>
+        <div class="interpretation-box" style="margin-top:12px;background:var(--bg-hover);border-radius:6px;padding:10px;font-size:0.75rem;color:var(--text-muted);">
+            ${data.interpretation || 'Analyzing...'}
+        </div>`;
+}
+
+function renderDealerFlow(data) {
+    const el = document.getElementById('xray-content-dealer');
+    if (!el || !data) { if (el) el.innerHTML = '<div style="color:var(--text-muted)">No dealer flow data</div>'; return; }
+
+    const levels = data.levels || [];
+    const currentPrice = data.current_price || 0;
+    const airPockets = data.air_pockets || [];
+
+    if (!levels.length) { el.innerHTML = '<div style="color:var(--text-muted)">No GEX levels available</div>'; return; }
+
+    const maxAbs = Math.max(...levels.map(l => Math.abs(l.gex_value || 0)), 1);
+
+    let barsHtml = '';
+    levels.forEach(l => {
+        const price = l.price;
+        const gex = l.gex_value || 0;
+        const pct = Math.min(100, Math.abs(gex) / maxAbs * 100);
+        const isPositive = gex >= 0;
+        const isCurrent = Math.abs(price - currentPrice) / currentPrice < 0.003;
+        const isAirPocket = airPockets.some(ap => price >= ap.from_price && price <= ap.to_price);
+
+        const barClass = isPositive ? 'flow-bar-positive' : 'flow-bar-negative';
+        const airClass = isAirPocket ? ' flow-bar-air-pocket' : '';
+        const currentMark = isCurrent ? `<div class="flow-bar-current" style="left:50%"></div>` : '';
+        const label = price >= 1000 ? price.toFixed(0) : price.toFixed(1);
+
+        barsHtml += `<div class="flow-bar-container${isCurrent ? ' style="font-weight:700;"' : ''}">
+            <span class="flow-bar-label">${isCurrent ? '>' : ''}$${label}</span>
+            <div class="flow-bar-track${airClass}">
+                <div class="flow-bar ${barClass}" style="width:${pct}%"></div>
+                ${currentMark}
+            </div>
+            <span style="min-width:50px;text-align:right;color:${isPositive ? 'var(--green)' : 'var(--red)'};font-size:0.65rem">${l.regime}</span>
+        </div>`;
+    });
+
+    const airHtml = airPockets.length > 0
+        ? `<div class="xray-badge red" style="margin-top:8px;">AIR POCKETS: ${airPockets.map(a => '$' + a.from_price.toFixed(0) + '-' + a.to_price.toFixed(0)).join(', ')}</div>`
+        : '';
+
+    el.innerHTML = `
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;">
+            <span class="xray-badge green">GREEN = Stabilizing (dealers dampen moves)</span>
+            <span class="xray-badge red">RED = Amplifying (dealers chase moves)</span>
+        </div>
+        ${barsHtml}
+        ${airHtml}`;
+}
+
+function renderSqueezePin(data) {
+    const el = document.getElementById('xray-content-squeeze');
+    if (!el || !data) { if (el) el.innerHTML = '<div style="color:var(--text-muted)">No squeeze/pin data</div>'; return; }
+
+    const sq = data.squeeze_score || 0;
+    const pin = data.pin_score || 0;
+    const sqColor = sq >= 70 ? 'var(--red)' : sq >= 40 ? 'var(--orange)' : 'var(--green)';
+    const pinColor = pin >= 70 ? 'var(--purple)' : pin >= 40 ? 'var(--orange)' : 'var(--text-muted)';
+    const sqDir = data.squeeze_direction || '--';
+    const sqTrigger = data.squeeze_trigger_price ? '$' + data.squeeze_trigger_price.toFixed(2) : '--';
+    const pinStrike = data.pin_strike ? '$' + data.pin_strike.toFixed(2) : '--';
+
+    // SVG gauge
+    function gauge(val, color, label, subtitle) {
+        const r = 38, cx = 45, cy = 45, circumference = 2 * Math.PI * r;
+        const offset = circumference - (val / 100) * circumference;
+        return `<div class="gauge-item">
+            <div class="gauge-circle" style="width:90px;height:90px;">
+                <svg width="90" height="90" style="position:absolute;inset:0;transform:rotate(-90deg)">
+                    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="5"/>
+                    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="5"
+                        stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+                </svg>
+                <span class="gauge-value" style="color:${color};z-index:1">${val}</span>
+            </div>
+            <div class="gauge-label">${label}</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);margin-top:2px;">${subtitle}</div>
+        </div>`;
+    }
+
+    el.innerHTML = `
+        <div class="gauge-row">
+            ${gauge(sq, sqColor, 'SQUEEZE', sqDir.toUpperCase() + ' @ ' + sqTrigger)}
+            ${gauge(pin, pinColor, 'PIN RISK', 'Strike: ' + pinStrike)}
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-muted);text-align:center;padding:8px;background:var(--bg-hover);border-radius:6px;">
+            ${data.explanation || 'No squeeze or pin conditions detected.'}
+        </div>`;
+}
+
+function renderVolSurface(data) {
+    const el = document.getElementById('xray-content-volsurface');
+    if (!el || !data) { if (el) el.innerHTML = '<div style="color:var(--text-muted)">No vol surface data</div>'; return; }
+
+    const skew = data.skew_25d;
+    const skewLabel = data.skew_label || '--';
+    const termStruct = data.term_structure || '--';
+    const termSignal = data.term_signal || '--';
+
+    const skewColor = skewLabel === 'steep' ? 'red' : skewLabel === 'flat' ? 'orange' : 'green';
+    const termColor = termSignal === 'inverted' ? 'red' : termSignal === 'neutral' ? 'orange' : 'green';
+
+    function miniTable(title, color, items, headers) {
+        if (!items || !items.length) return '';
+        let rows = items.map(i => `<tr>
+            <td style="color:var(--text)">${i.type ? i.type.toUpperCase() : ''} $${(i.strike||0).toFixed(1)}</td>
+            <td>${(i.theta||0).toFixed(4)}</td>
+            <td>${(i.gamma||0).toFixed(5)}</td>
+            <td style="font-weight:600;color:var(--${color})">${(i.ratio||0).toFixed(1)}</td>
+        </tr>`).join('');
+        return `<div style="margin-top:10px;">
+            <div style="font-size:0.7rem;font-weight:600;color:var(--${color});margin-bottom:4px;">${title}</div>
+            <table class="xray-table"><thead><tr><th style="text-align:left">Strike</th><th>Theta</th><th>Gamma</th><th>|T|/G Ratio</th></tr></thead>
+            <tbody>${rows}</tbody></table>
+        </div>`;
+    }
+
+    el.innerHTML = `
+        <div style="margin-bottom:10px;">
+            <span class="xray-badge ${skewColor}">SKEW: ${skew != null ? (skew*100).toFixed(1) + '%' : '--'} (${skewLabel})</span>
+            <span class="xray-badge ${termColor}">TERM: ${termStruct} (${termSignal})</span>
+        </div>
+        ${miniTable('Cheapest Gamma (Buy These)', 'green', data.cheapest_gamma, ['Strike','Theta','Gamma','Ratio'])}
+        ${miniTable('Richest Theta (Sell These)', 'purple', data.richest_theta, ['Strike','Theta','Gamma','Ratio'])}`;
+}
+
+function renderSmartMoney(data) {
+    const el = document.getElementById('xray-content-smartmoney');
+    if (!el || !data) { if (el) el.innerHTML = '<div style="color:var(--text-muted)">No smart money data</div>'; return; }
+
+    const flow = data.net_flow || '--';
+    const callN = data.total_call_notional || 0;
+    const putN = data.total_put_notional || 0;
+    const flowColor = flow === 'bullish' ? 'green' : 'red';
+
+    let signalsHtml = '';
+    const fresh = data.fresh_positions || [];
+    const walls = data.oi_walls || [];
+
+    if (fresh.length > 0) {
+        let rows = fresh.map(f => `<tr>
+            <td style="color:var(--text)">${f.type ? f.type.toUpperCase() : ''} $${(f.strike||0).toFixed(1)}</td>
+            <td>${(f.volume||0).toLocaleString()}</td>
+            <td>${(f.oi||0).toLocaleString()}</td>
+            <td style="font-weight:600;color:var(--orange)">${(f.ratio||0).toFixed(1)}x</td>
+        </tr>`).join('');
+        signalsHtml += `<div style="margin-top:10px;">
+            <div style="font-size:0.7rem;font-weight:600;color:var(--orange);margin-bottom:4px;">Fresh Positions (Vol/OI > 2x)</div>
+            <table class="xray-table"><thead><tr><th style="text-align:left">Strike</th><th>Volume</th><th>OI</th><th>Ratio</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`;
+    }
+
+    if (walls.length > 0) {
+        let rows = walls.map(w => `<tr>
+            <td style="color:var(--text)">$${(w.strike||0).toFixed(1)}</td>
+            <td style="font-weight:600">${(w.total_oi||0).toLocaleString()}</td>
+            <td>${(w.avg_neighbor_oi||0).toLocaleString()}</td>
+        </tr>`).join('');
+        signalsHtml += `<div style="margin-top:10px;">
+            <div style="font-size:0.7rem;font-weight:600;color:var(--cyan);margin-bottom:4px;">OI Walls (> 3x Neighbors)</div>
+            <table class="xray-table"><thead><tr><th style="text-align:left">Strike</th><th>Total OI</th><th>Avg Neighbor</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>`;
+    }
+
+    el.innerHTML = `
+        <div style="margin-bottom:10px;">
+            <span class="xray-badge ${flowColor}" style="font-size:0.8rem;">
+                ${flow.toUpperCase()} FLOW: $${fmtNotional(callN)} calls / $${fmtNotional(putN)} puts
+            </span>
+        </div>
+        ${signalsHtml || '<div style="color:var(--text-muted);font-size:0.75rem;">No significant institutional signals detected</div>'}`;
+}
+
+function renderTradeZones(data) {
+    const el = document.getElementById('xray-content-tradezones');
+    if (!el || !data) { if (el) el.innerHTML = '<div style="color:var(--text-muted)">No trade zone data</div>'; return; }
+
+    const cp = data.current_price || 0;
+    const vals = [data.lower_2sd, data.lower_1sd, data.support, cp, data.resistance, data.upper_1sd, data.upper_2sd, data.max_pain, data.gamma_flip].filter(v => v && v > 0);
+    if (vals.length < 2) { el.innerHTML = '<div style="color:var(--text-muted)">Insufficient data for zone map</div>'; return; }
+
+    const minP = Math.min(...vals) * 0.998;
+    const maxP = Math.max(...vals) * 1.002;
+    const range = maxP - minP || 1;
+    const pctPos = (v) => ((v - minP) / range * 100);
+    const mapHeight = 160;
+    const topPx = (v) => (100 - pctPos(v)) / 100 * mapHeight;
+
+    function line(val, color, label) {
+        if (!val || val <= 0) return '';
+        const t = topPx(val);
+        const pLabel = val >= 1000 ? val.toFixed(0) : val.toFixed(2);
+        return `<div class="zone-line" style="top:${t}px;background:${color}"></div>
+                <div class="zone-line-label" style="top:${t}px;background:${color};color:white">${label}</div>
+                <div class="zone-price-label" style="top:${t}px">$${pLabel}</div>`;
+    }
+
+    function band(top, bottom, color) {
+        if (!top || !bottom || top <= 0 || bottom <= 0) return '';
+        const t1 = topPx(Math.max(top, bottom));
+        const t2 = topPx(Math.min(top, bottom));
+        return `<div class="zone-band" style="top:${t1}px;height:${t2-t1}px;background:${color}"></div>`;
+    }
+
+    el.innerHTML = `
+        <div class="zone-map">
+            ${band(data.upper_2sd, data.lower_2sd, 'rgba(239,68,68,0.08)')}
+            ${band(data.upper_1sd, data.lower_1sd, 'rgba(59,130,246,0.12)')}
+            ${line(data.support, 'var(--green)', 'SUPPORT')}
+            ${line(data.resistance, 'var(--red)', 'RESISTANCE')}
+            ${line(data.gamma_flip, 'var(--orange)', 'GAMMA FLIP')}
+            ${line(data.max_pain, 'var(--blue)', 'MAX PAIN')}
+            ${line(cp, 'var(--text)', 'PRICE')}
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.7rem;color:var(--text-muted);margin-top:8px;">
+            <span>Max Pain Pull: ${data.max_pain_pull ? (data.max_pain_pull * 100).toFixed(0) + '%' : '--'}</span>
+            ${data.upper_1sd ? '<span>+1&sigma; $' + data.upper_1sd.toFixed(2) + '</span>' : ''}
+            ${data.lower_1sd ? '<span>-1&sigma; $' + data.lower_1sd.toFixed(2) + '</span>' : ''}
+        </div>`;
+}
+
+// =============================================================================
 // OPTIONS VISUALIZATION
 // =============================================================================
 async function loadOptionsViz(ticker) {

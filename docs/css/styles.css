@@ -1543,3 +1543,317 @@ select:focus {
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
 }
+
+/* ===== Market X-Ray ===== */
+.xray-section {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.xray-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--bg-elevated);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: background 0.15s;
+    user-select: none;
+}
+
+.xray-section-header:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.xray-toggle {
+    font-size: 0.65rem;
+    transition: transform 0.2s;
+}
+
+.xray-toggle.open {
+    transform: rotate(180deg);
+}
+
+.xray-section-body {
+    padding: 12px 14px;
+    font-size: 0.8rem;
+}
+
+.xray-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin-top: 8px;
+}
+
+.xray-table th {
+    padding: 6px 8px;
+    text-align: right;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+}
+
+.xray-table th:first-child { text-align: left; }
+
+.xray-table td {
+    padding: 6px 8px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+}
+
+.xray-table td:first-child { text-align: left; font-weight: 600; }
+
+.xray-table tr:hover { background: var(--bg-hover); }
+
+/* Flow Bars (dealer hedging) */
+.flow-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 0.7rem;
+}
+
+.flow-bar-label {
+    min-width: 70px;
+    text-align: right;
+    color: var(--text-muted);
+    font-family: monospace;
+}
+
+.flow-bar-track {
+    flex: 1;
+    height: 16px;
+    background: var(--bg-hover);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+}
+
+.flow-bar {
+    height: 100%;
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width 0.3s;
+}
+
+.flow-bar-positive {
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.6), rgba(34, 197, 94, 0.9));
+}
+
+.flow-bar-negative {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.9), rgba(239, 68, 68, 0.6));
+    float: right;
+}
+
+.flow-bar-current {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--cyan);
+    z-index: 2;
+}
+
+.flow-bar-air-pocket {
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 3px,
+        rgba(239, 68, 68, 0.3) 3px,
+        rgba(239, 68, 68, 0.3) 6px
+    );
+}
+
+/* Gauge Circles (squeeze/pin) */
+.gauge-row {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.gauge-item {
+    text-align: center;
+}
+
+.gauge-circle {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 8px;
+}
+
+.gauge-circle .gauge-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.gauge-circle .gauge-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 4px solid var(--border);
+}
+
+.gauge-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Zone Map (trade zones) */
+.zone-map {
+    position: relative;
+    height: 160px;
+    background: var(--bg-hover);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 12px 0;
+}
+
+.zone-band {
+    position: absolute;
+    left: 0;
+    right: 0;
+    opacity: 0.25;
+}
+
+.zone-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 3;
+}
+
+.zone-line-label {
+    position: absolute;
+    right: 8px;
+    transform: translateY(-50%);
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    z-index: 4;
+    white-space: nowrap;
+}
+
+.zone-price-label {
+    position: absolute;
+    left: 8px;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    z-index: 4;
+    font-family: monospace;
+}
+
+/* Score Ring (composite) */
+.score-ring {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    margin: 0 auto 12px;
+    border: 5px solid var(--border);
+    position: relative;
+}
+
+.score-ring .score-number {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.score-ring .score-max {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+}
+
+/* Factor contribution bars */
+.factor-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 0.7rem;
+}
+
+.factor-bar-name {
+    min-width: 100px;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+.factor-bar-track {
+    flex: 1;
+    height: 12px;
+    background: var(--bg-hover);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.factor-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+
+.factor-bar-value {
+    min-width: 32px;
+    text-align: right;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+/* Mini badges for X-Ray */
+.xray-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-right: 8px;
+    margin-bottom: 6px;
+}
+
+.xray-badge.green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+.xray-badge.red { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+.xray-badge.blue { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
+.xray-badge.orange { background: var(--orange-bg); color: var(--orange); border: 1px solid rgba(249,115,22,0.3); }
+.xray-badge.purple { background: var(--purple-bg); color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+.xray-badge.cyan { background: var(--cyan-bg); color: var(--cyan); border: 1px solid rgba(6,182,212,0.3); }
+
+/* Strength dots */
+.strength-dots {
+    display: inline-flex;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+.strength-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+}
+
+.strength-dot.filled { background: currentColor; }

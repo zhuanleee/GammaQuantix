@@ -860,6 +860,83 @@
                 </div>
             </div>
 
+            <!-- Market X-Ray - Institutional Edge Scanner -->
+            <div id="xray-container" class="card" style="margin-bottom: 20px; border-left: 3px solid var(--cyan);">
+                <div class="card-header">
+                    <div class="card-title">MARKET X-RAY <span id="xray-ticker" style="color: var(--cyan); margin-left: 8px;"></span></div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div id="xray-composite-badge" style="font-size: 0.8rem; font-weight: 700; padding: 4px 14px; border-radius: 6px; background: var(--bg-hover); color: var(--text-muted);">SCORE: --</div>
+                        <button class="btn btn-primary" id="xray-scan-btn" onclick="loadMarketXray()">Scan</button>
+                    </div>
+                </div>
+                <div class="card-body" id="xray-body">
+                    <!-- Verdict Banner -->
+                    <div id="xray-verdict-banner" class="verdict-banner" style="display: none;">
+                        <div class="verdict-text" id="xray-verdict">--</div>
+                        <div class="verdict-rec" id="xray-interpretation">Click Scan to analyze market microstructure</div>
+                    </div>
+
+                    <!-- Composite Score Section -->
+                    <div class="xray-section" id="xray-sec-composite">
+                        <div class="xray-section-header" onclick="toggleXraySection('composite')">
+                            <span>Composite Edge Score</span>
+                            <span class="xray-toggle" id="xray-toggle-composite">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-composite" style="display: none;"></div>
+                    </div>
+
+                    <!-- Dealer Hedging Flow -->
+                    <div class="xray-section" id="xray-sec-dealer">
+                        <div class="xray-section-header" onclick="toggleXraySection('dealer')">
+                            <span>Dealer Hedging Flow Map</span>
+                            <span class="xray-toggle" id="xray-toggle-dealer">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-dealer" style="display: none;"></div>
+                    </div>
+
+                    <!-- Gamma Squeeze / Pin Risk -->
+                    <div class="xray-section" id="xray-sec-squeeze">
+                        <div class="xray-section-header" onclick="toggleXraySection('squeeze')">
+                            <span>Gamma Squeeze / Pin Risk</span>
+                            <span class="xray-toggle" id="xray-toggle-squeeze">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-squeeze" style="display: none;"></div>
+                    </div>
+
+                    <!-- Volatility Surface Distortion -->
+                    <div class="xray-section" id="xray-sec-volsurface">
+                        <div class="xray-section-header" onclick="toggleXraySection('volsurface')">
+                            <span>Volatility Surface Distortion</span>
+                            <span class="xray-toggle" id="xray-toggle-volsurface">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-volsurface" style="display: none;"></div>
+                    </div>
+
+                    <!-- Smart Money Footprint -->
+                    <div class="xray-section" id="xray-sec-smartmoney">
+                        <div class="xray-section-header" onclick="toggleXraySection('smartmoney')">
+                            <span>Smart Money Footprint</span>
+                            <span class="xray-toggle" id="xray-toggle-smartmoney">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-smartmoney" style="display: none;"></div>
+                    </div>
+
+                    <!-- Optimal Trade Zones -->
+                    <div class="xray-section" id="xray-sec-tradezones">
+                        <div class="xray-section-header" onclick="toggleXraySection('tradezones')">
+                            <span>Optimal Trade Zones</span>
+                            <span class="xray-toggle" id="xray-toggle-tradezones">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-tradezones" style="display: none;"></div>
+                    </div>
+
+                    <!-- Default message -->
+                    <div id="xray-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
+                        Click Scan to reveal hidden market dynamics beneath the price
+                    </div>
+                </div>
+            </div>
+
         </div><!-- end tab-strategy -->
     </main>
 
