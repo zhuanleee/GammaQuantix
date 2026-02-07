@@ -328,6 +328,28 @@ body {
     background: var(--bg-hover);
 }
 
+/* Fullscreen button */
+.fullscreen-btn {
+    font-size: 1rem;
+    padding: 4px 8px !important;
+    line-height: 1;
+}
+
+/* Chart fullscreen mode */
+.chart-fullscreen {
+    background: var(--bg) !important;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.chart-fullscreen .chart-body {
+    min-height: calc(100vh - 200px);
+}
+
+.chart-fullscreen #price-chart-container {
+    min-height: calc(100vh - 300px);
+}
+
 /* Cards */
 .card {
     background: var(--bg-card);

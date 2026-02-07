@@ -2194,6 +2194,47 @@ function refreshOptionsViz() {
 }
 
 // =============================================================================
+// FULLSCREEN
+// =============================================================================
+function toggleChartFullscreen() {
+    var container = document.getElementById('options-viz-container');
+    if (!container) return;
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        container.requestFullscreen().catch(function() {});
+    }
+}
+
+document.addEventListener('fullscreenchange', function() {
+    var container = document.getElementById('options-viz-container');
+    var btn = container ? container.querySelector('.fullscreen-btn') : null;
+    if (document.fullscreenElement) {
+        if (container) container.classList.add('chart-fullscreen');
+        if (btn) btn.textContent = '\u2716';
+    } else {
+        if (container) container.classList.remove('chart-fullscreen');
+        if (btn) btn.textContent = '\u26F6';
+    }
+    // Resize charts after fullscreen change
+    setTimeout(function() {
+        if (priceChart) {
+            var pc = document.getElementById('price-chart-container');
+            if (pc && pc.clientWidth > 0) priceChart.applyOptions({ width: pc.clientWidth, height: pc.clientHeight || 500 });
+            priceChart.timeScale().fitContent();
+        }
+        if (rsiChart) {
+            var rc = document.getElementById('rsi-chart-container');
+            if (rc && rc.clientWidth > 0) rsiChart.applyOptions({ width: rc.clientWidth });
+        }
+        if (rsChart) {
+            var rsc = document.getElementById('rs-chart-container');
+            if (rsc && rsc.clientWidth > 0) rsChart.applyOptions({ width: rsc.clientWidth });
+        }
+    }, 100);
+});
+
+// =============================================================================
 // INTERVAL SELECTION
 // =============================================================================
 function setInterval_(interval) {
