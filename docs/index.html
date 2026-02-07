@@ -727,6 +727,20 @@
         <!-- ===== TAB: STRATEGY ===== -->
         <div class="tab-content" id="tab-strategy">
 
+            <!-- Active Swing Trades -->
+            <div id="swing-trades-container" class="card" style="display: none; margin-bottom: 20px;">
+                <div class="card-header">
+                    <div class="card-title">Active Trades <span id="swing-trade-count" style="color: var(--blue); margin-left: 8px;">0</span></div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="swing-last-refresh" style="font-size: 0.7rem; color: var(--text-muted);"></span>
+                        <button class="btn btn-primary" onclick="refreshSwingTrades()" id="swing-refresh-btn">Refresh All</button>
+                    </div>
+                </div>
+                <div class="card-body" id="swing-trades-list">
+                    <!-- Trade cards rendered by JS -->
+                </div>
+            </div>
+
             <!-- Ratio Spread Conditions -->
             <div id="ratio-spread-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--purple);">
                 <div class="card-header">

@@ -1391,6 +1391,9 @@ async function loadMarketXray() {
 
         const d = json.data;
 
+        // Store for swing trade tracking
+        window._lastXrayData = d;
+
         // Show banner
         if (banner) banner.style.display = 'block';
 
@@ -1738,6 +1741,7 @@ function renderTradeZones(data) {
 function renderTradeIdeas(ideas) {
     const el = document.getElementById('xray-trade-ideas');
     if (!el || !ideas || !ideas.length) { if (el) el.style.display = 'none'; return; }
+    window._lastTradeIdeas = ideas;
 
     const typeIcons = {
         bullish: '&#9650;',
@@ -1747,12 +1751,15 @@ function renderTradeIdeas(ideas) {
         value: '&#127919;'
     };
 
-    const html = ideas.map(idea => {
+    const html = ideas.map((idea, idx) => {
         const icon = typeIcons[idea.type] || '&#8226;';
         const conf = idea.confidence || '';
         const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
-        return `<div class="trade-idea-card" data-type="${idea.type}">
-            <div class="trade-idea-header">${icon} ${idea.title} ${confBadge}</div>
+        // Parse action for track button
+        const hasAction = idea.action && idea.action.includes('Buy $');
+        const trackBtn = hasAction ? `<button class="trade-idea-track-btn" onclick="trackTradeIdea(${idx})">Track</button>` : '';
+        return `<div class="trade-idea-card" data-type="${idea.type}" data-idx="${idx}">
+            <div class="trade-idea-header">${icon} ${idea.title} ${confBadge} ${trackBtn}</div>
             <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-action">&rarr;</span><span>${idea.action}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-tp">TP</span><span>${idea.target}</span></div>
@@ -4275,5 +4282,311 @@ function renderIVSmile(calls, puts, currentPrice) {
     ivSmileChart = new ApexCharts(chartDiv, options);
     ivSmileChart.render();
 }
+
+// =============================================================================
+// SWING TRADE TRACKER
+// =============================================================================
+
+const SWING_STORAGE_KEY = 'gq_swing_trades';
+let _swingRefreshTimer = null;
+
+function getSwingTrades() {
+    try {
+        return JSON.parse(localStorage.getItem(SWING_STORAGE_KEY) || '[]');
+    } catch { return []; }
+}
+
+function saveSwingTrades(trades) {
+    localStorage.setItem(SWING_STORAGE_KEY, JSON.stringify(trades));
+}
+
+function trackTradeIdea(idx) {
+    const ideas = window._lastTradeIdeas;
+    const xray = window._lastXrayData;
+    if (!ideas || !ideas[idx] || !xray) return;
+
+    const idea = ideas[idx];
+    const ticker = xray.ticker;
+
+    // Parse strike, type, premium from action text: "Buy $600 call @ $5.20 | ..."
+    const m = idea.action.match(/Buy \$([0-9,.]+)\s+(call|put)\s+@\s+\$([0-9.]+)/i);
+    if (!m) { console.warn('Could not parse trade action:', idea.action); return; }
+
+    const strike = parseFloat(m[1].replace(',', ''));
+    const optType = m[2].toLowerCase();
+    const premium = parseFloat(m[3]);
+    const expiration = xray.expiration;
+
+    // Duplicate check
+    const trades = getSwingTrades();
+    const dup = trades.find(t => t.ticker === ticker && t.strike === strike &&
+        t.opt_type === optType && t.expiration === expiration);
+    if (dup) {
+        // Mark button as tracked
+        const btn = document.querySelector(`.trade-idea-card[data-idx="${idx}"] .trade-idea-track-btn`);
+        if (btn) { btn.textContent = 'Tracked'; btn.classList.add('tracked'); }
+        return;
+    }
+
+    // Build entry snapshot
+    const composite = xray.composite || {};
+    const smartMoney = xray.smart_money || {};
+    const tradeZones = xray.trade_zones || {};
+    const squeeze = xray.squeeze_pin || {};
+    const volSurface = xray.vol_surface || {};
+
+    const entry = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        ticker,
+        strike,
+        opt_type: optType,
+        entry_premium: premium,
+        expiration,
+        entry_date: new Date().toISOString().slice(0, 10),
+        entry_price: xray.current_price,
+        entry_composite_score: composite.score,
+        entry_composite_label: composite.label,
+        entry_net_flow: smartMoney.net_flow,
+        entry_gex_regime: null, // from dealer flow
+        entry_support: tradeZones.support,
+        entry_resistance: tradeZones.resistance,
+        entry_atm_iv: volSurface.atm_iv,
+        entry_squeeze_score: squeeze.squeeze_score,
+        idea_title: idea.title,
+        last_analysis: null
+    };
+
+    // Try to get GEX regime from dealer flow levels
+    if (xray.dealer_flow && xray.dealer_flow.levels) {
+        const cp = xray.current_price;
+        const closest = xray.dealer_flow.levels.reduce((best, l) =>
+            Math.abs(l.price - cp) < Math.abs((best?.price || Infinity) - cp) ? l : best, null);
+        if (closest) entry.entry_gex_regime = closest.regime;
+    }
+
+    trades.push(entry);
+    saveSwingTrades(trades);
+
+    // Update button
+    const btn = document.querySelector(`.trade-idea-card[data-idx="${idx}"] .trade-idea-track-btn`);
+    if (btn) { btn.textContent = 'Tracked'; btn.classList.add('tracked'); }
+
+    // Trigger analysis
+    refreshSwingTrades();
+}
+
+async function refreshSwingTrades() {
+    const trades = getSwingTrades();
+    if (!trades.length) {
+        renderSwingTrades();
+        return;
+    }
+
+    const btn = document.getElementById('swing-refresh-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
+
+    try {
+        const payload = trades.map(t => ({
+            ticker: t.ticker,
+            strike: t.strike,
+            opt_type: t.opt_type,
+            entry_premium: t.entry_premium,
+            expiration: t.expiration,
+            entry_date: t.entry_date,
+            entry_composite_score: t.entry_composite_score,
+            entry_composite_label: t.entry_composite_label,
+            entry_net_flow: t.entry_net_flow,
+            entry_gex_regime: t.entry_gex_regime,
+            entry_support: t.entry_support,
+            entry_resistance: t.entry_resistance,
+            entry_atm_iv: t.entry_atm_iv,
+            entry_squeeze_score: t.entry_squeeze_score,
+        }));
+
+        const resp = await fetch(`${API_BASE}/options/swing-trade/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trades: payload })
+        });
+        const json = await resp.json();
+
+        if (json.ok && json.data && json.data.trades) {
+            const results = json.data.trades;
+            // Attach analysis to stored trades
+            for (let i = 0; i < trades.length && i < results.length; i++) {
+                trades[i].last_analysis = results[i];
+                trades[i].last_refresh = new Date().toISOString();
+            }
+            saveSwingTrades(trades);
+        }
+    } catch (e) {
+        console.error('Swing trade refresh error:', e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Refresh All'; }
+    }
+
+    renderSwingTrades();
+}
+
+function renderSwingTrades() {
+    const container = document.getElementById('swing-trades-container');
+    const list = document.getElementById('swing-trades-list');
+    const countEl = document.getElementById('swing-trade-count');
+    const refreshEl = document.getElementById('swing-last-refresh');
+    if (!container || !list) return;
+
+    const trades = getSwingTrades();
+    if (!trades.length) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    if (countEl) countEl.textContent = trades.length;
+
+    // Last refresh time
+    const lastRefresh = trades.find(t => t.last_refresh)?.last_refresh;
+    if (refreshEl && lastRefresh) {
+        const d = new Date(lastRefresh);
+        refreshEl.textContent = `Updated ${d.toLocaleTimeString()}`;
+    }
+
+    const cards = trades.map((trade, i) => {
+        const a = trade.last_analysis;
+        if (!a || a.error) {
+            return renderSwingCardError(trade, i, a);
+        }
+        return renderSwingCard(trade, i, a);
+    }).join('');
+
+    list.innerHTML = cards;
+}
+
+function renderSwingCardError(trade, idx, analysis) {
+    const signal = analysis?.signal || 'MANUAL CHECK';
+    const signalClass = 'signal-manual-check';
+    return `<div class="swing-trade-card ${signalClass}">
+        <div class="swing-header">
+            <div class="swing-header-left">
+                <span class="swing-ticker">${trade.ticker}</span>
+                <span class="swing-strike-info">$${trade.strike} ${trade.opt_type.toUpperCase()} | ${trade.expiration}</span>
+            </div>
+            <span style="color:var(--text-muted);font-size:0.8rem;">${signal} — ${analysis?.error || 'No data'}</span>
+        </div>
+        <div class="swing-footer">
+            <button onclick="refreshSwingTrades()">Re-analyze</button>
+            <button class="close-trade" onclick="closeSwingTrade(${idx})">Close Trade</button>
+        </div>
+    </div>`;
+}
+
+function renderSwingCard(trade, idx, a) {
+    const hold = a.hold || {};
+    const pnl = a.pnl || {};
+    const regime = a.regime || {};
+    const thetaBurn = a.theta_burn || {};
+    const greeks = a.greeks || {};
+    const ivMon = a.iv_monitor || {};
+    const signal = a.signal || '';
+
+    // Signal class
+    const labelMap = {
+        'STRONG HOLD': 'strong-hold', 'HOLD': 'hold', 'MONITOR': 'monitor',
+        'REDUCE': 'reduce', 'EXIT': 'exit'
+    };
+    const holdClass = labelMap[hold.label] || 'monitor';
+
+    // P&L badge
+    const pnlPct = pnl.pnl_percent || 0;
+    const pnlClass = pnlPct > 0 ? 'positive' : pnlPct < 0 ? 'negative' : 'neutral';
+
+    // Factor bars
+    const factorNames = {
+        'pnl_momentum': 'P&L', 'time_decay': 'Time', 'regime_alignment': 'Regime',
+        'level_integrity': 'Levels', 'iv_trend': 'IV', 'smart_money': 'Flow',
+        'squeeze_catalyst': 'Squeeze'
+    };
+    const factorBars = (hold.factors || []).map(f => {
+        const name = factorNames[f.name] || f.name;
+        const pct = Math.min(100, Math.max(0, f.score));
+        const color = pct >= 70 ? 'var(--green)' : pct >= 50 ? 'var(--blue)' : pct >= 35 ? 'var(--orange)' : 'var(--red)';
+        return `<div class="swing-factor-row">
+            <span class="swing-factor-name">${name}</span>
+            <div class="swing-factor-bar"><div class="swing-factor-fill" style="width:${pct}%;background:${color}"></div></div>
+            <span class="swing-factor-val">${f.score}</span>
+        </div>`;
+    }).join('');
+
+    // Metrics
+    const deltaVal = greeks.delta ? (typeof greeks.delta === 'number' ? greeks.delta.toFixed(2) : greeks.delta) : '--';
+    const thetaDay = thetaBurn.daily_decay_cost ? `$${thetaBurn.daily_decay_cost}` : '--';
+    const ivChange = ivMon.iv_change_pct != null ? `${ivMon.iv_change_pct > 0 ? '+' : ''}${ivMon.iv_change_pct.toFixed(1)}%` : '--';
+    const dteVal = thetaBurn.dte != null ? thetaBurn.dte : '--';
+    const regimeLabel = regime.current_label || '--';
+
+    return `<div class="swing-trade-card signal-${holdClass}">
+        <div class="swing-header">
+            <div class="swing-header-left">
+                <div class="swing-score-ring ${holdClass}">
+                    <span class="score-num">${hold.score || 0}</span>
+                    <span class="score-lbl">${hold.label || '--'}</span>
+                </div>
+                <div>
+                    <span class="swing-ticker">${trade.ticker}</span>
+                    <span class="swing-strike-info">$${trade.strike} ${trade.opt_type.toUpperCase()} | ${trade.expiration}</span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="swing-pnl-badge ${pnlClass}">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}% ($${(pnl.pnl_dollar_100 || 0) >= 0 ? '+' : ''}${(pnl.pnl_dollar_100 || 0).toFixed(0)})</span>
+            </div>
+        </div>
+        <div class="swing-signal-banner ${holdClass}">${signal}</div>
+        <div class="swing-metrics">
+            <div class="swing-metric"><div class="metric-val">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(1)}%</div><div class="metric-lbl">P&L</div></div>
+            <div class="swing-metric"><div class="metric-val">${deltaVal}</div><div class="metric-lbl">Delta</div></div>
+            <div class="swing-metric"><div class="metric-val">${thetaDay}</div><div class="metric-lbl">Theta/Day</div></div>
+            <div class="swing-metric"><div class="metric-val">${ivChange}</div><div class="metric-lbl">IV Change</div></div>
+            <div class="swing-metric"><div class="metric-val">${dteVal}</div><div class="metric-lbl">DTE</div></div>
+            <div class="swing-metric"><div class="metric-val">${regimeLabel}</div><div class="metric-lbl">Regime</div></div>
+        </div>
+        <div class="swing-factors">${factorBars}</div>
+        <div class="swing-footer">
+            <button onclick="refreshSwingTrades()">Re-analyze</button>
+            <button class="close-trade" onclick="closeSwingTrade(${idx})">Close Trade</button>
+        </div>
+    </div>`;
+}
+
+function closeSwingTrade(idx) {
+    const trades = getSwingTrades();
+    if (idx >= 0 && idx < trades.length) {
+        trades.splice(idx, 1);
+        saveSwingTrades(trades);
+        renderSwingTrades();
+    }
+}
+
+function startSwingAutoRefresh() {
+    if (_swingRefreshTimer) clearInterval(_swingRefreshTimer);
+    _swingRefreshTimer = setInterval(() => {
+        // Only refresh during market hours M-F 9:30-16:00 ET
+        const now = new Date();
+        const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const day = et.getDay();
+        const h = et.getHours();
+        const m = et.getMinutes();
+        const mins = h * 60 + m;
+        if (day >= 1 && day <= 5 && mins >= 570 && mins <= 960) {
+            const trades = getSwingTrades();
+            if (trades.length > 0) refreshSwingTrades();
+        }
+    }, 60000);
+}
+
+// Init swing trades on page load
+document.addEventListener('DOMContentLoaded', () => {
+    renderSwingTrades();
+    startSwingAutoRefresh();
+});
 
 console.log('Gamma Quantix initialized. API:', API_BASE);

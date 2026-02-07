@@ -1950,3 +1950,214 @@ select:focus {
 }
 
 .strength-dot.filled { background: currentColor; }
+
+/* =============================================================================
+   SWING TRADE TRACKER
+   ============================================================================= */
+
+.swing-trade-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: border-color 0.3s;
+}
+.swing-trade-card.signal-strong-hold { border-left-color: var(--green); }
+.swing-trade-card.signal-hold { border-left-color: var(--blue); }
+.swing-trade-card.signal-monitor { border-left-color: var(--orange); }
+.swing-trade-card.signal-reduce { border-left-color: #f59e0b; }
+.swing-trade-card.signal-exit { border-left-color: var(--red); }
+.swing-trade-card.signal-expired { border-left-color: var(--text-muted); opacity: 0.7; }
+.swing-trade-card.signal-manual-check { border-left-color: var(--text-muted); }
+
+.swing-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.swing-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.swing-ticker {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.swing-strike-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.swing-pnl-badge {
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 4px;
+}
+.swing-pnl-badge.positive { background: rgba(34,197,94,0.15); color: var(--green); }
+.swing-pnl-badge.negative { background: rgba(239,68,68,0.12); color: var(--red); }
+.swing-pnl-badge.neutral { background: var(--card-bg); color: var(--text-muted); }
+
+/* Hold Score Ring */
+.swing-score-ring {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--border);
+    flex-shrink: 0;
+}
+.swing-score-ring .score-num {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.swing-score-ring .score-lbl {
+    font-size: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.2;
+}
+.swing-score-ring.strong-hold { border-color: var(--green); color: var(--green); }
+.swing-score-ring.hold { border-color: var(--blue); color: var(--blue); }
+.swing-score-ring.monitor { border-color: var(--orange); color: var(--orange); }
+.swing-score-ring.reduce { border-color: #f59e0b; color: #f59e0b; }
+.swing-score-ring.exit { border-color: var(--red); color: var(--red); }
+
+/* Action Signal Banner */
+.swing-signal-banner {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+.swing-signal-banner.strong-hold { background: rgba(34,197,94,0.1); color: var(--green); }
+.swing-signal-banner.hold { background: rgba(59,130,246,0.1); color: var(--blue); }
+.swing-signal-banner.monitor { background: rgba(251,191,36,0.1); color: var(--orange); }
+.swing-signal-banner.reduce { background: rgba(245,158,11,0.1); color: #f59e0b; }
+.swing-signal-banner.exit { background: rgba(239,68,68,0.1); color: var(--red); }
+
+/* Metrics Grid */
+.swing-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.swing-metric {
+    text-align: center;
+    padding: 6px 4px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+}
+.swing-metric .metric-val {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.swing-metric .metric-lbl {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Factor Bars */
+.swing-factors {
+    margin-bottom: 12px;
+}
+.swing-factor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 0.7rem;
+}
+.swing-factor-name {
+    width: 90px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+}
+.swing-factor-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.swing-factor-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+.swing-factor-val {
+    width: 28px;
+    text-align: right;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* Footer */
+.swing-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+.swing-footer button {
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.swing-footer button:hover {
+    background: var(--border);
+    color: var(--text-primary);
+}
+.swing-footer button.close-trade:hover {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+/* Track button in trade idea cards */
+.trade-idea-track-btn {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--blue);
+    background: transparent;
+    color: var(--blue);
+    cursor: pointer;
+    margin-left: 6px;
+    transition: all 0.2s;
+}
+.trade-idea-track-btn:hover {
+    background: var(--blue);
+    color: white;
+}
+.trade-idea-track-btn.tracked {
+    background: var(--green);
+    border-color: var(--green);
+    color: white;
+    cursor: default;
+}
