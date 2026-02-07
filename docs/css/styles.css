@@ -1763,6 +1763,23 @@ select:focus {
     font-family: monospace;
 }
 
+.zone-line-price {
+    background: #fff;
+    height: 2px;
+    background-image: repeating-linear-gradient(90deg, #fff 0, #fff 6px, transparent 6px, transparent 10px);
+    background-color: transparent;
+    z-index: 5;
+}
+
+.zone-label-price {
+    background: #fff !important;
+    color: #1a1a2e !important;
+    font-weight: 700;
+    z-index: 6;
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: 0 0 6px rgba(255,255,255,0.3);
+}
+
 /* Score Ring (composite) */
 .score-ring {
     width: 100px;

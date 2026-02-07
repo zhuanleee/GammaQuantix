@@ -1649,13 +1649,45 @@ function renderTradeZones(data) {
     const mapHeight = 160;
     const topPx = (v) => (100 - pctPos(v)) / 100 * mapHeight;
 
-    function line(val, color, label) {
-        if (!val || val <= 0) return '';
-        const t = topPx(val);
-        const pLabel = val >= 1000 ? val.toFixed(0) : val.toFixed(2);
-        return `<div class="zone-line" style="top:${t}px;background:${color}"></div>
-                <div class="zone-line-label" style="top:${t}px;background:${color};color:white">${label}</div>
-                <div class="zone-price-label" style="top:${t}px">$${pLabel}</div>`;
+    // Collect all lines with their positions, then offset overlapping labels
+    const lines = [];
+    function addLine(val, color, label, isPrice) {
+        if (!val || val <= 0) return;
+        lines.push({ val, color, label, isPrice, top: topPx(val) });
+    }
+
+    addLine(data.support, 'var(--green)', 'SUPPORT', false);
+    addLine(data.resistance, 'var(--red)', 'RESISTANCE', false);
+    addLine(data.gamma_flip, 'var(--orange)', 'GAMMA FLIP', false);
+    addLine(data.max_pain, 'var(--blue)', 'MAX PAIN', false);
+    addLine(cp, '#fff', 'CURRENT PRICE', true);
+
+    // Sort by top position (ascending = top of map first)
+    lines.sort((a, b) => a.top - b.top);
+
+    // Offset overlapping right-side labels (min 14px apart)
+    const labelTops = [];
+    for (const ln of lines) {
+        let lt = ln.top;
+        for (const prev of labelTops) {
+            if (Math.abs(lt - prev) < 14) lt = prev + 14;
+        }
+        ln.labelTop = Math.max(0, Math.min(lt, mapHeight - 10));
+        labelTops.push(ln.labelTop);
+    }
+
+    let linesHtml = '';
+    for (const ln of lines) {
+        const pLabel = ln.val >= 1000 ? ln.val.toFixed(0) : ln.val.toFixed(2);
+        if (ln.isPrice) {
+            linesHtml += `<div class="zone-line zone-line-price" style="top:${ln.top}px"></div>
+                <div class="zone-line-label zone-label-price" style="top:${ln.labelTop}px">CURRENT PRICE</div>
+                <div class="zone-price-label" style="top:${ln.top}px;color:#fff;font-weight:700">$${pLabel}</div>`;
+        } else {
+            linesHtml += `<div class="zone-line" style="top:${ln.top}px;background:${ln.color}"></div>
+                <div class="zone-line-label" style="top:${ln.labelTop}px;background:${ln.color};color:white">${ln.label}</div>
+                <div class="zone-price-label" style="top:${ln.top}px">$${pLabel}</div>`;
+        }
     }
 
     function band(top, bottom, color) {
@@ -1669,11 +1701,7 @@ function renderTradeZones(data) {
         <div class="zone-map">
             ${band(data.upper_2sd, data.lower_2sd, 'rgba(239,68,68,0.08)')}
             ${band(data.upper_1sd, data.lower_1sd, 'rgba(59,130,246,0.12)')}
-            ${line(data.support, 'var(--green)', 'SUPPORT')}
-            ${line(data.resistance, 'var(--red)', 'RESISTANCE')}
-            ${line(data.gamma_flip, 'var(--orange)', 'GAMMA FLIP')}
-            ${line(data.max_pain, 'var(--blue)', 'MAX PAIN')}
-            ${line(cp, 'var(--text)', 'PRICE')}
+            ${linesHtml}
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.7rem;color:var(--text-muted);margin-top:8px;">
             <span>Max Pain Pull: ${data.max_pain_pull ? (data.max_pain_pull * 100).toFixed(0) + '%' : '--'}</span>
