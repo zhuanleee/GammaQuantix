@@ -339,15 +339,77 @@ body {
 .chart-fullscreen {
     background: var(--bg) !important;
     padding: 16px;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.chart-fullscreen .card-header,
+.chart-fullscreen .toggle-panel,
+.chart-fullscreen .toggle-panel-indicators,
+.chart-fullscreen .info-bar {
+    flex: 0 0 auto;
 }
 
 .chart-fullscreen .chart-body {
-    min-height: calc(100vh - 200px);
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .chart-fullscreen #price-chart-container {
-    min-height: calc(100vh - 300px);
+    flex: 1;
+    min-height: 0;
+}
+
+.chart-fullscreen .rsi-pane,
+.chart-fullscreen .rs-pane {
+    flex: 0 0 100px;
+}
+
+.chart-fullscreen #gex-chart-container {
+    flex: 0 0 200px;
+}
+
+/* Fullscreen ticker bar - only visible in fullscreen */
+.fs-ticker-bar {
+    display: none;
+}
+.chart-fullscreen .fs-ticker-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+}
+.chart-fullscreen .fs-ticker-bar input {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    width: 100px;
+}
+.chart-fullscreen .fs-ticker-bar .fs-tk-btn {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--bg-hover);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    line-height: 1.2;
+}
+.chart-fullscreen .fs-ticker-bar .fs-tk-btn:hover {
+    background: var(--border);
+    color: var(--text);
+}
+.chart-fullscreen .fs-ticker-bar .fs-tk-btn.futures {
+    color: var(--orange);
 }
 
 /* Cards */

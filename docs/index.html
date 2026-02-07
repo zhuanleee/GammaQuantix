@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260207g">
+    <link rel="stylesheet" href="css/styles.css?v=20260207h">
 </head>
 <body>
     <!-- Header -->
@@ -545,6 +545,22 @@
                         <span class="toggle-label vol">Vol</span>
                     </label>
                 </div>
+                <!-- Fullscreen-only ticker bar -->
+                <div class="fs-ticker-bar">
+                    <input type="text" id="fs-ticker-input" placeholder="Ticker..." onkeypress="if(event.key==='Enter'){quickAnalyzeTicker(this.value.toUpperCase().trim());this.blur();}">
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('SPY')">SPY</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('QQQ')">QQQ</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('NVDA')">NVDA</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('TSLA')">TSLA</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('AAPL')">AAPL</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('AMD')">AMD</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('META')">META</button>
+                    <span style="color:var(--border);">|</span>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/ES')">/ES</button>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/NQ')">/NQ</button>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/CL')">/CL</button>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/GC')">/GC</button>
+                </div>
                 <div class="card-body chart-body" style="min-height: 600px;">
                     <div id="price-chart-container" class="chart-container" style="min-height: 500px;">
                         <div class="chart-loading">Loading price data...</div>
@@ -858,6 +874,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260207j"></script>
+    <script src="js/app.js?v=20260207k"></script>
 </body>
 </html>

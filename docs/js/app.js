@@ -2171,6 +2171,7 @@ function toggleGexChart() {
     if (showGex && optionsVizData.gexByStrike.length > 0) {
         renderVizGexChart();
     }
+    if (document.fullscreenElement) setTimeout(resizeChartsToFit, 50);
 }
 
 // =============================================================================
@@ -2209,6 +2210,25 @@ function toggleChartFullscreen() {
     }
 }
 
+function resizeChartsToFit() {
+    var pc = document.getElementById('price-chart-container');
+    if (!pc || pc.clientWidth === 0) return;
+    var h = pc.clientHeight;
+    if (h < 50) h = 500;
+    if (priceChart) {
+        priceChart.applyOptions({ width: pc.clientWidth, height: h });
+        priceChart.timeScale().fitContent();
+    }
+    if (rsiChart) {
+        var rc = document.getElementById('rsi-chart-container');
+        if (rc && rc.clientWidth > 0) rsiChart.applyOptions({ width: rc.clientWidth, height: rc.clientHeight || 100 });
+    }
+    if (rsChart) {
+        var rsc = document.getElementById('rs-chart-container');
+        if (rsc && rsc.clientWidth > 0) rsChart.applyOptions({ width: rsc.clientWidth, height: rsc.clientHeight || 100 });
+    }
+}
+
 document.addEventListener('fullscreenchange', function() {
     var container = document.getElementById('options-viz-container');
     var btn = container ? container.querySelector('.fullscreen-btn') : null;
@@ -2219,22 +2239,7 @@ document.addEventListener('fullscreenchange', function() {
         if (container) container.classList.remove('chart-fullscreen');
         if (btn) btn.textContent = '\u26F6';
     }
-    // Resize charts after fullscreen change
-    setTimeout(function() {
-        if (priceChart) {
-            var pc = document.getElementById('price-chart-container');
-            if (pc && pc.clientWidth > 0) priceChart.applyOptions({ width: pc.clientWidth, height: pc.clientHeight || 500 });
-            priceChart.timeScale().fitContent();
-        }
-        if (rsiChart) {
-            var rc = document.getElementById('rsi-chart-container');
-            if (rc && rc.clientWidth > 0) rsiChart.applyOptions({ width: rc.clientWidth });
-        }
-        if (rsChart) {
-            var rsc = document.getElementById('rs-chart-container');
-            if (rsc && rsc.clientWidth > 0) rsChart.applyOptions({ width: rsc.clientWidth });
-        }
-    }, 100);
+    setTimeout(resizeChartsToFit, 100);
 });
 
 // =============================================================================
@@ -2623,6 +2628,7 @@ function toggleRsiChart() {
             rsiSeries = null;
         }
     }
+    if (document.fullscreenElement) setTimeout(resizeChartsToFit, 50);
 }
 
 function renderRsChart() {
@@ -2757,6 +2763,7 @@ function toggleRsChart() {
             rsSmaSeries = null;
         }
     }
+    if (document.fullscreenElement) setTimeout(resizeChartsToFit, 50);
 }
 
 // =============================================================================
