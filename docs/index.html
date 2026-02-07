@@ -19,7 +19,7 @@
         </div>
         <div class="header-right">
             <div class="ticker-search">
-                <input type="text" id="ticker-input" placeholder="Enter ticker (e.g., SPY, /ES)" autocomplete="off">
+                <input type="text" id="ticker-input" placeholder="Enter ticker (e.g., SPY, /ES)" autocomplete="off" oninput="var s=document.getElementById('options-ticker-input');if(s)s.value=this.value">
                 <button id="analyze-btn" onclick="loadOptionsAnalysis()">Analyze</button>
             </div>
             <div class="market-status" id="market-status" title="US market hours: 9:30 AM - 4:00 PM ET. Green = open, Red = closed.">
@@ -150,6 +150,7 @@
         <div class="filter-bar" style="margin-bottom: 16px; flex-wrap: wrap;">
             <input type="text" id="options-ticker-input" placeholder="Enter ticker..."
                 style="flex: 1; min-width: 120px; max-width: 180px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.875rem;"
+                oninput="document.getElementById('ticker-input').value=this.value"
                 onkeypress="if(event.key==='Enter') loadOptionsAnalysis()" />
             <button class="btn btn-primary" onclick="loadOptionsAnalysis()" style="padding: 8px 16px;">Analyze</button>
             <button class="btn btn-ghost" onclick="loadSmartMoneyFlow()" style="padding: 8px 12px;" title="Analyze institutional and smart money options flow patterns">Smart Flow</button>
