@@ -1749,8 +1749,10 @@ function renderTradeIdeas(ideas) {
 
     const html = ideas.map(idea => {
         const icon = typeIcons[idea.type] || '&#8226;';
+        const conf = idea.confidence || '';
+        const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
         return `<div class="trade-idea-card" data-type="${idea.type}">
-            <div class="trade-idea-header">${icon} ${idea.title}</div>
+            <div class="trade-idea-header">${icon} ${idea.title} ${confBadge}</div>
             <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-action">&rarr;</span><span>${idea.action}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-tp">TP</span><span>${idea.target}</span></div>

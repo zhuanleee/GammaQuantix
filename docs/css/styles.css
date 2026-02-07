@@ -1835,6 +1835,19 @@ select:focus {
 .trade-idea-label.label-tp { background: var(--cyan-bg); color: var(--cyan); }
 .trade-idea-label.label-sl { background: var(--red-bg); color: var(--red); }
 
+.trade-idea-confidence {
+    font-size: 0.55rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+    letter-spacing: 0.03em;
+}
+.confidence-high { background: var(--green-bg); color: var(--green); }
+.confidence-medium { background: var(--yellow-bg); color: var(--yellow); }
+.confidence-low { background: var(--red-bg); color: var(--red); }
+
 .trade-idea-rationale {
     font-size: 0.68rem;
     color: var(--text-muted);
