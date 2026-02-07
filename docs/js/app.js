@@ -1425,8 +1425,8 @@ async function loadMarketXray() {
             banner.style.background = clr.bg;
             banner.style.borderLeft = `4px solid ${clr.c}`;
 
-            // Render action plan
-            renderActionPlan(d.composite.action_plan);
+            // Render trade ideas
+            renderTradeIdeas(d.composite.trade_ideas);
         }
 
         // Auto-expand composite
@@ -1735,37 +1735,31 @@ function renderTradeZones(data) {
         </div>`;
 }
 
-function renderActionPlan(actions) {
-    const el = document.getElementById('xray-action-plan');
-    if (!el || !actions || !actions.length) { if (el) el.style.display = 'none'; return; }
+function renderTradeIdeas(ideas) {
+    const el = document.getElementById('xray-trade-ideas');
+    if (!el || !ideas || !ideas.length) { if (el) el.style.display = 'none'; return; }
 
-    const icons = {
-        bull: '<span style="color:var(--green);font-size:1.1em">&#9650;</span>',
-        bear: '<span style="color:var(--red);font-size:1.1em">&#9660;</span>',
-        neutral: '<span style="color:var(--orange);font-size:1.1em">&#9644;</span>',
-        shield: '<span style="color:var(--green)">&#128737;</span>',
-        warning: '<span style="color:var(--orange)">&#9888;</span>',
-        info: '<span style="color:var(--blue)">&#8505;</span>',
-        rocket: '<span style="color:var(--purple, #a78bfa)">&#9733;</span>',
-        pin: '<span style="color:var(--purple, #a78bfa)">&#128204;</span>',
-        chart: '<span style="color:var(--blue)">&#128200;</span>',
-        target: '<span style="color:var(--green)">&#127919;</span>',
-        money: '<span style="color:var(--green)">&#128176;</span>',
-        levels: '<span style="color:var(--text-muted)">&#9472;&#9472;</span>'
+    const typeIcons = {
+        bullish: '&#9650;',
+        bearish: '&#9660;',
+        neutral: '&#9644;',
+        breakout: '&#9733;',
+        value: '&#127919;'
     };
 
-    const html = actions.map(a => {
-        const icon = icons[a.icon] || icons.info;
-        const borderColor = a.type === 'bias' ? 'var(--blue)' :
-            a.type === 'risk' ? 'var(--orange)' :
-            a.type === 'regime' ? 'var(--green)' : 'var(--border)';
-        return `<div class="action-item" style="border-left:3px solid ${borderColor}">
-            <span class="action-icon">${icon}</span>
-            <span class="action-text">${a.text}</span>
+    const html = ideas.map(idea => {
+        const icon = typeIcons[idea.type] || '&#8226;';
+        return `<div class="trade-idea-card" data-type="${idea.type}">
+            <div class="trade-idea-header">${icon} ${idea.title}</div>
+            <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
+            <div class="trade-idea-row"><span class="trade-idea-label label-action">&rarr;</span><span>${idea.action}</span></div>
+            <div class="trade-idea-row"><span class="trade-idea-label label-tp">TP</span><span>${idea.target}</span></div>
+            <div class="trade-idea-row"><span class="trade-idea-label label-sl">SL</span><span>${idea.stop}</span></div>
+            <div class="trade-idea-rationale">${idea.rationale}</div>
         </div>`;
     }).join('');
 
-    el.innerHTML = `<div class="action-plan-title">ACTION PLAN</div>${html}`;
+    el.innerHTML = `<div class="trade-ideas-title">TRADE IDEAS</div>${html}`;
     el.style.display = 'block';
 }
 
