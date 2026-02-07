@@ -2316,22 +2316,23 @@ function calcRS(tickerCandles, spyCandles, smaPeriod) {
     smaPeriod = smaPeriod || 50;
     if (!tickerCandles || !tickerCandles.length || !spyCandles || !spyCandles.length) return { rs: [], sma: [] };
 
+    function timeKey(t) {
+        if (typeof t === 'object' && t.year != null) {
+            return t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0');
+        }
+        return String(t);
+    }
+
     // Build SPY lookup by time
     var spyMap = new Map();
     spyCandles.forEach(function(c) {
-        var key = typeof c.time === 'object'
-            ? c.time.year + '-' + c.time.month + '-' + c.time.day
-            : String(c.time);
-        spyMap.set(key, c.close);
+        spyMap.set(timeKey(c.time), c.close);
     });
 
     // Calculate RS ratio for each matching candle
     var rsData = [];
     tickerCandles.forEach(function(c) {
-        var key = typeof c.time === 'object'
-            ? c.time.year + '-' + c.time.month + '-' + c.time.day
-            : String(c.time);
-        var spyClose = spyMap.get(key);
+        var spyClose = spyMap.get(timeKey(c.time));
         if (spyClose && spyClose > 0) {
             rsData.push({ time: c.time, value: c.close / spyClose });
         }
