@@ -1402,6 +1402,9 @@ async function loadMarketXray() {
             document.getElementById('xray-interpretation').textContent = d.composite.interpretation || '';
             banner.style.background = clr.bg;
             banner.style.borderLeft = `4px solid ${clr.c}`;
+
+            // Render action plan
+            renderActionPlan(d.composite.action_plan);
         }
 
         // Auto-expand composite
@@ -1708,6 +1711,40 @@ function renderTradeZones(data) {
             ${data.upper_1sd ? '<span>+1&sigma; $' + data.upper_1sd.toFixed(2) + '</span>' : ''}
             ${data.lower_1sd ? '<span>-1&sigma; $' + data.lower_1sd.toFixed(2) + '</span>' : ''}
         </div>`;
+}
+
+function renderActionPlan(actions) {
+    const el = document.getElementById('xray-action-plan');
+    if (!el || !actions || !actions.length) { if (el) el.style.display = 'none'; return; }
+
+    const icons = {
+        bull: '<span style="color:var(--green);font-size:1.1em">&#9650;</span>',
+        bear: '<span style="color:var(--red);font-size:1.1em">&#9660;</span>',
+        neutral: '<span style="color:var(--orange);font-size:1.1em">&#9644;</span>',
+        shield: '<span style="color:var(--green)">&#128737;</span>',
+        warning: '<span style="color:var(--orange)">&#9888;</span>',
+        info: '<span style="color:var(--blue)">&#8505;</span>',
+        rocket: '<span style="color:var(--purple, #a78bfa)">&#9733;</span>',
+        pin: '<span style="color:var(--purple, #a78bfa)">&#128204;</span>',
+        chart: '<span style="color:var(--blue)">&#128200;</span>',
+        target: '<span style="color:var(--green)">&#127919;</span>',
+        money: '<span style="color:var(--green)">&#128176;</span>',
+        levels: '<span style="color:var(--text-muted)">&#9472;&#9472;</span>'
+    };
+
+    const html = actions.map(a => {
+        const icon = icons[a.icon] || icons.info;
+        const borderColor = a.type === 'bias' ? 'var(--blue)' :
+            a.type === 'risk' ? 'var(--orange)' :
+            a.type === 'regime' ? 'var(--green)' : 'var(--border)';
+        return `<div class="action-item" style="border-left:3px solid ${borderColor}">
+            <span class="action-icon">${icon}</span>
+            <span class="action-text">${a.text}</span>
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `<div class="action-plan-title">ACTION PLAN</div>${html}`;
+    el.style.display = 'block';
 }
 
 // =============================================================================

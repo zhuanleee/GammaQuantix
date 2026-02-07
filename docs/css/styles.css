@@ -1780,6 +1780,38 @@ select:focus {
     box-shadow: 0 0 6px rgba(255,255,255,0.3);
 }
 
+/* Action Plan */
+.action-plan-title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    padding-top: 4px;
+}
+
+.action-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: var(--bg-hover);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text);
+}
+
+.action-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.action-text {
+    flex: 1;
+}
+
 /* Score Ring (composite) */
 .score-ring {
     width: 100px;
