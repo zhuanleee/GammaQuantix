@@ -63,6 +63,21 @@ document.addEventListener('DOMContentLoaded', () => {
 // API Configuration
 const API_BASE = 'https://zhuanleee--stockstory-api-create-fastapi-app.modal.run';
 
+// API response cache (avoids duplicate fetches within the same load cycle)
+const _apiCache = new Map();
+const _API_CACHE_TTL = 30000; // 30s
+
+function cacheApiResponse(url, data) {
+    _apiCache.set(url, { data, ts: Date.now() });
+}
+
+function getCachedApiResponse(url) {
+    const entry = _apiCache.get(url);
+    if (entry && (Date.now() - entry.ts) < _API_CACHE_TTL) return entry.data;
+    _apiCache.delete(url);
+    return null;
+}
+
 // Global State
 let optionsAnalysisTicker = '';
 let isSyncingExpiry = false;
@@ -460,9 +475,11 @@ async function loadOptionsForExpiry() {
         const sentimentData = await sentimentRes.json();
         const flowData = await flowRes.json();
         const gexData = await gexRes.json();
+        cacheApiResponse(gexUrl, gexData);
         let maxPainData = {};
         if (maxPainRes && maxPainRes.ok) {
             maxPainData = await maxPainRes.json();
+            cacheApiResponse(maxPainUrl, maxPainData);
         }
         const mp = maxPainData.data || {};
 
@@ -680,13 +697,14 @@ async function loadGexDashboard() {
     try {
         const isFutures = ticker.startsWith('/');
         const expiryParam = expiry ? `&expiration=${expiry}` : '';
+        const gexLevelsUrl = isFutures
+            ? `${API_BASE}/options/gex-levels?ticker=${encodeURIComponent(ticker)}${expiryParam}`
+            : `${API_BASE}/options/gex-levels/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
         const [regimeRes, levelsRes, combinedRes] = await Promise.all([
             fetch(isFutures
                 ? `${API_BASE}/options/gex-regime?ticker=${encodeURIComponent(ticker)}${expiryParam}`
                 : `${API_BASE}/options/gex-regime/${ticker}${expiry ? '?expiration=' + expiry : ''}`),
-            fetch(isFutures
-                ? `${API_BASE}/options/gex-levels?ticker=${encodeURIComponent(ticker)}${expiryParam}`
-                : `${API_BASE}/options/gex-levels/${ticker}${expiry ? '?expiration=' + expiry : ''}`),
+            fetch(gexLevelsUrl),
             fetch(isFutures
                 ? `${API_BASE}/options/combined-regime?ticker=${encodeURIComponent(ticker)}${expiryParam}`
                 : `${API_BASE}/options/combined-regime/${ticker}${expiry ? '?expiration=' + expiry : ''}`)
@@ -694,6 +712,7 @@ async function loadGexDashboard() {
 
         const regimeData = await regimeRes.json();
         const levelsData = await levelsRes.json();
+        cacheApiResponse(gexLevelsUrl, levelsData);
         const combinedData = await combinedRes.json();
 
         // Update Volatility Regime
@@ -1334,22 +1353,42 @@ async function loadOptionsViz(ticker) {
             ? `${API_BASE}/market/candles?ticker=SPY&days=${effectiveDays}&interval=${selectedInterval}`
             : null;
 
+        // Use cached responses from loadOptionsForExpiry/loadGexDashboard if available
+        const cachedGexLevels = getCachedApiResponse(gexLevelsUrl);
+        const cachedGex = getCachedApiResponse(gexUrl);
+        const cachedMaxPain = getCachedApiResponse(maxPainUrl);
+
         const [gexLevelsRes, gexRes, maxPainRes, candlesRes, vpRes, spyCandlesRes] = await Promise.all([
-            fetch(gexLevelsUrl),
-            fetch(gexUrl),
-            fetch(maxPainUrl),
+            cachedGexLevels ? Promise.resolve(null) : fetch(gexLevelsUrl),
+            cachedGex ? Promise.resolve(null) : fetch(gexUrl),
+            cachedMaxPain ? Promise.resolve(null) : fetch(maxPainUrl),
             fetch(candlesUrl).catch(e => null),
             volumeProfileUrl ? fetch(volumeProfileUrl).catch(e => null) : Promise.resolve(null),
             spyCandlesUrl ? fetch(spyCandlesUrl).catch(e => null) : Promise.resolve(null)
         ]);
 
-        if (!gexLevelsRes.ok) throw new Error(`GEX Levels API error: ${gexLevelsRes.status}`);
-        if (!gexRes.ok) throw new Error(`GEX API error: ${gexRes.status}`);
-        if (!maxPainRes.ok) throw new Error(`Max Pain API error: ${maxPainRes.status}`);
-
-        const gexLevelsData = await gexLevelsRes.json();
-        const gexData = await gexRes.json();
-        const maxPainData = await maxPainRes.json();
+        let gexLevelsData, gexData, maxPainData;
+        if (cachedGexLevels) {
+            gexLevelsData = cachedGexLevels;
+        } else {
+            if (!gexLevelsRes.ok) throw new Error(`GEX Levels API error: ${gexLevelsRes.status}`);
+            gexLevelsData = await gexLevelsRes.json();
+            cacheApiResponse(gexLevelsUrl, gexLevelsData);
+        }
+        if (cachedGex) {
+            gexData = cachedGex;
+        } else {
+            if (!gexRes.ok) throw new Error(`GEX API error: ${gexRes.status}`);
+            gexData = await gexRes.json();
+            cacheApiResponse(gexUrl, gexData);
+        }
+        if (cachedMaxPain) {
+            maxPainData = cachedMaxPain;
+        } else {
+            if (!maxPainRes.ok) throw new Error(`Max Pain API error: ${maxPainRes.status}`);
+            maxPainData = await maxPainRes.json();
+            cacheApiResponse(maxPainUrl, maxPainData);
+        }
 
         // Parse candles
         if (candlesRes && candlesRes.ok) {
