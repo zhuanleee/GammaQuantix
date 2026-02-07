@@ -104,6 +104,9 @@ let volumeSeries = null;
 let indicatorSeries = {};    // {sma20, sma50, sma200, vwap, bbMiddle, bbUpper, bbLower}
 let rsiChart = null;
 let rsiSeries = null;
+let rsChart = null;
+let rsSeries = null;
+let rsSmaSeries = null;
 let selectedInterval = localStorage.getItem('gq_interval') || '1d';
 const INTERVAL_DAYS_MAP = {
     '1m': 1, '5m': 5, '15m': 10, '30m': 15,
@@ -1283,13 +1286,17 @@ async function loadOptionsViz(ticker) {
         const effectiveDays = INTERVAL_DAYS_MAP[selectedInterval] || days;
         const candlesUrl = `${API_BASE}/market/candles?ticker=${tickerParam}&days=${effectiveDays}&interval=${selectedInterval}`;
         const volumeProfileUrl = isFutures ? null : `${API_BASE}/volume-profile/${ticker}?days=30`;
+        const spyCandlesUrl = (!isFutures && ticker.toUpperCase() !== 'SPY')
+            ? `${API_BASE}/market/candles?ticker=SPY&days=${effectiveDays}&interval=${selectedInterval}`
+            : null;
 
-        const [gexLevelsRes, gexRes, maxPainRes, candlesRes, vpRes] = await Promise.all([
+        const [gexLevelsRes, gexRes, maxPainRes, candlesRes, vpRes, spyCandlesRes] = await Promise.all([
             fetch(gexLevelsUrl),
             fetch(gexUrl),
             fetch(maxPainUrl),
             fetch(candlesUrl).catch(e => null),
-            volumeProfileUrl ? fetch(volumeProfileUrl).catch(e => null) : Promise.resolve(null)
+            volumeProfileUrl ? fetch(volumeProfileUrl).catch(e => null) : Promise.resolve(null),
+            spyCandlesUrl ? fetch(spyCandlesUrl).catch(e => null) : Promise.resolve(null)
         ]);
 
         if (!gexLevelsRes.ok) throw new Error(`GEX Levels API error: ${gexLevelsRes.status}`);
@@ -1336,6 +1343,40 @@ async function loadOptionsViz(ticker) {
             }
         } else {
             optionsVizData.candles = [];
+        }
+
+        // Parse SPY candles for RS calculation
+        optionsVizData.spyCandles = [];
+        if (spyCandlesRes && spyCandlesRes.ok) {
+            try {
+                const spyData = await spyCandlesRes.json();
+                let spyCandles = [];
+                if (spyData && spyData.data && Array.isArray(spyData.data.candles)) {
+                    spyCandles = spyData.data.candles;
+                } else if (spyData && Array.isArray(spyData.candles)) {
+                    spyCandles = spyData.candles;
+                } else if (Array.isArray(spyData)) {
+                    spyCandles = spyData;
+                }
+                const isDaily = selectedInterval === '1d' || selectedInterval === '1w';
+                optionsVizData.spyCandles = spyCandles.map(c => {
+                    let t = c.time || c.date || c.t;
+                    if (isDaily && typeof t === 'number') {
+                        const d = new Date(t * 1000);
+                        t = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+                    }
+                    return {
+                        time: t,
+                        open: c.open || c.o,
+                        high: c.high || c.h,
+                        low: c.low || c.l,
+                        close: c.close || c.c,
+                        volume: c.volume || c.v || 0
+                    };
+                }).filter(c => c.time && c.close > 0);
+            } catch (e) {
+                console.error('Error parsing SPY candle data:', e);
+            }
         }
 
         // Parse volume profile (skip for futures - no relevant VP data)
@@ -1548,6 +1589,33 @@ function renderPriceChart() {
     if (document.getElementById('viz-toggle-rsi')?.checked) {
         renderRsiChart();
         document.getElementById('rsi-chart-container').style.display = 'block';
+    }
+
+    // RS chart if enabled
+    if (document.getElementById('viz-toggle-rs')?.checked) {
+        renderRsChart();
+        document.getElementById('rs-chart-container').style.display = 'block';
+    }
+
+    // Disable RS toggle for futures/SPY
+    var rsToggle = document.getElementById('viz-toggle-rs');
+    var rsLabel = rsToggle ? rsToggle.closest('.toggle-item') : null;
+    var currentTk = optionsAnalysisTicker;
+    if (rsToggle && rsLabel) {
+        if (currentTk && (currentTk.startsWith('/') || currentTk.toUpperCase() === 'SPY')) {
+            rsToggle.checked = false;
+            rsLabel.style.opacity = '0.4';
+            rsLabel.style.pointerEvents = 'none';
+            var rsContainer = document.getElementById('rs-chart-container');
+            if (rsContainer) rsContainer.style.display = 'none';
+            if (rsChart) {
+                try { rsChart.remove(); } catch(e) {}
+                rsChart = null; rsSeries = null; rsSmaSeries = null;
+            }
+        } else {
+            rsLabel.style.opacity = '1';
+            rsLabel.style.pointerEvents = 'auto';
+        }
     }
 
     priceChart.timeScale().fitContent();
@@ -2244,6 +2312,42 @@ function calcRSI(candles, period) {
     return result;
 }
 
+function calcRS(tickerCandles, spyCandles, smaPeriod) {
+    smaPeriod = smaPeriod || 50;
+    if (!tickerCandles || !tickerCandles.length || !spyCandles || !spyCandles.length) return { rs: [], sma: [] };
+
+    // Build SPY lookup by time
+    var spyMap = new Map();
+    spyCandles.forEach(function(c) {
+        var key = typeof c.time === 'object'
+            ? c.time.year + '-' + c.time.month + '-' + c.time.day
+            : String(c.time);
+        spyMap.set(key, c.close);
+    });
+
+    // Calculate RS ratio for each matching candle
+    var rsData = [];
+    tickerCandles.forEach(function(c) {
+        var key = typeof c.time === 'object'
+            ? c.time.year + '-' + c.time.month + '-' + c.time.day
+            : String(c.time);
+        var spyClose = spyMap.get(key);
+        if (spyClose && spyClose > 0) {
+            rsData.push({ time: c.time, value: c.close / spyClose });
+        }
+    });
+
+    // Calculate SMA of RS ratio
+    var smaData = [];
+    for (var i = smaPeriod - 1; i < rsData.length; i++) {
+        var sum = 0;
+        for (var j = i - smaPeriod + 1; j <= i; j++) sum += rsData[j].value;
+        smaData.push({ time: rsData[i].time, value: sum / smaPeriod });
+    }
+
+    return { rs: rsData, sma: smaData };
+}
+
 // =============================================================================
 // UPDATE INDICATORS ON PRICE CHART
 // =============================================================================
@@ -2422,6 +2526,140 @@ function toggleRsiChart() {
             try { rsiChart.remove(); } catch(e) {}
             rsiChart = null;
             rsiSeries = null;
+        }
+    }
+}
+
+function renderRsChart() {
+    const container = document.getElementById('rs-chart-container');
+    if (!container) return;
+
+    // Destroy existing
+    if (rsChart) {
+        try { rsChart.remove(); } catch(e) {}
+        rsChart = null;
+        rsSeries = null;
+        rsSmaSeries = null;
+    }
+
+    const ticker = optionsAnalysisTicker;
+    const isFutures = ticker && ticker.startsWith('/');
+
+    if (isFutures) {
+        container.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">RS not available for futures</div>';
+        return;
+    }
+    if (ticker && ticker.toUpperCase() === 'SPY') {
+        container.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">RS vs SPY: select a different equity</div>';
+        return;
+    }
+
+    const candles = optionsVizData.candles;
+    const spyCandles = optionsVizData.spyCandles;
+    if (!candles || !candles.length || !spyCandles || !spyCandles.length) {
+        container.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">No RS data available</div>';
+        return;
+    }
+
+    const rsResult = calcRS(candles, spyCandles, 50);
+    if (!rsResult.rs.length) {
+        container.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">Not enough matching data for RS</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    rsChart = LightweightCharts.createChart(container, {
+        layout: {
+            background: { type: 'solid', color: 'transparent' },
+            textColor: '#9ca3af',
+        },
+        grid: {
+            vertLines: { color: 'rgba(255,255,255,0.03)' },
+            horzLines: { color: 'rgba(255,255,255,0.03)' },
+        },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        rightPriceScale: {
+            borderColor: 'rgba(255,255,255,0.1)',
+            scaleMargins: { top: 0.1, bottom: 0.1 },
+        },
+        timeScale: { visible: false },
+        width: container.clientWidth,
+        height: 100,
+    });
+
+    rsSeries = rsChart.addLineSeries({
+        color: '#06b6d4',
+        lineWidth: 1.5,
+        priceLineVisible: false,
+        lastValueVisible: true,
+    });
+    rsSeries.setData(rsResult.rs);
+
+    if (rsResult.sma.length) {
+        rsSmaSeries = rsChart.addLineSeries({
+            color: '#f59e0b',
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        });
+        rsSmaSeries.setData(rsResult.sma);
+    }
+
+    // Sync visible range with main chart
+    if (priceChart) {
+        priceChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+            if (rsChart && range) {
+                try { rsChart.timeScale().setVisibleLogicalRange(range); } catch(e) {}
+            }
+        });
+    }
+
+    // Crosshair sync: main → RS and RS → main
+    if (priceChart) {
+        priceChart.subscribeCrosshairMove(function(param) {
+            if (!rsChart || !param || !param.time) return;
+            try { rsChart.setCrosshairPosition(undefined, param.time, rsSeries); } catch(e) {}
+        });
+        rsChart.subscribeCrosshairMove(function(param) {
+            if (!priceChart || !param || !param.time) return;
+            try { priceChart.setCrosshairPosition(undefined, param.time, priceSeries); } catch(e) {}
+        });
+    }
+
+    // ResizeObserver
+    var ro = new ResizeObserver(function() {
+        if (rsChart && container.clientWidth > 0) {
+            rsChart.applyOptions({ width: container.clientWidth });
+        }
+    });
+    ro.observe(container);
+}
+
+function toggleRsChart() {
+    var show = document.getElementById('viz-toggle-rs')?.checked;
+    var container = document.getElementById('rs-chart-container');
+    if (!container) return;
+
+    var ticker = optionsAnalysisTicker;
+    var isFutures = ticker && ticker.startsWith('/');
+
+    // Disable for futures
+    if (isFutures && show) {
+        document.getElementById('viz-toggle-rs').checked = false;
+        return;
+    }
+
+    if (show) {
+        container.style.display = 'block';
+        renderRsChart();
+    } else {
+        container.style.display = 'none';
+        if (rsChart) {
+            try { rsChart.remove(); } catch(e) {}
+            rsChart = null;
+            rsSeries = null;
+            rsSmaSeries = null;
         }
     }
 }

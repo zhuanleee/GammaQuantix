@@ -514,6 +514,10 @@
                         <input type="checkbox" id="viz-toggle-rsi" onchange="toggleRsiChart()">
                         <span class="toggle-label rsi">RSI</span>
                     </label>
+                    <label class="toggle-item" title="Relative Strength vs SPY - compares stock performance against S&P 500">
+                        <input type="checkbox" id="viz-toggle-rs" onchange="toggleRsChart()">
+                        <span class="toggle-label rs">RS</span>
+                    </label>
                     <label class="toggle-item" title="Volume bars at bottom of price chart">
                         <input type="checkbox" id="viz-toggle-volume" checked onchange="toggleVolumeSeries()">
                         <span class="toggle-label vol">Vol</span>
@@ -524,6 +528,8 @@
                         <div class="chart-loading">Loading price data...</div>
                     </div>
                     <div id="rsi-chart-container" class="chart-container rsi-pane" style="display:none;">
+                    </div>
+                    <div id="rs-chart-container" class="chart-container rs-pane" style="display:none;">
                     </div>
                     <div id="gex-chart-container" class="chart-container" style="height: 200px;">
                         <div class="chart-loading">Loading GEX data...</div>
@@ -830,6 +836,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260207c"></script>
+    <script src="js/app.js?v=20260207d"></script>
 </body>
 </html>

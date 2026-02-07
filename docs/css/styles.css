@@ -1383,10 +1383,19 @@ select:focus {
 .toggle-label.vwap { color: #fbbf24; }
 .toggle-label.bb { color: #818cf8; }
 .toggle-label.rsi { color: var(--purple); }
+.toggle-label.rs { color: #06b6d4; }
 .toggle-label.vol { color: var(--text-muted); }
 
 /* RSI Pane */
 .rsi-pane {
+    height: 100px;
+    min-height: 100px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+/* RS Pane */
+.rs-pane {
     height: 100px;
     min-height: 100px;
     border-top: 1px solid var(--border);
