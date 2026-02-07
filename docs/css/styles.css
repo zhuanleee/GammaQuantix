@@ -44,7 +44,7 @@ body {
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    display: flex;
+    display: flex !important;
     flex-direction: column;
 }
 
@@ -53,7 +53,7 @@ body {
     background: var(--bg-elevated);
     border-bottom: 1px solid var(--border);
     padding: 12px 24px;
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     position: sticky;
@@ -62,7 +62,7 @@ body {
 }
 
 .header-left {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 16px;
 }
@@ -79,13 +79,13 @@ body {
 }
 
 .header-right {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 20px;
 }
 
 .ticker-search {
-    display: flex;
+    display: flex !important;
     gap: 8px;
 }
 
@@ -121,7 +121,7 @@ body {
 }
 
 .market-status {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 6px;
     font-size: 0.75rem;
@@ -252,7 +252,7 @@ body {
 }
 
 .expiry-bar {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     margin-top: 12px;
@@ -273,7 +273,7 @@ body {
 
 /* Quick Tickers */
 .quick-tickers {
-    display: flex;
+    display: flex !important;
     gap: 8px;
     margin-bottom: 16px;
     flex-wrap: wrap;
@@ -339,7 +339,7 @@ body {
 .chart-fullscreen {
     background: var(--bg) !important;
     padding: 16px;
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     height: 100vh;
     box-sizing: border-box;
@@ -378,7 +378,7 @@ body {
     display: none;
 }
 .chart-fullscreen .fs-ticker-bar {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 6px;
     padding: 6px 0;
@@ -424,7 +424,7 @@ body {
     background: var(--bg-elevated);
     padding: 10px 14px;
     border-bottom: 1px solid var(--border);
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     font-size: 0.8125rem;
@@ -442,7 +442,7 @@ body {
 }
 
 .chart-body {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     gap: 12px;
     min-height: 400px;
@@ -457,7 +457,7 @@ body {
 }
 
 .chart-loading {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
     height: 100%;
@@ -469,14 +469,14 @@ body {
 .toggle-panel {
     padding: 8px 14px;
     border-bottom: 1px solid var(--border);
-    display: flex;
+    display: flex !important;
     flex-wrap: wrap;
     gap: 12px;
     font-size: 0.75rem;
 }
 
 .toggle-item {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 4px;
     cursor: pointer;
@@ -504,7 +504,7 @@ body {
 
 /* Info Bar */
 .info-bar {
-    display: flex;
+    display: flex !important;
     justify-content: space-around;
     padding: 10px 14px;
     background: var(--bg-elevated);
@@ -513,7 +513,7 @@ body {
 }
 
 .info-item {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     align-items: center;
     gap: 2px;
@@ -548,7 +548,7 @@ body {
 
 /* OI Stats Row */
 .oi-stats-row {
-    display: flex;
+    display: flex !important;
     justify-content: center;
     gap: 24px;
     padding: 10px;
@@ -607,7 +607,7 @@ body {
 
 /* DTE Buttons */
 .dte-buttons {
-    display: flex;
+    display: flex !important;
     gap: 4px;
 }
 
@@ -637,7 +637,7 @@ body {
 }
 
 .regime-content {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 12px;
 }
@@ -730,7 +730,7 @@ body {
 .zone-header.purple { color: var(--purple); }
 
 .zone-content {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     gap: 6px;
     font-size: 0.8rem;
@@ -754,7 +754,7 @@ body {
 
 /* Table Toggle Header */
 .table-toggle-header {
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
@@ -799,7 +799,7 @@ body {
 }
 
 .verdict-stats {
-    display: flex;
+    display: flex !important;
     justify-content: center;
     gap: 24px;
     margin-top: 12px;
@@ -822,7 +822,7 @@ body {
 }
 
 .factor-header {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
@@ -944,7 +944,7 @@ body {
 }
 
 .footer-content {
-    display: flex;
+    display: flex !important;
     justify-content: center;
     align-items: center;
     gap: 12px;
@@ -1064,7 +1064,7 @@ body {
 
 /* Filter / Action Bar */
 .filter-bar {
-    display: flex;
+    display: flex !important;
     gap: 12px;
     align-items: center;
     padding: 12px 16px;
@@ -1085,7 +1085,7 @@ body {
 }
 
 .stat-item {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     align-items: center;
     gap: 4px;
@@ -1101,7 +1101,7 @@ body {
 }
 
 .accordion-header {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px;
@@ -1270,7 +1270,7 @@ select:focus {
 
 /* Tab Bar */
 .tab-bar {
-    display: flex;
+    display: flex !important;
     gap: 4px;
     margin-bottom: 16px;
     padding: 4px;
@@ -1350,7 +1350,7 @@ select:focus {
 }
 
 .em-card-header {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 14px;
@@ -1372,7 +1372,7 @@ select:focus {
 }
 
 .em-levels-row {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
@@ -1417,7 +1417,7 @@ select:focus {
 }
 
 .em-range-labels {
-    display: flex;
+    display: flex !important;
     justify-content: space-between;
     font-size: 0.65rem;
     color: var(--text-muted);
@@ -1425,7 +1425,7 @@ select:focus {
 }
 
 .em-legend {
-    display: flex;
+    display: flex !important;
     gap: 16px;
     margin-top: 10px;
     font-size: 0.65rem;
@@ -1433,7 +1433,7 @@ select:focus {
 }
 
 .em-legend-item {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 4px;
 }
@@ -1478,7 +1478,7 @@ select:focus {
 
 /* Interval Selector */
 .interval-selector {
-    display: flex;
+    display: flex !important;
     gap: 2px;
     background: var(--bg);
     border: 1px solid var(--border);
@@ -1512,7 +1512,7 @@ select:focus {
 .toggle-panel-indicators {
     padding: 6px 14px;
     border-bottom: 1px solid var(--border);
-    display: flex;
+    display: flex !important;
     flex-wrap: wrap;
     gap: 12px;
     font-size: 0.75rem;
