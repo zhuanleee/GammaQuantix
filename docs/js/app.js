@@ -113,6 +113,35 @@ const INTERVAL_DAYS_MAP = {
     '1h': 30, '4h': 60, '1d': null, '1w': null
 };
 
+// Toggle persistence
+const TOGGLE_IDS = [
+    'viz-toggle-callwall','viz-toggle-putwall','viz-toggle-gammaflip','viz-toggle-maxpain',
+    'viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-gex',
+    'viz-toggle-sma20','viz-toggle-sma50','viz-toggle-sma200','viz-toggle-vwap','viz-toggle-bb',
+    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume'
+];
+
+function saveToggles() {
+    var state = {};
+    TOGGLE_IDS.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) state[id] = el.checked;
+    });
+    localStorage.setItem('gq_toggles', JSON.stringify(state));
+}
+
+function restoreToggles() {
+    var raw = localStorage.getItem('gq_toggles');
+    if (!raw) return;
+    try {
+        var state = JSON.parse(raw);
+        TOGGLE_IDS.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el && state[id] !== undefined) el.checked = state[id];
+        });
+    } catch(e) {}
+}
+
 // Tab state
 let activeTab = 'tab-analysis';
 let ivSmileChart = null;
@@ -154,6 +183,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.textContent.trim().toLowerCase() === selectedInterval) btn.classList.add('active');
         });
     }
+
+    // Restore toggle states and timeframe from localStorage
+    restoreToggles();
+    var savedTimeframe = localStorage.getItem('gq_timeframe');
+    var tfSelect = document.getElementById('viz-timeframe');
+    if (savedTimeframe && tfSelect) tfSelect.value = savedTimeframe;
+
+    // Save toggles on any change
+    TOGGLE_IDS.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', saveToggles);
+    });
 
     // Restore saved ticker and tab from localStorage
     const savedTicker = localStorage.getItem('gq_ticker');
@@ -2146,6 +2187,9 @@ function refreshOptionsViz() {
         alert('Please analyze a ticker first');
         return;
     }
+    // Persist timeframe selection
+    var tf = document.getElementById('viz-timeframe');
+    if (tf) localStorage.setItem('gq_timeframe', tf.value);
     loadOptionsViz(ticker);
 }
 
