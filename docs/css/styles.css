@@ -355,13 +355,13 @@ body {
 
 .chart-fullscreen .chart-body {
     flex: 1;
-    min-height: 0;
+    min-height: 0 !important;
     overflow: hidden;
 }
 
 .chart-fullscreen #price-chart-container {
     flex: 1;
-    min-height: 0;
+    min-height: 0 !important;
 }
 
 .chart-fullscreen .rsi-pane,
