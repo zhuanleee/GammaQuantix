@@ -196,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load market sentiment
     loadMarketSentiment();
+    loadEconomicDashboard();
     updateMarketStatus();
 
     // Update market status every minute
@@ -634,6 +635,9 @@ async function loadOptionsForExpiry() {
         if (currentPrice > 0 && atmIV > 0) {
             renderExpectedMove(currentPrice, atmIV, Math.max(dte, 1));
         }
+
+        // Check for macro events within expiry range
+        checkMacroEvents(expiry);
 
     } catch (e) {
         console.error('Options analysis error:', e);
@@ -5205,6 +5209,251 @@ function updateScannerDot(idx, status) {
     if (!dot) return;
     dot.classList.remove('ok', 'error');
     dot.classList.add(status);
+}
+
+// =============================================================================
+// MACRO REGIME BANNER (FRED Economic Dashboard)
+// =============================================================================
+const _MACRO_CACHE_TTL = 300000; // 5 minutes
+
+async function loadEconomicDashboard() {
+    const url = `${API_BASE}/economic/dashboard`;
+    const cached = _apiCache.get(url);
+    if (cached && (Date.now() - cached.ts) < _MACRO_CACHE_TTL) {
+        renderMacroBanner(cached.data);
+        return;
+    }
+
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        _apiCache.set(url, { data, ts: Date.now() });
+        renderMacroBanner(data);
+    } catch (e) {
+        console.error('Economic dashboard fetch failed:', e);
+    }
+}
+
+function renderMacroBanner(data) {
+    const bar = document.getElementById('macro-bar');
+    if (!bar || !data) return;
+
+    const statusColorMap = {
+        good: 'var(--green)',
+        warning: 'var(--yellow)',
+        danger: 'var(--red)',
+        neutral: 'var(--text-muted)'
+    };
+
+    // Health score
+    const score = data.health_score;
+    let scoreStatus = 'neutral';
+    if (score !== undefined && score !== null) {
+        if (score >= 70) scoreStatus = 'good';
+        else if (score >= 40) scoreStatus = 'warning';
+        else scoreStatus = 'danger';
+    }
+
+    const scoreDot = document.getElementById('macro-score-dot');
+    const scoreValue = document.getElementById('macro-score-value');
+    const scoreLabel = document.getElementById('macro-score-label');
+
+    if (scoreDot) scoreDot.style.background = statusColorMap[scoreStatus];
+    if (scoreValue) scoreValue.textContent = score !== undefined && score !== null ? Math.round(score) : '--';
+    if (scoreLabel) {
+        const labels = { good: 'Healthy', warning: 'Caution', danger: 'Stress', neutral: '--' };
+        scoreLabel.textContent = labels[scoreStatus];
+    }
+
+    // Pills
+    const pillsContainer = document.getElementById('macro-pills');
+    if (!pillsContainer) return;
+    pillsContainer.innerHTML = '';
+
+    const indicators = data.indicators || {};
+
+    const pillDefs = [
+        { key: 'yield_curve', name: 'Yield Curve' },
+        { key: 'high_yield_spread', name: 'Credit' },
+        { key: 'fed_funds_rate', name: 'Fed Rate' },
+        { key: 'cpi_yoy', name: 'CPI' }
+    ];
+
+    pillDefs.forEach(def => {
+        const ind = indicators[def.key];
+        if (!ind) return;
+
+        const status = ind.status || 'neutral';
+        const color = statusColorMap[status] || statusColorMap.neutral;
+        let displayValue = '--';
+
+        if (ind.value !== undefined && ind.value !== null) {
+            const v = parseFloat(ind.value);
+            displayValue = isNaN(v) ? String(ind.value) : v.toFixed(2) + (def.key === 'cpi_yoy' ? '%' : def.key === 'fed_funds_rate' ? '%' : def.key === 'high_yield_spread' ? ' bps' : '');
+        }
+
+        const pill = document.createElement('div');
+        pill.className = 'macro-pill';
+        pill.innerHTML = `<span class="macro-pill-dot" style="background:${color}"></span><span class="macro-pill-name">${def.name}</span><span class="macro-pill-value">${displayValue}</span>`;
+        pillsContainer.appendChild(pill);
+    });
+
+    bar.style.display = 'flex';
+}
+
+// =============================================================================
+// ECONOMIC CALENDAR ALERTS
+// =============================================================================
+
+// FOMC meeting dates (published by the Fed in advance)
+const FOMC_DATES = [
+    // 2025
+    '2025-01-29','2025-03-19','2025-05-07','2025-06-18','2025-07-30','2025-09-17','2025-11-05','2025-12-17',
+    // 2026
+    '2026-01-28','2026-03-18','2026-05-06','2026-06-17','2026-07-29','2026-09-16','2026-10-28','2026-12-16'
+];
+
+function getNthWeekdayOfMonth(year, month, weekday, n) {
+    // weekday: 0=Sun..5=Fri, n: 1-based (1=first, -1=last)
+    if (n > 0) {
+        const first = new Date(year, month, 1);
+        let day = 1 + ((weekday - first.getDay() + 7) % 7);
+        day += (n - 1) * 7;
+        return new Date(year, month, day);
+    } else {
+        // Last occurrence
+        const last = new Date(year, month + 1, 0);
+        let day = last.getDate() - ((last.getDay() - weekday + 7) % 7);
+        return new Date(year, month, day);
+    }
+}
+
+function generateCPIDates(startYear, endYear) {
+    // CPI is typically released around the 13th of each month
+    const dates = [];
+    for (let y = startYear; y <= endYear; y++) {
+        for (let m = 0; m < 12; m++) {
+            // Approximate: 2nd Tuesday + 1 day, or roughly the 13th
+            let d = new Date(y, m, 13);
+            // If weekend, shift to next weekday
+            if (d.getDay() === 0) d.setDate(14);
+            if (d.getDay() === 6) d.setDate(15);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+    }
+    return dates;
+}
+
+function generateNFPDates(startYear, endYear) {
+    // NFP = First Friday of each month
+    const dates = [];
+    for (let y = startYear; y <= endYear; y++) {
+        for (let m = 0; m < 12; m++) {
+            const d = getNthWeekdayOfMonth(y, m, 5, 1);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+    }
+    return dates;
+}
+
+function generatePCEDates(startYear, endYear) {
+    // PCE = Last Friday of each month
+    const dates = [];
+    for (let y = startYear; y <= endYear; y++) {
+        for (let m = 0; m < 12; m++) {
+            const d = getNthWeekdayOfMonth(y, m, 5, -1);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+    }
+    return dates;
+}
+
+function getMacroEventSchedule(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+
+    const events = [];
+
+    // FOMC
+    FOMC_DATES.forEach(d => {
+        const dt = new Date(d);
+        if (dt >= start && dt <= end) events.push({ date: d, name: 'FOMC Decision', type: 'fomc' });
+    });
+
+    // CPI
+    generateCPIDates(startYear, endYear).forEach(d => {
+        const dt = new Date(d);
+        if (dt >= start && dt <= end) events.push({ date: d, name: 'CPI Release', type: 'cpi' });
+    });
+
+    // NFP
+    generateNFPDates(startYear, endYear).forEach(d => {
+        const dt = new Date(d);
+        if (dt >= start && dt <= end) events.push({ date: d, name: 'NFP Report', type: 'nfp' });
+    });
+
+    // PCE
+    generatePCEDates(startYear, endYear).forEach(d => {
+        const dt = new Date(d);
+        if (dt >= start && dt <= end) events.push({ date: d, name: 'PCE Data', type: 'pce' });
+    });
+
+    // Sort by date, deduplicate
+    events.sort((a, b) => a.date.localeCompare(b.date));
+    const seen = new Set();
+    return events.filter(e => {
+        const key = e.date + e.name;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function checkMacroEvents(expiryDateStr) {
+    const card = document.getElementById('macro-events-card');
+    const body = document.getElementById('macro-events-body');
+    if (!card || !body) return;
+
+    if (!expiryDateStr) {
+        card.style.display = 'none';
+        return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    const events = getMacroEventSchedule(todayStr, expiryDateStr);
+
+    if (events.length === 0) {
+        card.style.display = 'none';
+        return;
+    }
+
+    const expiryDate = new Date(expiryDateStr);
+    body.innerHTML = '';
+
+    events.forEach(ev => {
+        const evDate = new Date(ev.date);
+        const daysBeforeExpiry = Math.round((expiryDate - evDate) / (1000 * 60 * 60 * 24));
+        const dateLabel = evDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        const row = document.createElement('div');
+        row.className = 'macro-event-row';
+        row.innerHTML = `
+            <div class="macro-event-left">
+                <span class="macro-event-date">${dateLabel}</span>
+                <span class="macro-event-name">${ev.name}</span>
+            </div>
+            <span class="macro-event-dte">${daysBeforeExpiry}d before expiry</span>
+        `;
+        body.appendChild(row);
+    });
+
+    card.style.display = 'block';
 }
 
 console.log('Gamma Quantix initialized. API:', API_BASE);

@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260209a">
+    <link rel="stylesheet" href="css/styles.css?v=20260209b">
 </head>
 <body>
     <!-- Header -->
@@ -125,6 +125,17 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <div class="macro-bar" id="macro-bar" style="display: none;">
+                <div class="macro-bar-left">
+                    <span class="macro-bar-label">MACRO</span>
+                    <div class="macro-score-badge">
+                        <span class="macro-score-dot" id="macro-score-dot"></span>
+                        <span class="macro-score-value" id="macro-score-value">--</span>
+                        <span class="macro-score-label" id="macro-score-label">--</span>
+                    </div>
+                </div>
+                <div class="macro-bar-right" id="macro-pills"></div>
             </div>
         </div>
 
@@ -306,6 +317,15 @@
                         <span>95% (2 SD)</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- Macro Events Card -->
+            <div class="macro-events-card" id="macro-events-card" style="display: none;">
+                <div class="macro-events-header">
+                    <span style="color: var(--orange);">&#9888;</span>
+                    <span>MACRO EVENTS IN RANGE</span>
+                </div>
+                <div class="macro-events-body" id="macro-events-body"></div>
             </div>
 
             <!-- IV Smile / Skew Chart -->
@@ -870,6 +890,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260209a"></script>
+    <script src="js/app.js?v=20260209b"></script>
 </body>
 </html>
