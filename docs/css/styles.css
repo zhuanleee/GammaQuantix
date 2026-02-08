@@ -2250,3 +2250,11 @@ select:focus {
     font-size: 0.58rem;
     min-width: 16px;
 }
+.delta-chip {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+}

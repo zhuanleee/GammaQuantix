@@ -1355,6 +1355,28 @@ function renderCompositeScore(data) {
         });
     }
 
+    // Day-over-day deltas
+    let deltasHtml = '';
+    if (data.deltas) {
+        const d = data.deltas;
+        const chips = [];
+        if (d.gex_direction) {
+            const gc = d.gex_direction === 'increasing' ? 'var(--green)' : 'var(--red)';
+            chips.push(`<span class="delta-chip" style="color:${gc}">GEX ${d.gex_direction}</span>`);
+        }
+        if (d.iv_direction && d.iv_direction !== 'stable') {
+            const ic = d.iv_direction === 'rising' ? 'var(--red)' : 'var(--green)';
+            chips.push(`<span class="delta-chip" style="color:${ic}">IV ${d.iv_direction} (${(d.iv_change*100).toFixed(1)}%)</span>`);
+        }
+        if (d.flow_direction && d.flow_direction !== 'stable') {
+            const fc = d.flow_direction.includes('bullish') ? 'var(--green)' : 'var(--red)';
+            chips.push(`<span class="delta-chip" style="color:${fc}">Flow ${d.flow_direction}</span>`);
+        }
+        if (chips.length) {
+            deltasHtml = `<div class="deltas-row" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">${chips.join('')}</div>`;
+        }
+    }
+
     el.innerHTML = `
         <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
             <div class="score-ring" style="border-color:${scoreColor}">
@@ -1368,7 +1390,8 @@ function renderCompositeScore(data) {
         </div>
         <div class="interpretation-box" style="margin-top:12px;background:var(--bg-hover);border-radius:6px;padding:10px;font-size:0.75rem;color:var(--text-muted);">
             ${data.interpretation || 'Analyzing...'}
-        </div>`;
+        </div>
+        ${deltasHtml}`;
 }
 
 function renderDealerFlow(data) {
