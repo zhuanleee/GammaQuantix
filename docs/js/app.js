@@ -1780,12 +1780,28 @@ function renderTradeIdeas(ideas) {
         if (idea.swing_mode && idea.swing_metrics) {
             const sm = idea.swing_metrics;
             const parts = [];
+            if (sm.edge_score) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Edge</span><strong>${sm.edge_score}</strong></span>`);
             if (sm.dte) parts.push(`<span class="swing-metric"><span class="swing-metric-label">DTE</span>${sm.dte}d</span>`);
-            if (sm.theta_per_day) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Theta/day</span>$${sm.theta_per_day}</span>`);
-            if (sm.days_of_theta) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Theta runway</span>${sm.days_of_theta}d</span>`);
-            if (sm.optimal_exit_dte) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Exit by</span>${sm.optimal_exit_dte}d left</span>`);
-            if (sm.iv_rank) parts.push(`<span class="swing-metric"><span class="swing-metric-label">IV rank</span>${sm.iv_rank}</span>`);
+            if (sm.theta_per_day) parts.push(`<span class="swing-metric"><span class="swing-metric-label">θ/day</span>$${sm.theta_per_day}</span>`);
+            if (sm.days_of_theta) parts.push(`<span class="swing-metric"><span class="swing-metric-label">θ runway</span>${sm.days_of_theta}d</span>`);
+            if (sm.optimal_exit_dte) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Exit by</span>${sm.optimal_exit_dte}d</span>`);
+            if (sm.iv_rank) parts.push(`<span class="swing-metric"><span class="swing-metric-label">IV</span>${sm.iv_rank}</span>`);
             if (parts.length) swingMetrics = `<div class="swing-metrics-row">${parts.join('')}</div>`;
+            // Edge breakdown mini-bar
+            if (sm.edge_breakdown) {
+                const eb = sm.edge_breakdown;
+                const bars = [
+                    {label: 'IV Disc', val: eb.iv_discount, color: 'var(--cyan)'},
+                    {label: 'Sig Gap', val: eb.signal_gap, color: 'var(--blue)'},
+                    {label: 'θ Eff', val: eb.theta_eff, color: 'var(--green)'},
+                    {label: 'Flow', val: eb.flow, color: 'var(--orange)'},
+                    {label: 'GEX', val: eb.gex_catalyst, color: 'var(--purple)'}
+                ];
+                const barHtml = bars.map(b =>
+                    `<div class="edge-bar-item"><span class="edge-bar-label">${b.label}</span><div class="edge-bar-track"><div class="edge-bar-fill" style="width:${b.val}%;background:${b.color}"></div></div><span class="edge-bar-val">${b.val}</span></div>`
+                ).join('');
+                swingMetrics += `<div class="edge-breakdown">${barHtml}</div>`;
+            }
         }
         return `<div class="trade-idea-card${swingClass}" data-type="${idea.type}" data-idx="${idx}">
             <div class="trade-idea-header">${icon} ${idea.title} ${swingBadge} ${confBadge} ${trackBtn}</div>

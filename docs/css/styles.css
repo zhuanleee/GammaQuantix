@@ -2210,3 +2210,43 @@ select:focus {
     font-size: 0.62rem;
     text-transform: uppercase;
 }
+
+/* Edge breakdown mini-bars */
+.edge-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 4px 0 0;
+    font-size: 0.62rem;
+}
+.edge-bar-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 110px;
+}
+.edge-bar-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    min-width: 38px;
+    text-align: right;
+    font-size: 0.58rem;
+    text-transform: uppercase;
+}
+.edge-bar-track {
+    width: 50px;
+    height: 4px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.edge-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+}
+.edge-bar-val {
+    color: var(--text-muted);
+    font-size: 0.58rem;
+    min-width: 16px;
+}
