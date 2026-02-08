@@ -4740,6 +4740,33 @@ function computeBuyCallsScore(data) {
     return Math.min(100, score);
 }
 
+function computeBuyPutsScore(data) {
+    // bearish flow(30) + bearish HIGH ideas(25) + squeeze DOWN(25) + high IV momentum(20)
+    let score = 0;
+    const netFlow = (data.smart_money?.net_flow || '').toLowerCase();
+    if (netFlow === 'bearish') score += 30;
+    else if (netFlow !== 'bullish') score += 10;
+
+    const ideas = data.composite?.trade_ideas || [];
+    const bearHighCount = ideas.filter(i =>
+        (i.confidence || '').toUpperCase() === 'HIGH' &&
+        (i.type === 'bearish' || (i.type === 'breakout' && (i.title || '').toLowerCase().includes('put')))
+    ).length;
+    score += Math.min(bearHighCount * 25, 25);
+
+    const sqDir = (data.squeeze_pin?.direction || '').toUpperCase();
+    const sqScore = data.squeeze_pin?.squeeze_score ?? 0;
+    if (sqDir === 'DOWN' && sqScore >= 30) score += 25;
+    else if (sqDir === 'DOWN') score += 10;
+
+    // high IV rank = momentum puts benefit from vol expansion
+    const ivRank = data.composite?.factors?.find(f => f.name && f.name.toLowerCase().includes('iv'));
+    if (ivRank && ivRank.score >= 60) score += 20;
+    else if (ivRank && ivRank.score >= 40) score += 10;
+
+    return Math.min(100, score);
+}
+
 function computeSellPremiumScore(data) {
     // pin score(30) + rich theta count(25) + flat skew(20) + neutral label(25)
     let score = 0;
@@ -4881,6 +4908,8 @@ function rankScannerResults(results) {
         switch (mode) {
             case 'buycalls':
                 return computeBuyCallsScore(b.data) - computeBuyCallsScore(a.data);
+            case 'buyputs':
+                return computeBuyPutsScore(b.data) - computeBuyPutsScore(a.data);
             case 'sellpremium':
                 return computeSellPremiumScore(b.data) - computeSellPremiumScore(a.data);
             case 'squeeze':
@@ -4943,6 +4972,11 @@ function renderScannerResults(ranked) {
             if (netFlow === 'bullish') badges += '<span class="signal-highlight">BULL FLOW</span>';
             const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
             if (sqDir === 'UP') badges += '<span class="signal-highlight">SQ UP</span>';
+        } else if (mode === 'buyputs') {
+            const netFlow = (r.data.smart_money?.net_flow || '').toLowerCase();
+            if (netFlow === 'bearish') badges += '<span class="signal-highlight">BEAR FLOW</span>';
+            const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
+            if (sqDir === 'DOWN') badges += '<span class="signal-highlight">SQ DOWN</span>';
         } else if (mode === 'sellpremium') {
             const pin = r.data.squeeze_pin?.pin_score ?? 0;
             if (pin >= 30) badges += `<span class="signal-highlight">PIN ${pin}</span>`;
