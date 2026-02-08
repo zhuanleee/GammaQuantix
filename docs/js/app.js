@@ -139,7 +139,7 @@ const TOGGLE_IDS = [
     'viz-toggle-callwall','viz-toggle-putwall','viz-toggle-gammaflip','viz-toggle-maxpain',
     'viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-gex',
     'viz-toggle-sma20','viz-toggle-sma50','viz-toggle-sma200','viz-toggle-vwap','viz-toggle-bb',
-    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume'
+    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume','viz-toggle-flow'
 ];
 
 function saveToggles() {
@@ -440,6 +440,8 @@ async function loadOptionsAnalysis() {
 
     // Always load chart visualization regardless of analysis errors
     loadOptionsViz(optionsAnalysisTicker);
+    // F3: Check earnings calendar
+    checkTickerEarnings(optionsAnalysisTicker);
 }
 
 // =============================================================================
@@ -638,6 +640,8 @@ async function loadOptionsForExpiry() {
 
         // Check for macro events within expiry range
         checkMacroEvents(expiry);
+        // F9: Load term structure
+        loadTermStructure(ticker);
 
     } catch (e) {
         console.error('Options analysis error:', e);
@@ -967,6 +971,9 @@ async function loadGexDashboard() {
             interpretation.length > 0 ? interpretation.join(' ') : 'GEX analysis loaded.';
 
         console.log('GEX Dashboard loaded for', ticker);
+        updateMacroGexSignal();
+        loadGexHistory(ticker);
+        loadGexBacktest(ticker);
 
     } catch (e) {
         console.error('GEX Dashboard error:', e);
@@ -5300,6 +5307,7 @@ function renderMacroBanner(data) {
     });
 
     bar.style.display = 'flex';
+    updateMacroGexSignal();
 }
 
 // =============================================================================
@@ -5443,6 +5451,7 @@ function checkMacroEvents(expiryDateStr) {
 
         const row = document.createElement('div');
         row.className = 'macro-event-row';
+        row.setAttribute('data-type', ev.type);
         row.innerHTML = `
             <div class="macro-event-left">
                 <span class="macro-event-date">${dateLabel}</span>
@@ -5454,6 +5463,582 @@ function checkMacroEvents(expiryDateStr) {
     });
 
     card.style.display = 'block';
+    // Update DTE badges after macro events are computed
+    updateDteBadges();
 }
+
+// =============================================================================
+// F4: DTE EVENT BADGES
+// =============================================================================
+function updateDteBadges() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    const targets = [
+        { days: 7, id: 'dte-badge-7' },
+        { days: 30, id: 'dte-badge-30' },
+        { days: 90, id: 'dte-badge-90' }
+    ];
+    targets.forEach(t => {
+        const badge = document.getElementById(t.id);
+        if (!badge) return;
+        const endDate = new Date(today);
+        endDate.setDate(endDate.getDate() + t.days);
+        const endStr = endDate.toISOString().split('T')[0];
+        const events = getMacroEventSchedule(todayStr, endStr);
+        if (events.length > 0) {
+            badge.textContent = events.length;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    });
+}
+
+// =============================================================================
+// F2: MACRO-GEX CROSS-SIGNAL
+// =============================================================================
+function updateMacroGexSignal() {
+    const signalEl = document.getElementById('macro-gex-signal');
+    if (!signalEl) return;
+
+    // Check if macro data is loaded
+    const macroBar = document.getElementById('macro-bar');
+    const macroLoaded = macroBar && macroBar.style.display !== 'none';
+
+    // Check if GEX data is loaded
+    const gexRegimeBadge = document.getElementById('gex-regime-badge');
+    const gexLoaded = gexRegimeBadge && gexRegimeBadge.textContent !== '--' && gexRegimeBadge.textContent !== 'Loading...';
+
+    if (!macroLoaded || !gexLoaded) {
+        signalEl.style.display = 'none';
+        return;
+    }
+
+    // Get yield curve status
+    const yieldCurveEl = document.querySelector('.macro-pill');
+    let yieldCurveInverted = false;
+    if (yieldCurveEl) {
+        const yieldText = yieldCurveEl.textContent.toLowerCase();
+        yieldCurveInverted = yieldText.includes('inverted') || yieldText.includes('negative');
+    }
+
+    // Get macro score
+    const macroScoreEl = document.getElementById('macro-score-value');
+    const macroScore = macroScoreEl ? parseInt(macroScoreEl.textContent) : 50;
+    const macroWeak = macroScore < 50;
+
+    // Get GEX regime
+    const gexRegime = gexRegimeBadge.textContent.toLowerCase();
+    const negativeGex = gexRegime === 'volatile' || gexRegime.includes('negative');
+    const positiveGex = gexRegime === 'pinned' || gexRegime.includes('positive');
+
+    // Cross-signal logic
+    let signalText = '';
+    let signalColor = 'var(--text-muted)';
+    let signalBg = 'var(--bg-hover)';
+
+    if ((yieldCurveInverted || macroWeak) && negativeGex) {
+        signalText = 'HIGH VOLATILITY RISK';
+        signalColor = 'var(--red)';
+        signalBg = 'rgba(239, 68, 68, 0.12)';
+    } else if (macroWeak && positiveGex) {
+        signalText = 'MACRO CAUTION • GEX STABLE';
+        signalColor = 'var(--yellow)';
+        signalBg = 'rgba(234, 179, 8, 0.12)';
+    } else if (!macroWeak && negativeGex) {
+        signalText = 'MACRO OK • GEX VOLATILE';
+        signalColor = 'var(--orange)';
+        signalBg = 'rgba(249, 115, 22, 0.12)';
+    } else if (!macroWeak && positiveGex) {
+        signalText = 'LOW RISK ENVIRONMENT';
+        signalColor = 'var(--green)';
+        signalBg = 'rgba(34, 197, 94, 0.12)';
+    } else {
+        signalText = 'MIXED SIGNALS';
+        signalColor = 'var(--text-muted)';
+        signalBg = 'var(--bg-hover)';
+    }
+
+    signalEl.innerHTML = `
+        <span style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600;">MACRO + GEX</span>
+        <span class="macro-gex-pill" style="background: ${signalBg}; color: ${signalColor};">${signalText}</span>
+    `;
+    signalEl.style.display = 'flex';
+}
+
+// =============================================================================
+// F7: POSITION SIZING CALCULATOR
+// =============================================================================
+function togglePosCalc() {
+    const body = document.getElementById('pos-calc-body');
+    const icon = document.getElementById('pos-calc-toggle-icon');
+    if (!body) return;
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (icon) icon.innerHTML = open ? '&#9654;' : '&#9660;';
+}
+
+function calculatePositionSize() {
+    const accountSize = parseFloat(document.getElementById('pc-account-size')?.value);
+    const riskPct = parseFloat(document.getElementById('pc-risk-pct')?.value);
+    const entry = parseFloat(document.getElementById('pc-entry-price')?.value);
+    const stop = parseFloat(document.getElementById('pc-stop-loss')?.value);
+    const results = document.getElementById('pos-calc-results');
+
+    if (!accountSize || !riskPct || !entry || !stop || entry === stop) {
+        if (results) results.style.display = 'none';
+        return;
+    }
+
+    const riskPerShare = Math.abs(entry - stop);
+    const maxLoss = accountSize * (riskPct / 100);
+    const shares = Math.floor(maxLoss / riskPerShare);
+    const positionSize = shares * entry;
+
+    document.getElementById('pc-result-size').textContent = `$${positionSize.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    document.getElementById('pc-result-shares').textContent = shares.toLocaleString();
+    document.getElementById('pc-result-loss').textContent = `-$${maxLoss.toFixed(0)}`;
+    document.getElementById('pc-result-riskshare').textContent = `$${riskPerShare.toFixed(2)}`;
+
+    if (results) results.style.display = 'grid';
+}
+
+// =============================================================================
+// F3: EARNINGS CALENDAR BADGE
+// =============================================================================
+let _earningsCache = { data: null, ts: 0 };
+
+async function checkTickerEarnings(ticker) {
+    const badge = document.getElementById('oa-earnings-badge');
+    if (!badge) return;
+    badge.style.display = 'none';
+
+    if (!ticker || ticker.startsWith('/')) return; // No earnings for futures
+
+    try {
+        // Use cached data if within 5 minutes
+        if (_earningsCache.data && (Date.now() - _earningsCache.ts) < 300000) {
+            showEarningsBadge(badge, ticker, _earningsCache.data);
+            return;
+        }
+
+        const res = await fetch(`${API_BASE}/earnings`);
+        const data = await res.json();
+        const earnings = data.data || data.earnings || [];
+        _earningsCache = { data: earnings, ts: Date.now() };
+        showEarningsBadge(badge, ticker, earnings);
+    } catch (e) {
+        console.error('Earnings check failed:', e);
+    }
+}
+
+function showEarningsBadge(badge, ticker, earnings) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + 30);
+
+    const match = earnings.find(e => {
+        const sym = (e.ticker || e.symbol || '').toUpperCase();
+        if (sym !== ticker.toUpperCase()) return false;
+        const d = new Date(e.date || e.earnings_date || e.report_date);
+        return d >= today && d <= limit;
+    });
+
+    if (match) {
+        const earningsDate = new Date(match.date || match.earnings_date || match.report_date);
+        const daysAway = Math.round((earningsDate - today) / (1000 * 60 * 60 * 24));
+        const dateLabel = earningsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        badge.innerHTML = `&#128197; ${dateLabel} (${daysAway}d)`;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// =============================================================================
+// F6: OPTIONS FLOW TIMELINE ON PRICE CHART
+// =============================================================================
+let _flowMarkers = [];
+
+async function overlayFlowOnChart(ticker) {
+    if (!priceSeries || !ticker) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/options/whales?min_premium=50000`);
+        const data = await res.json();
+        const trades = data.whales || data.data || [];
+
+        if (trades.length === 0) {
+            _flowMarkers = [];
+            priceSeries.setMarkers([]);
+            return;
+        }
+
+        // Convert to LightweightCharts marker format
+        const markers = trades
+            .filter(t => (t.ticker || '').toUpperCase() === ticker.toUpperCase())
+            .slice(0, 20)
+            .map(t => {
+                const isBuy = (t.side || '').toLowerCase() === 'buy';
+                const isCall = (t.type || '').toUpperCase() === 'C';
+                const premium = ((t.premium || 0) / 1000).toFixed(0);
+                // Use current time as marker time (trades don't have precise timestamps from this endpoint)
+                const now = new Date();
+                const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                return {
+                    time: timeStr,
+                    position: isBuy ? 'belowBar' : 'aboveBar',
+                    color: isCall ? '#22c55e' : '#ef4444',
+                    shape: isBuy ? 'arrowUp' : 'arrowDown',
+                    text: `${isCall ? 'C' : 'P'}$${(t.strike || 0)} $${premium}K`
+                };
+            })
+            .filter(m => m.time);
+
+        // Deduplicate by time (LightweightCharts requires unique times)
+        const seen = new Set();
+        _flowMarkers = markers.filter(m => {
+            const key = m.time + m.text;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        priceSeries.setMarkers(_flowMarkers);
+    } catch (e) {
+        console.error('Flow overlay failed:', e);
+    }
+}
+
+function toggleFlowMarkers() {
+    saveToggles();
+    const checked = document.getElementById('viz-toggle-flow')?.checked;
+    if (checked && optionsAnalysisTicker) {
+        overlayFlowOnChart(optionsAnalysisTicker);
+    } else {
+        _flowMarkers = [];
+        if (priceSeries) priceSeries.setMarkers([]);
+    }
+}
+
+// =============================================================================
+// F9: TERM STRUCTURE VISUALIZATION
+// =============================================================================
+let termStructureChart = null;
+
+async function loadTermStructure(ticker) {
+    const container = document.getElementById('term-structure-container');
+    const chartEl = document.getElementById('term-structure-chart');
+    const labelEl = document.getElementById('term-structure-label');
+    if (!container || !chartEl) return;
+
+    if (!ticker) {
+        container.style.display = 'none';
+        return;
+    }
+
+    try {
+        const isFutures = ticker.startsWith('/');
+        const url = isFutures
+            ? `${API_BASE}/options/term-structure?ticker=${encodeURIComponent(ticker)}`
+            : `${API_BASE}/options/term-structure/${ticker}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.ok || !data.data) {
+            container.style.display = 'none';
+            return;
+        }
+
+        const termData = data.data;
+        const points = termData.term_structure || termData.points || [];
+
+        if (points.length < 2) {
+            container.style.display = 'none';
+            return;
+        }
+
+        // Determine contango / backwardation
+        const firstIV = points[0].iv || points[0].implied_volatility || 0;
+        const lastIV = points[points.length - 1].iv || points[points.length - 1].implied_volatility || 0;
+        const isContango = lastIV > firstIV;
+        if (labelEl) {
+            labelEl.innerHTML = isContango
+                ? '<span style="color: var(--green);">CONTANGO</span> — Near-term IV < Far-term IV (normal)'
+                : '<span style="color: var(--red);">BACKWARDATION</span> — Near-term IV > Far-term IV (fear)';
+        }
+
+        const categories = points.map(p => p.dte ? `${p.dte}d` : (p.expiration || ''));
+        const ivValues = points.map(p => {
+            const iv = p.iv || p.implied_volatility || 0;
+            return (iv > 1 ? iv : iv * 100);
+        });
+
+        const chartOptions = {
+            series: [{
+                name: 'IV',
+                data: ivValues
+            }],
+            chart: {
+                type: 'area',
+                height: 220,
+                background: 'transparent',
+                toolbar: { show: false },
+                zoom: { enabled: false }
+            },
+            colors: [isContango ? '#22c55e' : '#ef4444'],
+            fill: {
+                type: 'gradient',
+                gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] }
+            },
+            stroke: { curve: 'smooth', width: 2 },
+            xaxis: {
+                categories: categories,
+                labels: { style: { colors: '#71717a', fontSize: '0.65rem' } },
+                axisBorder: { show: false },
+                axisTicks: { show: false }
+            },
+            yaxis: {
+                labels: {
+                    style: { colors: '#71717a', fontSize: '0.65rem' },
+                    formatter: v => v.toFixed(1) + '%'
+                }
+            },
+            grid: { borderColor: '#2a2a3a', strokeDashArray: 3 },
+            tooltip: {
+                theme: 'dark',
+                y: { formatter: v => v.toFixed(1) + '%' }
+            },
+            dataLabels: { enabled: false }
+        };
+
+        if (termStructureChart) {
+            termStructureChart.destroy();
+        }
+        termStructureChart = new ApexCharts(chartEl, chartOptions);
+        termStructureChart.render();
+        container.style.display = 'block';
+    } catch (e) {
+        console.error('Term structure load failed:', e);
+        container.style.display = 'none';
+    }
+}
+
+// =============================================================================
+// F8: WATCHLIST PANEL
+// =============================================================================
+function toggleWatchlist() {
+    const body = document.getElementById('watchlist-body');
+    const icon = document.getElementById('watchlist-toggle-icon');
+    if (!body) return;
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (icon) icon.innerHTML = open ? '&#9654;' : '&#9660;';
+}
+
+async function loadWatchlist() {
+    try {
+        const res = await fetch(`${API_BASE}/watchlist`);
+        const data = await res.json();
+        const items = data.data || data.watchlist || [];
+        renderWatchlistItems(items);
+    } catch (e) {
+        console.error('Watchlist load failed:', e);
+    }
+}
+
+function renderWatchlistItems(items) {
+    const container = document.getElementById('watchlist-items');
+    const countEl = document.getElementById('watchlist-count');
+    if (!container) return;
+
+    if (countEl) countEl.textContent = items.length;
+
+    if (items.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-dim); font-size: 0.75rem; padding: 12px;">No tickers in watchlist</div>';
+        return;
+    }
+
+    // Store in localStorage for change detection
+    localStorage.setItem('gq_watchlist', JSON.stringify(items.map(i => i.ticker || i)));
+
+    container.innerHTML = items.map(item => {
+        const ticker = typeof item === 'string' ? item : (item.ticker || '--');
+        const notes = typeof item === 'object' ? (item.notes || '') : '';
+        return `
+            <div class="watchlist-item">
+                <div class="watchlist-item-left">
+                    <span class="watchlist-item-ticker" onclick="quickAnalyzeTicker('${ticker}')">${ticker}</span>
+                    ${notes ? `<span style="font-size: 0.65rem; color: var(--text-dim);">${notes}</span>` : ''}
+                </div>
+                <button class="watchlist-item-remove" onclick="removeFromWatchlist('${ticker}')" title="Remove">&times;</button>
+            </div>
+        `;
+    }).join('');
+}
+
+async function addToWatchlist() {
+    const input = document.getElementById('watchlist-input');
+    const ticker = (input?.value || '').trim().toUpperCase();
+    if (!ticker) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/watchlist/add?ticker=${encodeURIComponent(ticker)}`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.ok !== false) {
+            input.value = '';
+            loadWatchlist();
+        }
+    } catch (e) {
+        console.error('Add to watchlist failed:', e);
+    }
+}
+
+async function removeFromWatchlist(ticker) {
+    try {
+        await fetch(`${API_BASE}/watchlist/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
+        loadWatchlist();
+    } catch (e) {
+        console.error('Remove from watchlist failed:', e);
+    }
+}
+
+// =============================================================================
+// F5: HISTORICAL GEX TRACKING
+// =============================================================================
+let gexHistoryChart = null;
+
+async function loadGexHistory(ticker) {
+    const container = document.getElementById('gex-history-container');
+    const chartEl = document.getElementById('gex-history-chart');
+    if (!container || !chartEl) return;
+
+    try {
+        const url = ticker.startsWith('/')
+            ? `${API_BASE}/options/gex-history?ticker=${encodeURIComponent(ticker)}`
+            : `${API_BASE}/options/gex-history/${ticker}`;
+        const res = await fetch(url);
+        if (!res.ok) { container.style.display = 'none'; return; }
+        const data = await res.json();
+
+        if (!data.ok || !data.data || data.data.length < 2) {
+            container.style.display = 'none';
+            return;
+        }
+
+        const history = data.data;
+        const dates = history.map(h => h.date);
+        const gexValues = history.map(h => h.gex || h.total_gex || 0);
+
+        const chartOptions = {
+            series: [{ name: 'Total GEX', data: gexValues }],
+            chart: {
+                type: 'area',
+                height: 180,
+                sparkline: { enabled: false },
+                background: 'transparent',
+                toolbar: { show: false },
+                zoom: { enabled: false }
+            },
+            colors: ['#f97316'],
+            fill: {
+                type: 'gradient',
+                gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] }
+            },
+            stroke: { curve: 'smooth', width: 2 },
+            xaxis: {
+                categories: dates,
+                labels: { style: { colors: '#71717a', fontSize: '0.6rem' }, rotate: -45, rotateAlways: true },
+                axisBorder: { show: false },
+                axisTicks: { show: false }
+            },
+            yaxis: {
+                labels: {
+                    style: { colors: '#71717a', fontSize: '0.6rem' },
+                    formatter: v => Math.abs(v) >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${(v / 1e3).toFixed(0)}K`
+                }
+            },
+            grid: { borderColor: '#2a2a3a', strokeDashArray: 3 },
+            tooltip: { theme: 'dark' },
+            dataLabels: { enabled: false },
+            annotations: {
+                yaxis: [{ y: 0, borderColor: '#71717a', strokeDashArray: 2 }]
+            }
+        };
+
+        if (gexHistoryChart) gexHistoryChart.destroy();
+        gexHistoryChart = new ApexCharts(chartEl, chartOptions);
+        gexHistoryChart.render();
+        container.style.display = 'block';
+    } catch (e) {
+        console.error('GEX history load failed:', e);
+        container.style.display = 'none';
+    }
+}
+
+// =============================================================================
+// F11: GEX SIGNAL BACKTESTING
+// =============================================================================
+async function loadGexBacktest(ticker) {
+    const card = document.getElementById('gex-backtest-card');
+    const metricsEl = document.getElementById('gex-backtest-metrics');
+    if (!card || !metricsEl) return;
+
+    try {
+        const url = ticker.startsWith('/')
+            ? `${API_BASE}/options/gex-backtest?ticker=${encodeURIComponent(ticker)}`
+            : `${API_BASE}/options/gex-backtest/${ticker}`;
+        const res = await fetch(url);
+        if (!res.ok) { card.style.display = 'none'; return; }
+        const data = await res.json();
+
+        if (!data.ok || !data.data) {
+            card.style.display = 'none';
+            return;
+        }
+
+        const bt = data.data;
+        const winRate = bt.win_rate !== undefined ? `${(bt.win_rate * 100).toFixed(0)}%` : '--';
+        const avgMove = bt.avg_move !== undefined ? `${bt.avg_move >= 0 ? '+' : ''}${bt.avg_move.toFixed(1)}%` : '--';
+        const signals = bt.signal_count !== undefined ? bt.signal_count : '--';
+        const avgDays = bt.avg_days !== undefined ? `${bt.avg_days.toFixed(0)}d` : '--';
+
+        metricsEl.innerHTML = `
+            <div class="gex-bt-metric">
+                <span class="gex-bt-metric-label">Win Rate</span>
+                <span class="gex-bt-metric-value">${winRate}</span>
+            </div>
+            <div class="gex-bt-metric">
+                <span class="gex-bt-metric-label">Avg Move</span>
+                <span class="gex-bt-metric-value">${avgMove}</span>
+            </div>
+            <div class="gex-bt-metric">
+                <span class="gex-bt-metric-label">Signals</span>
+                <span class="gex-bt-metric-value">${signals}</span>
+            </div>
+            <div class="gex-bt-metric">
+                <span class="gex-bt-metric-label">Avg Duration</span>
+                <span class="gex-bt-metric-value">${avgDays}</span>
+            </div>
+        `;
+        card.style.display = 'block';
+    } catch (e) {
+        console.error('GEX backtest load failed:', e);
+        card.style.display = 'none';
+    }
+}
+
+// =============================================================================
+// INIT: Load watchlist on page load
+// =============================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadWatchlist();
+    updateDteBadges();
+});
 
 console.log('Gamma Quantix initialized. API:', API_BASE);

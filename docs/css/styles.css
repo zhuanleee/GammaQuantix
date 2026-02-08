@@ -2709,3 +2709,338 @@ select:focus {
     border-radius: 6px;
     margin-left: 8px;
 }
+
+/* ============================================ */
+/* F1: Event Severity Coloring                  */
+/* ============================================ */
+.macro-event-row[data-type="fomc"] {
+    border-left: 3px solid var(--red);
+    padding-left: 10px;
+}
+.macro-event-row[data-type="cpi"] {
+    border-left: 3px solid var(--orange);
+    padding-left: 10px;
+}
+.macro-event-row[data-type="nfp"] {
+    border-left: 3px solid var(--yellow);
+    padding-left: 10px;
+}
+.macro-event-row[data-type="pce"] {
+    border-left: 3px solid var(--blue);
+    padding-left: 10px;
+}
+
+/* ============================================ */
+/* F2: Macro-GEX Cross-Signal                   */
+/* ============================================ */
+.macro-gex-signal {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    margin-top: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.72rem;
+}
+.macro-gex-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-weight: 600;
+    font-size: 0.7rem;
+}
+
+/* ============================================ */
+/* F3: Earnings Calendar Badge                  */
+/* ============================================ */
+.earnings-badge {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--orange-bg);
+    color: var(--orange);
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+/* ============================================ */
+/* F4: DTE Event Badges                         */
+/* ============================================ */
+.dte-btn-wrap {
+    position: relative;
+}
+.dte-event-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    font-size: 0.55rem;
+    font-weight: 700;
+    border-radius: 50%;
+    background: var(--orange);
+    color: #fff;
+    padding: 0 3px;
+}
+
+/* ============================================ */
+/* F7: Position Sizing Calculator               */
+/* ============================================ */
+.pos-calc-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+.pos-calc-header {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+}
+.pos-calc-header:hover {
+    background: var(--bg-hover);
+}
+.pos-calc-body {
+    padding: 16px 18px;
+}
+.pos-calc-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.pos-calc-field label {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+.pos-calc-field input {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.8rem;
+    outline: none;
+}
+.pos-calc-field input:focus {
+    border-color: var(--cyan);
+}
+.pos-calc-results {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+.pos-calc-result {
+    text-align: center;
+}
+.pos-calc-result-label {
+    display: block;
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.pos-calc-result-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--cyan);
+}
+
+/* ============================================ */
+/* F9: Term Structure Visualization             */
+/* ============================================ */
+.term-structure-container {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+.term-structure-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+/* ============================================ */
+/* F8: Watchlist Panel                          */
+/* ============================================ */
+.watchlist-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+.watchlist-header {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+}
+.watchlist-header:hover {
+    background: var(--bg-hover);
+}
+.watchlist-count {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--cyan-bg);
+    color: var(--cyan);
+}
+.watchlist-body {
+    padding: 14px 18px;
+}
+.watchlist-add-row {
+    display: flex !important;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.watchlist-add-row input {
+    flex: 1;
+    padding: 7px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.8rem;
+    outline: none;
+}
+.watchlist-item {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+}
+.watchlist-item:last-child {
+    border-bottom: none;
+}
+.watchlist-item-left {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+}
+.watchlist-item-ticker {
+    font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+}
+.watchlist-item-ticker:hover {
+    color: var(--cyan);
+}
+.watchlist-item-regime {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.watchlist-item-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 4px;
+}
+.watchlist-item-remove:hover {
+    color: var(--red);
+}
+
+/* ============================================ */
+/* F5: GEX History & F11: GEX Backtest          */
+/* ============================================ */
+.gex-backtest-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--magenta);
+    border-radius: 8px;
+    padding: 14px 18px;
+}
+.gex-backtest-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+.gex-bt-metric {
+    text-align: center;
+    padding: 10px;
+    background: var(--bg-elevated);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+.gex-bt-metric-label {
+    display: block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+.gex-bt-metric-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--magenta);
+}
+
+/* ============================================ */
+/* Responsive: New components                   */
+/* ============================================ */
+@media (max-width: 900px) {
+    .pos-calc-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .pos-calc-results {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .gex-backtest-metrics {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .pos-calc-grid {
+        grid-template-columns: 1fr;
+    }
+    .pos-calc-results {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .macro-gex-signal {
+        flex-wrap: wrap;
+    }
+}

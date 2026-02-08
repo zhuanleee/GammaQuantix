@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260209c">
+    <link rel="stylesheet" href="css/styles.css?v=20260209d">
 </head>
 <body>
     <!-- Header -->
@@ -127,6 +127,7 @@
                 </div>
             </div>
             <div class="macro-bar" id="macro-bar" style="display: none;">
+
                 <div class="macro-bar-left">
                     <span class="macro-bar-label">MACRO</span>
                     <div class="macro-score-badge">
@@ -137,6 +138,8 @@
                 </div>
                 <div class="macro-bar-right" id="macro-pills"></div>
             </div>
+            <!-- F2: Macro-GEX Cross-Signal -->
+            <div id="macro-gex-signal" class="macro-gex-signal" style="display: none;"></div>
         </div>
 
         <!-- Quick Ticker Shortcuts -->
@@ -195,16 +198,16 @@
             <!-- Options Analysis Container -->
             <div id="options-analysis-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--blue);">
                 <div class="card-header">
-                    <div class="card-title">Options Analysis <span id="oa-ticker" style="color: var(--blue); margin-left: 8px;"></span></div>
+                    <div class="card-title">Options Analysis <span id="oa-ticker" style="color: var(--blue); margin-left: 8px;"></span><span id="oa-earnings-badge" class="earnings-badge" style="display: none;"></span></div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <select id="oa-expiry-select" onchange="loadOptionsForExpiry()">
                             <option value="">Select expiration...</option>
                         </select>
                         <div class="dte-buttons">
-                            <button class="btn btn-ghost" onclick="selectExpiryByDays(0)" title="0DTE">0D</button>
-                            <button class="btn btn-ghost" onclick="selectExpiryByDays(7)" title="~1 Week">1W</button>
-                            <button class="btn btn-ghost" onclick="selectExpiryByDays(30)" title="~1 Month">1M</button>
-                            <button class="btn btn-ghost" onclick="selectExpiryByDays(90)" title="~3 Months">3M</button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(0)" title="0DTE">0D</button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(7)" title="~1 Week">1W<span class="dte-event-badge" id="dte-badge-7" style="display:none;"></span></button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(30)" title="~1 Month">1M<span class="dte-event-badge" id="dte-badge-30" style="display:none;"></span></button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(90)" title="~3 Months">3M<span class="dte-event-badge" id="dte-badge-90" style="display:none;"></span></button>
                         </div>
                         <div id="oa-sentiment" class="sentiment-badge">--</div>
                     </div>
@@ -328,10 +331,63 @@
                 <div class="macro-events-body" id="macro-events-body"></div>
             </div>
 
+            <!-- F7: Position Sizing Calculator -->
+            <div class="pos-calc-card" id="pos-calc-card">
+                <div class="pos-calc-header" onclick="togglePosCalc()">
+                    <span>POSITION SIZING CALCULATOR</span>
+                    <span id="pos-calc-toggle-icon" class="toggle-icon">&#9654;</span>
+                </div>
+                <div class="pos-calc-body" id="pos-calc-body" style="display: none;">
+                    <div class="pos-calc-grid">
+                        <div class="pos-calc-field">
+                            <label>Account Size ($)</label>
+                            <input type="number" id="pc-account-size" placeholder="25000" oninput="calculatePositionSize()">
+                        </div>
+                        <div class="pos-calc-field">
+                            <label>Risk Per Trade (%)</label>
+                            <input type="number" id="pc-risk-pct" placeholder="2" step="0.5" oninput="calculatePositionSize()">
+                        </div>
+                        <div class="pos-calc-field">
+                            <label>Entry Price ($)</label>
+                            <input type="number" id="pc-entry-price" placeholder="150.00" step="0.01" oninput="calculatePositionSize()">
+                        </div>
+                        <div class="pos-calc-field">
+                            <label>Stop Loss ($)</label>
+                            <input type="number" id="pc-stop-loss" placeholder="145.00" step="0.01" oninput="calculatePositionSize()">
+                        </div>
+                    </div>
+                    <div class="pos-calc-results" id="pos-calc-results" style="display: none;">
+                        <div class="pos-calc-result">
+                            <span class="pos-calc-result-label">Position Size</span>
+                            <span class="pos-calc-result-value" id="pc-result-size">--</span>
+                        </div>
+                        <div class="pos-calc-result">
+                            <span class="pos-calc-result-label">Shares</span>
+                            <span class="pos-calc-result-value" id="pc-result-shares">--</span>
+                        </div>
+                        <div class="pos-calc-result">
+                            <span class="pos-calc-result-label">Max Loss</span>
+                            <span class="pos-calc-result-value" id="pc-result-loss" style="color: var(--red);">--</span>
+                        </div>
+                        <div class="pos-calc-result">
+                            <span class="pos-calc-result-label">Risk/Share</span>
+                            <span class="pos-calc-result-value" id="pc-result-riskshare">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- IV Smile / Skew Chart -->
             <div class="iv-smile-container" id="iv-smile-container" style="display: none;">
                 <div class="iv-smile-header" title="Implied Volatility Smile - shows how IV varies by strike price. Steep left skew = fear of downside. Flat = balanced expectations.">IV SMILE / SKEW</div>
                 <div id="iv-smile-chart"></div>
+            </div>
+
+            <!-- F9: Term Structure Visualization -->
+            <div class="term-structure-container" id="term-structure-container" style="display: none;">
+                <div class="term-structure-header">IV TERM STRUCTURE</div>
+                <div id="term-structure-label" style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;"></div>
+                <div id="term-structure-chart" style="min-height: 220px;"></div>
             </div>
 
             <!-- Section Divider: GEX Dashboard -->
@@ -415,6 +471,18 @@
                             </div>
                         </div>
                     </div>
+                    <!-- F5: GEX History Chart -->
+                    <div id="gex-history-container" style="display: none; margin-top: 16px;">
+                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">GEX HISTORY (30 DAY)</div>
+                        <div id="gex-history-chart" style="min-height: 180px;"></div>
+                    </div>
+
+                    <!-- F11: GEX Backtest Results -->
+                    <div id="gex-backtest-card" class="gex-backtest-card" style="display: none; margin-top: 16px;">
+                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--magenta); margin-bottom: 10px;">GEX SIGNAL BACKTEST</div>
+                        <div class="gex-backtest-metrics" id="gex-backtest-metrics"></div>
+                    </div>
+
                     <!-- Interpretation -->
                     <div class="interpretation-box orange" id="gex-interpretation">
                         Load a ticker to see comprehensive GEX analysis with regime classification, support/resistance levels, and trading signals.
@@ -456,6 +524,25 @@
                             <tr><td colspan="6" class="loading">Loading...</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- F8: Watchlist Panel -->
+            <div class="watchlist-card" id="watchlist-card">
+                <div class="watchlist-header" onclick="toggleWatchlist()">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: var(--cyan);">&#9733;</span>
+                        <span>WATCHLIST</span>
+                        <span class="watchlist-count" id="watchlist-count">0</span>
+                    </div>
+                    <span id="watchlist-toggle-icon" class="toggle-icon">&#9654;</span>
+                </div>
+                <div class="watchlist-body" id="watchlist-body" style="display: none;">
+                    <div class="watchlist-add-row">
+                        <input type="text" id="watchlist-input" placeholder="Add ticker..." onkeypress="if(event.key==='Enter') addToWatchlist()">
+                        <button class="btn btn-primary" onclick="addToWatchlist()" style="padding: 6px 14px; font-size: 0.75rem;">Add</button>
+                    </div>
+                    <div id="watchlist-items"></div>
                 </div>
             </div>
 
@@ -755,6 +842,10 @@
                         <input type="checkbox" id="viz-toggle-gex" checked onchange="toggleGexChart()">
                         <span class="toggle-label">GEX Chart</span>
                     </label>
+                    <label class="toggle-item" title="Overlay whale trade markers on the price chart at trade timestamps.">
+                        <input type="checkbox" id="viz-toggle-flow" onchange="toggleFlowMarkers()">
+                        <span class="toggle-label" style="color: var(--magenta);">Flow</span>
+                    </label>
                 </div>
                 <!-- Indicator Toggle Panel -->
                 <div class="toggle-panel-indicators">
@@ -890,6 +981,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260209c"></script>
+    <script src="js/app.js?v=20260209d"></script>
 </body>
 </html>
