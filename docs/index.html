@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260208a">
+    <link rel="stylesheet" href="css/styles.css?v=20260208b">
 </head>
 <body>
     <!-- Header -->
@@ -178,6 +178,10 @@
             </button>
             <button class="tab-btn" data-tab="tab-strategy" onclick="showTab('tab-strategy')" title="Market X-Ray analysis and strategy recommendations">
                 Strategy
+                <span class="tab-accent"></span>
+            </button>
+            <button class="tab-btn" data-tab="tab-backtest" onclick="showTab('tab-backtest')" title="Scan MAG 7 + SPY/QQQ for highest-probability trade setup">
+                Backtest
                 <span class="tab-accent"></span>
             </button>
         </div>
@@ -829,6 +833,30 @@
             </div>
 
         </div><!-- end tab-strategy -->
+
+        <!-- ===== TAB: BACKTEST (Multi-Ticker Scanner) ===== -->
+        <div class="tab-content" id="tab-backtest">
+            <div class="card" style="margin-bottom: 20px; border-left: 3px solid var(--magenta);">
+                <div class="card-header">
+                    <div class="card-title">BEST SETUP SCANNER</div>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span id="scanner-status" style="font-size: 0.7rem; color: var(--text-muted);"></span>
+                        <span id="scanner-timestamp" style="font-size: 0.65rem; color: var(--text-dim);"></span>
+                        <button class="btn btn-primary" id="scanner-scan-btn" onclick="runBestSetupScanner()" style="background: var(--magenta); border-color: var(--magenta);">Scan All</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="scanner-progress" style="display: none;"></div>
+                    <div id="scanner-results"></div>
+                    <div id="scanner-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 30px 20px;">
+                        Scans X-Ray across <strong>MAG 7 + SPY + QQQ</strong> in parallel to find the highest-probability trade setup.<br>
+                        <span style="font-size: 0.7rem; color: var(--text-dim); margin-top: 6px; display: inline-block;">Click <strong>Scan All</strong> to begin.</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Drill-down X-Ray detail for selected ticker -->
+            <div id="scanner-xray-detail" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--cyan);"></div>
+        </div><!-- end tab-backtest -->
     </main>
 
     <!-- Footer -->
@@ -842,6 +870,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260208a"></script>
+    <script src="js/app.js?v=20260208b"></script>
 </body>
 </html>

@@ -4567,4 +4567,295 @@ document.addEventListener('DOMContentLoaded', () => {
     startSwingAutoRefresh();
 });
 
+// =============================================================================
+// BEST SETUP SCANNER (Backtest Tab)
+// =============================================================================
+const SCANNER_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
+window._multiTickerResults = null;
+
+async function runBestSetupScanner() {
+    const btn = document.getElementById('scanner-scan-btn');
+    const placeholder = document.getElementById('scanner-placeholder');
+    const resultsEl = document.getElementById('scanner-results');
+    const statusEl = document.getElementById('scanner-status');
+    const tsEl = document.getElementById('scanner-timestamp');
+    const progressEl = document.getElementById('scanner-progress');
+    const detailEl = document.getElementById('scanner-xray-detail');
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning 0/' + SCANNER_TICKERS.length + '...'; }
+    if (placeholder) placeholder.style.display = 'none';
+    if (detailEl) detailEl.style.display = 'none';
+    if (resultsEl) resultsEl.innerHTML = '';
+
+    // Render progress dots
+    renderScannerProgress();
+    if (progressEl) progressEl.style.display = 'flex';
+
+    let completed = 0;
+    let okCount = 0;
+    const results = [];
+
+    const promises = SCANNER_TICKERS.map(async (ticker, idx) => {
+        const url = `${API_BASE}/options/xray/${ticker}`;
+        try {
+            const resp = await fetch(url);
+            const json = await resp.json();
+            completed++;
+            if (btn) btn.textContent = `Scanning ${completed}/${SCANNER_TICKERS.length}...`;
+            if (json.ok && json.data) {
+                okCount++;
+                updateScannerDot(idx, 'ok');
+                return { ticker, data: json.data, price: json.data.trade_zones?.current_price || 0 };
+            } else {
+                updateScannerDot(idx, 'error');
+                return null;
+            }
+        } catch (e) {
+            completed++;
+            if (btn) btn.textContent = `Scanning ${completed}/${SCANNER_TICKERS.length}...`;
+            updateScannerDot(idx, 'error');
+            return null;
+        }
+    });
+
+    const raw = await Promise.all(promises);
+    const valid = raw.filter(Boolean);
+    window._multiTickerResults = valid;
+
+    if (statusEl) statusEl.textContent = `${okCount}/${SCANNER_TICKERS.length} OK`;
+    if (tsEl) tsEl.textContent = new Date().toLocaleTimeString();
+    if (progressEl) setTimeout(() => { progressEl.style.display = 'none'; }, 1500);
+
+    if (valid.length > 0) {
+        const ranked = rankScannerResults(valid);
+        renderScannerResults(ranked);
+    } else {
+        if (resultsEl) resultsEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:20px;">All scans failed. Check network / API.</div>';
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan All'; }
+}
+
+function rankScannerResults(results) {
+    const confOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    return results.slice().sort((a, b) => {
+        const sa = a.data.composite?.score ?? 0;
+        const sb = b.data.composite?.score ?? 0;
+        if (sb !== sa) return sb - sa;
+        // Secondary: best trade idea confidence
+        const bestA = (a.data.composite?.trade_ideas || [])[0];
+        const bestB = (b.data.composite?.trade_ideas || [])[0];
+        const ca = confOrder[bestA?.confidence] ?? 3;
+        const cb = confOrder[bestB?.confidence] ?? 3;
+        return ca - cb;
+    });
+}
+
+function renderScannerResults(ranked) {
+    const el = document.getElementById('scanner-results');
+    if (!el) return;
+
+    const rows = ranked.map((r, idx) => {
+        const score = r.data.composite?.score ?? 0;
+        const label = r.data.composite?.label || 'NEUTRAL';
+        const scoreColor = score >= 75 ? 'var(--green)' : score >= 60 ? 'var(--blue)' : score >= 45 ? 'var(--orange)' : 'var(--red)';
+
+        // Rank badge color
+        const rankColors = ['#FFD700', 'var(--purple)', 'var(--blue)'];
+        const rankColor = idx < 3 ? rankColors[idx] : 'var(--text-dim)';
+
+        // Best trade idea
+        const ideas = r.data.composite?.trade_ideas || [];
+        const bestIdea = ideas[0];
+        let ideaHtml = '<span style="color:var(--text-dim);font-size:0.7rem;">No ideas</span>';
+        if (bestIdea) {
+            const confClass = bestIdea.confidence ? `confidence-${bestIdea.confidence}` : '';
+            const typeIcon = bestIdea.type === 'bullish' ? '&#9650;' : bestIdea.type === 'bearish' ? '&#9660;' : '&#9644;';
+            ideaHtml = `<span style="font-size:0.72rem;">${typeIcon} ${bestIdea.title}</span>
+                <span class="trade-idea-confidence ${confClass}" style="font-size:0.6rem;margin-left:4px;">${(bestIdea.confidence || '').toUpperCase()}</span>`;
+        }
+
+        const priceStr = r.price ? '$' + (r.price >= 1000 ? r.price.toFixed(0) : r.price.toFixed(2)) : '--';
+
+        return `<div class="scanner-row${idx === 0 ? ' active' : ''}" onclick="scannerDrillDown('${r.ticker}', ${idx})" data-idx="${idx}">
+            <div class="scanner-rank" style="background:${rankColor}">${idx + 1}</div>
+            <div class="scanner-ticker">${r.ticker}</div>
+            <div class="scanner-price">${priceStr}</div>
+            <div class="scanner-score-cell">
+                <div class="scanner-score-ring" style="border-color:${scoreColor}">
+                    <span style="color:${scoreColor}">${score}</span>
+                </div>
+                <span class="scanner-score-label" style="color:${scoreColor}">${label}</span>
+            </div>
+            <div class="scanner-idea">${ideaHtml}</div>
+        </div>`;
+    }).join('');
+
+    el.innerHTML = `<div class="scanner-grid">${rows}</div>`;
+
+    // Auto drill-down into #1
+    if (ranked.length > 0) {
+        scannerDrillDown(ranked[0].ticker, 0);
+    }
+}
+
+function scannerDrillDown(ticker, idx) {
+    // Highlight active row
+    document.querySelectorAll('.scanner-row').forEach(r => r.classList.remove('active'));
+    const row = document.querySelector(`.scanner-row[data-idx="${idx}"]`);
+    if (row) row.classList.add('active');
+
+    const results = window._multiTickerResults;
+    if (!results) return;
+    const entry = results.find(r => r.ticker === ticker);
+    if (!entry) return;
+
+    const d = entry.data;
+    const detailEl = document.getElementById('scanner-xray-detail');
+    if (!detailEl) return;
+
+    // Build drill-down HTML reusing the same rendering logic but to inline HTML
+    const score = d.composite?.score ?? 0;
+    const label = d.composite?.label || 'NEUTRAL';
+    const scoreColor = score >= 75 ? 'var(--green)' : score >= 60 ? 'var(--blue)' : score >= 45 ? 'var(--orange)' : 'var(--red)';
+
+    // Verdict banner
+    const colors = {
+        'STRONG BULLISH': {bg:'rgba(34,197,94,0.2)',c:'var(--green)'},
+        'BULLISH': {bg:'rgba(59,130,246,0.2)',c:'var(--blue)'},
+        'NEUTRAL': {bg:'rgba(251,191,36,0.15)',c:'var(--orange)'},
+        'BEARISH': {bg:'rgba(239,68,68,0.15)',c:'var(--red)'},
+        'STRONG BEARISH': {bg:'rgba(239,68,68,0.25)',c:'var(--red)'}
+    };
+    const clr = colors[label] || colors['NEUTRAL'];
+
+    // Composite factors
+    let factorsHtml = '';
+    if (d.composite?.factors) {
+        d.composite.factors.forEach(f => {
+            const pct = Math.round(f.score);
+            const barColor = f.score >= 60 ? 'var(--green)' : f.score >= 40 ? 'var(--orange)' : 'var(--red)';
+            factorsHtml += `<div class="factor-bar-row">
+                <span class="factor-bar-name">${f.name}</span>
+                <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+                <span class="factor-bar-value" style="color:${barColor}">${pct}</span>
+            </div>`;
+        });
+    }
+
+    // Trade ideas
+    const ideas = d.composite?.trade_ideas || [];
+    const typeIcons = { bullish:'&#9650;', bearish:'&#9660;', neutral:'&#9644;', breakout:'&#9733;', value:'&#127919;' };
+    let ideasHtml = '';
+    if (ideas.length) {
+        const cards = ideas.map(idea => {
+            const icon = typeIcons[idea.type] || '&#8226;';
+            const conf = idea.confidence || '';
+            const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
+            return `<div class="trade-idea-card" data-type="${idea.type}">
+                <div class="trade-idea-header">${icon} ${idea.title} ${confBadge}</div>
+                <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
+                <div class="trade-idea-row"><span class="trade-idea-label label-action">&rarr;</span><span>${idea.action}</span></div>
+                <div class="trade-idea-row"><span class="trade-idea-label label-tp">TP</span><span>${idea.target}</span></div>
+                <div class="trade-idea-row"><span class="trade-idea-label label-sl">SL</span><span>${idea.stop}</span></div>
+                <div class="trade-idea-rationale">${idea.rationale}</div>
+            </div>`;
+        }).join('');
+        ideasHtml = `<div style="margin-bottom:16px;"><div class="trade-ideas-title">TRADE IDEAS</div>${cards}</div>`;
+    }
+
+    // Squeeze/pin gauges
+    let squeezeHtml = '';
+    if (d.squeeze_pin) {
+        const sp = d.squeeze_pin;
+        const sq = sp.squeeze_score || 0;
+        const pin = sp.pin_score || 0;
+        const sqColor = sq >= 70 ? 'var(--red)' : sq >= 40 ? 'var(--orange)' : 'var(--green)';
+        const pinColor = pin >= 70 ? 'var(--purple)' : pin >= 40 ? 'var(--orange)' : 'var(--text-muted)';
+        squeezeHtml = `<div class="xray-section"><div class="xray-section-header"><span>Gamma Squeeze / Pin Risk</span></div>
+            <div class="xray-section-body" style="display:block;">
+                <div class="gauge-row">
+                    <div class="gauge-item"><div class="gauge-circle" style="width:70px;height:70px;"><span class="gauge-value" style="color:${sqColor}">${sq}</span></div><div class="gauge-label">SQUEEZE</div></div>
+                    <div class="gauge-item"><div class="gauge-circle" style="width:70px;height:70px;"><span class="gauge-value" style="color:${pinColor}">${pin}</span></div><div class="gauge-label">PIN RISK</div></div>
+                </div>
+                <div style="font-size:0.72rem;color:var(--text-muted);text-align:center;padding:6px;background:var(--bg-hover);border-radius:6px;">${sp.explanation || ''}</div>
+            </div></div>`;
+    }
+
+    // Vol surface
+    let volHtml = '';
+    if (d.vol_surface) {
+        const vs = d.vol_surface;
+        const skew = vs.skew_25d;
+        const skewLabel = vs.skew_label || '--';
+        const termStruct = vs.term_structure || '--';
+        const termSignal = vs.term_signal || '--';
+        const skewColor = skewLabel === 'steep' ? 'red' : skewLabel === 'flat' ? 'orange' : 'green';
+        const termColor = termSignal === 'inverted' ? 'red' : termSignal === 'neutral' ? 'orange' : 'green';
+        volHtml = `<div class="xray-section"><div class="xray-section-header"><span>Volatility Surface</span></div>
+            <div class="xray-section-body" style="display:block;">
+                <span class="xray-badge ${skewColor}">SKEW: ${skew != null ? (skew*100).toFixed(1) + '%' : '--'} (${skewLabel})</span>
+                <span class="xray-badge ${termColor}">TERM: ${termStruct} (${termSignal})</span>
+            </div></div>`;
+    }
+
+    // Smart money
+    let smartHtml = '';
+    if (d.smart_money) {
+        const sm = d.smart_money;
+        const flow = sm.net_flow || '--';
+        const callN = sm.total_call_notional || 0;
+        const putN = sm.total_put_notional || 0;
+        const flowColor = flow === 'bullish' ? 'green' : 'red';
+        smartHtml = `<div class="xray-section"><div class="xray-section-header"><span>Smart Money Footprint</span></div>
+            <div class="xray-section-body" style="display:block;">
+                <span class="xray-badge ${flowColor}" style="font-size:0.8rem;">${flow.toUpperCase()} FLOW: $${fmtNotional(callN)} calls / $${fmtNotional(putN)} puts</span>
+            </div></div>`;
+    }
+
+    detailEl.innerHTML = `
+        <div class="card-header">
+            <div class="card-title">X-RAY DETAIL <span style="color:var(--cyan);margin-left:8px;">${ticker}</span></div>
+            <div style="font-size:0.8rem;font-weight:700;padding:4px 14px;border-radius:6px;background:${clr.bg};color:${clr.c}">SCORE: ${score}</div>
+        </div>
+        <div class="card-body">
+            <div class="verdict-banner" style="display:flex;background:${clr.bg};border-left:4px solid ${clr.c};margin-bottom:12px;">
+                <div class="verdict-text" style="color:${clr.c}">${label}</div>
+                <div class="verdict-rec">${d.composite?.interpretation || ''}</div>
+            </div>
+            ${ideasHtml}
+            <div class="xray-section"><div class="xray-section-header"><span>Composite Edge Score</span></div>
+                <div class="xray-section-body" style="display:block;">
+                    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+                        <div class="score-ring" style="border-color:${scoreColor}">
+                            <div class="score-number" style="color:${scoreColor}">${score}</div>
+                            <div class="score-max">/100</div>
+                        </div>
+                        <div style="flex:1;min-width:200px;">${factorsHtml}</div>
+                    </div>
+                </div>
+            </div>
+            ${squeezeHtml}
+            ${volHtml}
+            ${smartHtml}
+        </div>`;
+    detailEl.style.display = 'block';
+}
+
+function renderScannerProgress() {
+    const el = document.getElementById('scanner-progress');
+    if (!el) return;
+    const dots = SCANNER_TICKERS.map((t, i) =>
+        `<div class="scanner-dot" id="scanner-dot-${i}" title="${t}"><span>${t}</span></div>`
+    ).join('');
+    el.innerHTML = dots;
+}
+
+function updateScannerDot(idx, status) {
+    const dot = document.getElementById('scanner-dot-' + idx);
+    if (!dot) return;
+    dot.classList.remove('ok', 'error');
+    dot.classList.add(status);
+}
+
 console.log('Gamma Quantix initialized. API:', API_BASE);

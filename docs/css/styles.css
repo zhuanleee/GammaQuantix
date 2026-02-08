@@ -2268,3 +2268,129 @@ select:focus {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
 }
+
+/* =============================================================================
+   BEST SETUP SCANNER (Backtest Tab)
+   ============================================================================= */
+.scanner-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.scanner-row {
+    display: grid;
+    grid-template-columns: 36px 60px 80px 1fr 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-hover);
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.scanner-row:hover {
+    border-color: var(--magenta);
+    background: rgba(217, 70, 239, 0.06);
+}
+.scanner-row.active {
+    border-color: var(--magenta);
+    background: rgba(217, 70, 239, 0.1);
+    box-shadow: 0 0 0 1px var(--magenta);
+}
+.scanner-rank {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #000;
+    flex-shrink: 0;
+}
+.scanner-ticker {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.scanner-price {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.scanner-score-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.scanner-score-ring {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.scanner-score-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.scanner-idea {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* Scanner progress dots */
+#scanner-progress {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    padding: 12px 0;
+    flex-wrap: wrap;
+}
+.scanner-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+.scanner-dot span {
+    font-size: 0.5rem;
+    font-weight: 600;
+    color: var(--text-dim);
+}
+.scanner-dot.ok {
+    border-color: var(--magenta);
+    background: rgba(217, 70, 239, 0.15);
+}
+.scanner-dot.ok span { color: var(--magenta); }
+.scanner-dot.error {
+    border-color: var(--red);
+    background: rgba(239, 68, 68, 0.1);
+}
+.scanner-dot.error span { color: var(--red); }
+
+/* Scanner mobile */
+@media (max-width: 700px) {
+    .scanner-row {
+        grid-template-columns: 28px 50px 1fr;
+        grid-template-rows: auto auto;
+    }
+    .scanner-score-cell { grid-column: 1 / -1; }
+    .scanner-idea { grid-column: 1 / -1; }
+}
