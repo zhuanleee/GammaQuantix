@@ -882,6 +882,10 @@
                         <select id="xray-expiry-select" style="padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.75rem;max-width:160px;">
                             <option value="">Auto (nearest)</option>
                         </select>
+                        <label class="toggle-item swing-toggle" title="Swing Mode — optimizes for 21-45 DTE swing trades">
+                            <input type="checkbox" id="xray-swing-mode" onchange="onSwingModeToggle()">
+                            <span class="toggle-label" style="color:var(--purple);font-weight:600;font-size:0.72rem;">Swing</span>
+                        </label>
                         <div id="xray-composite-badge" style="font-size: 0.8rem; font-weight: 700; padding: 4px 14px; border-radius: 6px; background: var(--bg-hover); color: var(--text-muted);">SCORE: --</div>
                         <button class="btn btn-primary" id="xray-scan-btn" onclick="loadMarketXray()">Scan</button>
                     </div>

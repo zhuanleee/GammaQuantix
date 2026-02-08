@@ -2161,3 +2161,52 @@ select:focus {
     color: white;
     cursor: default;
 }
+
+/* Swing Mode toggle */
+.swing-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+.swing-toggle input[type="checkbox"] {
+    accent-color: var(--purple);
+    cursor: pointer;
+}
+
+/* Swing trade idea cards */
+.trade-idea-card.swing-idea {
+    border-left-color: var(--purple) !important;
+}
+.swing-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--purple);
+    margin-left: 4px;
+    letter-spacing: 0.05em;
+}
+.swing-metrics-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 6px 0 2px;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+.swing-metric {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.swing-metric-label {
+    font-weight: 600;
+    color: var(--purple);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+}

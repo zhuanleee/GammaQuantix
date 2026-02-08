@@ -2,6 +2,12 @@
 // Version: 2.0.0
 console.log('Gamma Quantix v2.0.0 loaded');
 
+// Swing Mode toggle helpers
+function isSwingMode() { return localStorage.getItem('gq_swing_mode') === 'true'; }
+function onSwingModeToggle() {
+    localStorage.setItem('gq_swing_mode', document.getElementById('xray-swing-mode')?.checked ? 'true' : 'false');
+}
+
 // Tooltip system: converts title → data-tip, appends tooltip div to body (escapes overflow:hidden)
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[title]').forEach(el => {
@@ -183,6 +189,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const actionInput = document.getElementById('options-ticker-input');
         if (actionInput) actionInput.value = document.getElementById('ticker-input').value;
     });
+
+    // Restore Swing Mode toggle state
+    const swingCheckbox = document.getElementById('xray-swing-mode');
+    if (swingCheckbox) swingCheckbox.checked = isSwingMode();
 
     // Load market sentiment
     loadMarketSentiment();
@@ -1377,10 +1387,15 @@ async function loadMarketXray() {
 
     try {
         const isFutures = ticker.startsWith('/');
-        const expiryParam = expiry ? `&expiration=${expiry}` : '';
-        const url = isFutures
-            ? `${API_BASE}/options/xray?ticker=${encodeURIComponent(ticker)}${expiryParam}`
-            : `${API_BASE}/options/xray/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
+        const swingParam = isSwingMode() ? 'swing_mode=true' : '';
+        let url;
+        if (isFutures) {
+            const params = [`ticker=${encodeURIComponent(ticker)}`, expiry ? `expiration=${expiry}` : '', swingParam].filter(Boolean).join('&');
+            url = `${API_BASE}/options/xray?${params}`;
+        } else {
+            const params = [expiry ? `expiration=${expiry}` : '', swingParam].filter(Boolean).join('&');
+            url = `${API_BASE}/options/xray/${ticker}${params ? '?' + params : ''}`;
+        }
 
         const response = await fetch(url);
         const json = await response.json();
@@ -1755,16 +1770,31 @@ function renderTradeIdeas(ideas) {
         const icon = typeIcons[idea.type] || '&#8226;';
         const conf = idea.confidence || '';
         const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
+        const swingBadge = idea.swing_mode ? '<span class="swing-badge">SWING</span>' : '';
+        const swingClass = idea.swing_mode ? ' swing-idea' : '';
         // Parse action for track button
         const hasAction = idea.action && idea.action.includes('Buy $');
         const trackBtn = hasAction ? `<button class="trade-idea-track-btn" onclick="trackTradeIdea(${idx})">Track</button>` : '';
-        return `<div class="trade-idea-card" data-type="${idea.type}" data-idx="${idx}">
-            <div class="trade-idea-header">${icon} ${idea.title} ${confBadge} ${trackBtn}</div>
+        // Swing metrics row
+        let swingMetrics = '';
+        if (idea.swing_mode && idea.swing_metrics) {
+            const sm = idea.swing_metrics;
+            const parts = [];
+            if (sm.dte) parts.push(`<span class="swing-metric"><span class="swing-metric-label">DTE</span>${sm.dte}d</span>`);
+            if (sm.theta_per_day) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Theta/day</span>$${sm.theta_per_day}</span>`);
+            if (sm.days_of_theta) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Theta runway</span>${sm.days_of_theta}d</span>`);
+            if (sm.optimal_exit_dte) parts.push(`<span class="swing-metric"><span class="swing-metric-label">Exit by</span>${sm.optimal_exit_dte}d left</span>`);
+            if (sm.iv_rank) parts.push(`<span class="swing-metric"><span class="swing-metric-label">IV rank</span>${sm.iv_rank}</span>`);
+            if (parts.length) swingMetrics = `<div class="swing-metrics-row">${parts.join('')}</div>`;
+        }
+        return `<div class="trade-idea-card${swingClass}" data-type="${idea.type}" data-idx="${idx}">
+            <div class="trade-idea-header">${icon} ${idea.title} ${swingBadge} ${confBadge} ${trackBtn}</div>
             <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-action">&rarr;</span><span>${idea.action}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-tp">TP</span><span>${idea.target}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-sl">SL</span><span>${idea.stop}</span></div>
             <div class="trade-idea-rationale">${idea.rationale}</div>
+            ${swingMetrics}
         </div>`;
     }).join('');
 
@@ -4315,7 +4345,8 @@ function trackTradeIdea(idx) {
     const strike = parseFloat(m[1].replace(',', ''));
     const optType = m[2].toLowerCase();
     const premium = parseFloat(m[3]);
-    const expiration = xray.expiration;
+    // For swing ideas, use the swing_metrics expiration; otherwise base xray expiration
+    const expiration = (idea.swing_mode && idea.swing_metrics?.expiration) || xray.expiration;
 
     // Duplicate check
     const trades = getSwingTrades();
@@ -4353,6 +4384,8 @@ function trackTradeIdea(idx) {
         entry_atm_iv: volSurface.atm_iv,
         entry_squeeze_score: squeeze.squeeze_score,
         idea_title: idea.title,
+        swing_mode: idea.swing_mode || false,
+        swing_metrics: idea.swing_metrics || null,
         last_analysis: null
     };
 
