@@ -5246,8 +5246,9 @@ function renderMacroBanner(data) {
         neutral: 'var(--text-muted)'
     };
 
-    // Health score
-    const score = data.health_score;
+    // Health score (API uses overall_score / overall_label / overall_color)
+    const score = data.overall_score;
+    const scoreColor = data.overall_color || statusColorMap.neutral;
     let scoreStatus = 'neutral';
     if (score !== undefined && score !== null) {
         if (score >= 70) scoreStatus = 'good';
@@ -5259,14 +5260,11 @@ function renderMacroBanner(data) {
     const scoreValue = document.getElementById('macro-score-value');
     const scoreLabel = document.getElementById('macro-score-label');
 
-    if (scoreDot) scoreDot.style.background = statusColorMap[scoreStatus];
+    if (scoreDot) scoreDot.style.background = scoreColor;
     if (scoreValue) scoreValue.textContent = score !== undefined && score !== null ? Math.round(score) : '--';
-    if (scoreLabel) {
-        const labels = { good: 'Healthy', warning: 'Caution', danger: 'Stress', neutral: '--' };
-        scoreLabel.textContent = labels[scoreStatus];
-    }
+    if (scoreLabel) scoreLabel.textContent = data.overall_label || '--';
 
-    // Pills
+    // Pills — yield_curve is top-level; others are in data.indicators
     const pillsContainer = document.getElementById('macro-pills');
     if (!pillsContainer) return;
     pillsContainer.innerHTML = '';
@@ -5274,21 +5272,23 @@ function renderMacroBanner(data) {
     const indicators = data.indicators || {};
 
     const pillDefs = [
-        { key: 'yield_curve', name: 'Yield Curve' },
+        { key: 'yield_curve', name: 'Yield Curve', topLevel: true },
         { key: 'high_yield_spread', name: 'Credit' },
         { key: 'fed_funds_rate', name: 'Fed Rate' },
         { key: 'cpi_yoy', name: 'CPI' }
     ];
 
     pillDefs.forEach(def => {
-        const ind = indicators[def.key];
+        const ind = def.topLevel ? data[def.key] : indicators[def.key];
         if (!ind) return;
 
         const status = ind.status || 'neutral';
         const color = statusColorMap[status] || statusColorMap.neutral;
         let displayValue = '--';
 
-        if (ind.value !== undefined && ind.value !== null) {
+        if (def.topLevel && ind.display) {
+            displayValue = ind.display;
+        } else if (ind.value !== undefined && ind.value !== null) {
             const v = parseFloat(ind.value);
             displayValue = isNaN(v) ? String(ind.value) : v.toFixed(2) + (def.key === 'cpi_yoy' ? '%' : def.key === 'fed_funds_rate' ? '%' : def.key === 'high_yield_spread' ? ' bps' : '');
         }
