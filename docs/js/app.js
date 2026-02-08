@@ -4572,6 +4572,236 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================================================================
 const SCANNER_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
 window._multiTickerResults = null;
+window._scannerFilterMode = 'overall';
+
+// ── Feature 1: Weighted Scanner Score (0-100) ──────────────────────────────
+function computeScannerScore(data) {
+    // Base composite (40%)
+    const baseScore = data.composite?.score ?? 0;
+    const base = baseScore * 0.4;
+
+    // Squeeze potential (15%)
+    const squeezeRaw = data.squeeze_pin?.squeeze_score ?? 0;
+    const squeeze = squeezeRaw * 0.15;
+
+    // Flow conviction (15%) — ratio of dominant side notional
+    let flowConviction = 0;
+    if (data.smart_money) {
+        const c = data.smart_money.total_call_notional || 0;
+        const p = data.smart_money.total_put_notional || 0;
+        const total = c + p;
+        if (total > 0) {
+            const ratio = Math.max(c, p) / total; // 0.5 – 1.0
+            flowConviction = ((ratio - 0.5) / 0.5) * 100; // map to 0-100
+        }
+    }
+    const flow = Math.min(flowConviction, 100) * 0.15;
+
+    // Trade idea quality (15%) — HIGH×33 + MEDIUM×15, cap 100
+    let ideaQuality = 0;
+    const ideas = data.composite?.trade_ideas || [];
+    ideas.forEach(idea => {
+        const conf = (idea.confidence || '').toUpperCase();
+        if (conf === 'HIGH') ideaQuality += 33;
+        else if (conf === 'MEDIUM') ideaQuality += 15;
+    });
+    const ideaScore = Math.min(ideaQuality, 100) * 0.15;
+
+    // Risk/reward position (15%) — (resistance-price)/(resistance-support) → 0-100
+    let rrScore = 50; // default neutral
+    const tz = data.trade_zones;
+    if (tz) {
+        const support = tz.support || 0;
+        const resistance = tz.resistance || 0;
+        const price = tz.current_price || 0;
+        const range = resistance - support;
+        if (range > 0 && price > 0) {
+            rrScore = Math.max(0, Math.min(100, ((resistance - price) / range) * 100));
+        }
+    }
+    const rr = rrScore * 0.15;
+
+    return Math.round(Math.min(100, Math.max(0, base + squeeze + flow + ideaScore + rr)));
+}
+
+// ── Feature 3: Conviction Meter ────────────────────────────────────────────
+function computeConviction(data) {
+    const signals = [];
+
+    // 1. Composite label
+    const label = (data.composite?.label || '').toUpperCase();
+    if (label.includes('BULLISH')) signals.push({ name: 'Composite', dir: 'bullish' });
+    else if (label.includes('BEARISH')) signals.push({ name: 'Composite', dir: 'bearish' });
+    else signals.push({ name: 'Composite', dir: 'neutral' });
+
+    // 2. Smart flow
+    const netFlow = (data.smart_money?.net_flow || '').toLowerCase();
+    if (netFlow === 'bullish') signals.push({ name: 'Smart Flow', dir: 'bullish' });
+    else if (netFlow === 'bearish') signals.push({ name: 'Smart Flow', dir: 'bearish' });
+    else signals.push({ name: 'Smart Flow', dir: 'neutral' });
+
+    // 3. Squeeze direction (if score >= 30)
+    const sqScore = data.squeeze_pin?.squeeze_score ?? 0;
+    const sqDir = (data.squeeze_pin?.direction || '').toUpperCase();
+    if (sqScore >= 30) {
+        if (sqDir === 'UP') signals.push({ name: 'Squeeze', dir: 'bullish' });
+        else if (sqDir === 'DOWN') signals.push({ name: 'Squeeze', dir: 'bearish' });
+        else signals.push({ name: 'Squeeze', dir: 'neutral' });
+    } else {
+        signals.push({ name: 'Squeeze', dir: 'neutral' });
+    }
+
+    // 4. MaxPain pull — price below max pain = bullish (price pulled up)
+    const maxPain = data.trade_zones?.max_pain || data.composite?.max_pain || 0;
+    const price = data.trade_zones?.current_price || 0;
+    if (maxPain > 0 && price > 0) {
+        if (price < maxPain) signals.push({ name: 'MaxPain', dir: 'bullish' });
+        else if (price > maxPain) signals.push({ name: 'MaxPain', dir: 'bearish' });
+        else signals.push({ name: 'MaxPain', dir: 'neutral' });
+    } else {
+        signals.push({ name: 'MaxPain', dir: 'neutral' });
+    }
+
+    // 5. Skew — normal/flat = bullish, steep = bearish
+    const skewLabel = (data.vol_surface?.skew_label || '').toLowerCase();
+    if (skewLabel === 'normal' || skewLabel === 'flat') signals.push({ name: 'Skew', dir: 'bullish' });
+    else if (skewLabel === 'steep') signals.push({ name: 'Skew', dir: 'bearish' });
+    else signals.push({ name: 'Skew', dir: 'neutral' });
+
+    // 6. Term structure — normal = bullish, inverted = bearish
+    const termSignal = (data.vol_surface?.term_signal || '').toLowerCase();
+    if (termSignal === 'normal' || termSignal === 'contango') signals.push({ name: 'Term', dir: 'bullish' });
+    else if (termSignal === 'inverted') signals.push({ name: 'Term', dir: 'bearish' });
+    else signals.push({ name: 'Term', dir: 'neutral' });
+
+    // 7. Trade idea — has HIGH confidence bullish/breakout idea?
+    const ideas = data.composite?.trade_ideas || [];
+    const hasBullHigh = ideas.some(i =>
+        (i.confidence || '').toUpperCase() === 'HIGH' &&
+        (i.type === 'bullish' || i.type === 'breakout')
+    );
+    const hasBearHigh = ideas.some(i =>
+        (i.confidence || '').toUpperCase() === 'HIGH' && i.type === 'bearish'
+    );
+    if (hasBullHigh) signals.push({ name: 'Trade Idea', dir: 'bullish' });
+    else if (hasBearHigh) signals.push({ name: 'Trade Idea', dir: 'bearish' });
+    else signals.push({ name: 'Trade Idea', dir: 'neutral' });
+
+    // 8. Fresh OI — more call vs put fresh positions
+    const sm = data.smart_money;
+    if (sm) {
+        const callN = sm.total_call_notional || 0;
+        const putN = sm.total_put_notional || 0;
+        if (callN > putN * 1.1) signals.push({ name: 'Fresh OI', dir: 'bullish' });
+        else if (putN > callN * 1.1) signals.push({ name: 'Fresh OI', dir: 'bearish' });
+        else signals.push({ name: 'Fresh OI', dir: 'neutral' });
+    } else {
+        signals.push({ name: 'Fresh OI', dir: 'neutral' });
+    }
+
+    const bullish = signals.filter(s => s.dir === 'bullish').length;
+    const bearish = signals.filter(s => s.dir === 'bearish').length;
+    return { total: signals.length, bullish, bearish, signals };
+}
+
+// Enrich all scanner results with computed scores + conviction
+function enrichScannerResults(results) {
+    results.forEach(r => {
+        r.scannerScore = computeScannerScore(r.data);
+        r.conviction = computeConviction(r.data);
+    });
+}
+
+// ── Feature 2: Filter Mode Scores ──────────────────────────────────────────
+function computeBuyCallsScore(data) {
+    // bullish flow(30) + bullish HIGH ideas(25) + squeeze UP(25) + cheap IV(20)
+    let score = 0;
+    const netFlow = (data.smart_money?.net_flow || '').toLowerCase();
+    if (netFlow === 'bullish') score += 30;
+    else if (netFlow !== 'bearish') score += 10;
+
+    const ideas = data.composite?.trade_ideas || [];
+    const bullHighCount = ideas.filter(i =>
+        (i.confidence || '').toUpperCase() === 'HIGH' &&
+        (i.type === 'bullish' || i.type === 'breakout')
+    ).length;
+    score += Math.min(bullHighCount * 25, 25);
+
+    const sqDir = (data.squeeze_pin?.direction || '').toUpperCase();
+    const sqScore = data.squeeze_pin?.squeeze_score ?? 0;
+    if (sqDir === 'UP' && sqScore >= 30) score += 25;
+    else if (sqDir === 'UP') score += 10;
+
+    // cheap IV: lower IV rank = better for buying calls
+    const ivRank = data.composite?.factors?.find(f => f.name && f.name.toLowerCase().includes('iv'));
+    if (ivRank && ivRank.score < 40) score += 20;
+    else if (ivRank && ivRank.score < 60) score += 10;
+
+    return Math.min(100, score);
+}
+
+function computeSellPremiumScore(data) {
+    // pin score(30) + rich theta count(25) + flat skew(20) + neutral label(25)
+    let score = 0;
+    const pinScore = data.squeeze_pin?.pin_score ?? 0;
+    score += (pinScore / 100) * 30;
+
+    // rich theta = high IV rank (good for selling)
+    const ivFactor = data.composite?.factors?.find(f => f.name && f.name.toLowerCase().includes('iv'));
+    if (ivFactor && ivFactor.score >= 60) score += 25;
+    else if (ivFactor && ivFactor.score >= 40) score += 12;
+
+    const skewLabel = (data.vol_surface?.skew_label || '').toLowerCase();
+    if (skewLabel === 'flat') score += 20;
+    else if (skewLabel === 'normal') score += 10;
+
+    const label = (data.composite?.label || '').toUpperCase();
+    if (label === 'NEUTRAL') score += 25;
+    else if (!label.includes('STRONG')) score += 12;
+
+    return Math.min(100, Math.round(score));
+}
+
+function computeMomentumScore(data) {
+    // breakout ideas(35) + air pockets(30) + flow conviction(35)
+    let score = 0;
+    const ideas = data.composite?.trade_ideas || [];
+    const breakoutCount = ideas.filter(i => i.type === 'breakout').length;
+    score += Math.min(breakoutCount * 35, 35);
+
+    // air pockets from dealer hedging
+    const airPockets = data.dealer_hedging?.air_pockets?.length || 0;
+    score += Math.min(airPockets * 15, 30);
+
+    // flow conviction
+    const sm = data.smart_money;
+    if (sm) {
+        const c = sm.total_call_notional || 0;
+        const p = sm.total_put_notional || 0;
+        const total = c + p;
+        if (total > 0) {
+            const ratio = Math.max(c, p) / total;
+            score += ((ratio - 0.5) / 0.5) * 35;
+        }
+    }
+
+    return Math.min(100, Math.round(Math.max(0, score)));
+}
+
+function setScannerFilter(mode) {
+    window._scannerFilterMode = mode;
+    // Update button states
+    document.querySelectorAll('.scanner-filter-btn').forEach(btn => btn.classList.remove('active'));
+    const clickedBtn = document.querySelector(`.scanner-filter-btn[onclick*="${mode}"]`);
+    if (clickedBtn) clickedBtn.classList.add('active');
+
+    // Re-sort and render from cache
+    const results = window._multiTickerResults;
+    if (!results || results.length === 0) return;
+
+    const ranked = rankScannerResults(results);
+    renderScannerResults(ranked);
+}
 
 async function runBestSetupScanner() {
     const btn = document.getElementById('scanner-scan-btn');
@@ -4627,6 +4857,15 @@ async function runBestSetupScanner() {
     if (progressEl) setTimeout(() => { progressEl.style.display = 'none'; }, 1500);
 
     if (valid.length > 0) {
+        enrichScannerResults(valid);
+        // Reset filter mode & show filter bar
+        window._scannerFilterMode = 'overall';
+        const filterBar = document.getElementById('scanner-filter-bar');
+        if (filterBar) filterBar.classList.add('visible');
+        document.querySelectorAll('.scanner-filter-btn').forEach(b => b.classList.remove('active'));
+        const defaultBtn = document.querySelector('.scanner-filter-btn[onclick*="overall"]');
+        if (defaultBtn) defaultBtn.classList.add('active');
+
         const ranked = rankScannerResults(valid);
         renderScannerResults(ranked);
     } else {
@@ -4637,23 +4876,34 @@ async function runBestSetupScanner() {
 }
 
 function rankScannerResults(results) {
-    const confOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    const mode = window._scannerFilterMode || 'overall';
     return results.slice().sort((a, b) => {
-        const sa = a.data.composite?.score ?? 0;
-        const sb = b.data.composite?.score ?? 0;
-        if (sb !== sa) return sb - sa;
-        // Secondary: best trade idea confidence
-        const bestA = (a.data.composite?.trade_ideas || [])[0];
-        const bestB = (b.data.composite?.trade_ideas || [])[0];
-        const ca = confOrder[bestA?.confidence] ?? 3;
-        const cb = confOrder[bestB?.confidence] ?? 3;
-        return ca - cb;
+        switch (mode) {
+            case 'buycalls':
+                return computeBuyCallsScore(b.data) - computeBuyCallsScore(a.data);
+            case 'sellpremium':
+                return computeSellPremiumScore(b.data) - computeSellPremiumScore(a.data);
+            case 'squeeze':
+                return (b.data.squeeze_pin?.squeeze_score ?? 0) - (a.data.squeeze_pin?.squeeze_score ?? 0);
+            case 'momentum':
+                return computeMomentumScore(b.data) - computeMomentumScore(a.data);
+            default: { // 'overall'
+                const sa = a.scannerScore ?? 0;
+                const sb = b.scannerScore ?? 0;
+                if (sb !== sa) return sb - sa;
+                const confOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+                const bestA = (a.data.composite?.trade_ideas || [])[0];
+                const bestB = (b.data.composite?.trade_ideas || [])[0];
+                return (confOrder[bestA?.confidence] ?? 3) - (confOrder[bestB?.confidence] ?? 3);
+            }
+        }
     });
 }
 
 function renderScannerResults(ranked) {
     const el = document.getElementById('scanner-results');
     if (!el) return;
+    const mode = window._scannerFilterMode || 'overall';
 
     const rows = ranked.map((r, idx) => {
         const score = r.data.composite?.score ?? 0;
@@ -4663,6 +4913,17 @@ function renderScannerResults(ranked) {
         // Rank badge color
         const rankColors = ['#FFD700', 'var(--purple)', 'var(--blue)'];
         const rankColor = idx < 3 ? rankColors[idx] : 'var(--text-dim)';
+
+        // Scanner score
+        const ss = r.scannerScore ?? 0;
+        const ssColor = ss >= 75 ? 'var(--green)' : ss >= 55 ? 'var(--blue)' : ss >= 40 ? 'var(--orange)' : 'var(--red)';
+
+        // Conviction dots
+        const conv = r.conviction || { total: 0, bullish: 0, bearish: 0, signals: [] };
+        const dotsHtml = conv.signals.map(s =>
+            `<span class="conviction-dot ${s.dir}" title="${s.name}: ${s.dir}"></span>`
+        ).join('');
+        const convCountHtml = `<span class="conviction-count">${conv.bullish}/${conv.total}</span>`;
 
         // Best trade idea
         const ideas = r.data.composite?.trade_ideas || [];
@@ -4675,19 +4936,49 @@ function renderScannerResults(ranked) {
                 <span class="trade-idea-confidence ${confClass}" style="font-size:0.6rem;margin-left:4px;">${(bestIdea.confidence || '').toUpperCase()}</span>`;
         }
 
+        // Mode-specific highlight badges
+        let badges = '';
+        if (mode === 'buycalls') {
+            const netFlow = (r.data.smart_money?.net_flow || '').toLowerCase();
+            if (netFlow === 'bullish') badges += '<span class="signal-highlight">BULL FLOW</span>';
+            const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
+            if (sqDir === 'UP') badges += '<span class="signal-highlight">SQ UP</span>';
+        } else if (mode === 'sellpremium') {
+            const pin = r.data.squeeze_pin?.pin_score ?? 0;
+            if (pin >= 30) badges += `<span class="signal-highlight">PIN ${pin}</span>`;
+            const lbl = (r.data.composite?.label || '').toUpperCase();
+            if (lbl === 'NEUTRAL') badges += '<span class="signal-highlight">NEUTRAL</span>';
+        } else if (mode === 'squeeze') {
+            const sq = r.data.squeeze_pin?.squeeze_score ?? 0;
+            const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
+            badges += `<span class="signal-highlight">SQ ${sq} ${sqDir}</span>`;
+        } else if (mode === 'momentum') {
+            const airPockets = r.data.dealer_hedging?.air_pockets?.length || 0;
+            if (airPockets > 0) badges += `<span class="signal-highlight">${airPockets} AIR PKT</span>`;
+            const breakouts = ideas.filter(i => i.type === 'breakout').length;
+            if (breakouts > 0) badges += '<span class="signal-highlight">BREAKOUT</span>';
+        }
+
         const priceStr = r.price ? '$' + (r.price >= 1000 ? r.price.toFixed(0) : r.price.toFixed(2)) : '--';
 
         return `<div class="scanner-row${idx === 0 ? ' active' : ''}" onclick="scannerDrillDown('${r.ticker}', ${idx})" data-idx="${idx}">
             <div class="scanner-rank" style="background:${rankColor}">${idx + 1}</div>
             <div class="scanner-ticker">${r.ticker}</div>
             <div class="scanner-price">${priceStr}</div>
+            <div class="scanner-sscore-cell">
+                <span class="scanner-sscore-value" style="color:${ssColor}">${ss}</span>
+            </div>
             <div class="scanner-score-cell">
                 <div class="scanner-score-ring" style="border-color:${scoreColor}">
                     <span style="color:${scoreColor}">${score}</span>
                 </div>
                 <span class="scanner-score-label" style="color:${scoreColor}">${label}</span>
             </div>
-            <div class="scanner-idea">${ideaHtml}</div>
+            <div class="scanner-conviction">
+                <span class="conviction-dots">${dotsHtml}</span>
+                ${convCountHtml}
+            </div>
+            <div class="scanner-idea">${ideaHtml}${badges}</div>
         </div>`;
     }).join('');
 
@@ -4813,15 +5104,35 @@ function scannerDrillDown(ticker, idx) {
             </div></div>`;
     }
 
+    // Scanner score badge
+    const ss = entry.scannerScore ?? computeScannerScore(d);
+    const ssColor = ss >= 75 ? 'var(--green)' : ss >= 55 ? 'var(--blue)' : ss >= 40 ? 'var(--orange)' : 'var(--red)';
+
+    // Conviction detail chips
+    const conv = entry.conviction || computeConviction(d);
+    const convChips = conv.signals.map(s => {
+        const cls = s.dir === 'bullish' ? 'bullish' : s.dir === 'bearish' ? 'bearish' : 'neutral-sig';
+        const arrow = s.dir === 'bullish' ? '&#9650;' : s.dir === 'bearish' ? '&#9660;' : '&#9644;';
+        return `<span class="conviction-signal ${cls}">${arrow} ${s.name}</span>`;
+    }).join('');
+    const convSummary = `${conv.bullish} bullish / ${conv.bearish} bearish / ${conv.total - conv.bullish - conv.bearish} neutral`;
+
     detailEl.innerHTML = `
         <div class="card-header">
             <div class="card-title">X-RAY DETAIL <span style="color:var(--cyan);margin-left:8px;">${ticker}</span></div>
-            <div style="font-size:0.8rem;font-weight:700;padding:4px 14px;border-radius:6px;background:${clr.bg};color:${clr.c}">SCORE: ${score}</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span class="scanner-sscore-badge" style="background:rgba(217,70,239,0.15);color:var(--magenta);">SCANNER: ${ss}</span>
+                <div style="font-size:0.8rem;font-weight:700;padding:4px 14px;border-radius:6px;background:${clr.bg};color:${clr.c}">COMPOSITE: ${score}</div>
+            </div>
         </div>
         <div class="card-body">
             <div class="verdict-banner" style="display:flex;background:${clr.bg};border-left:4px solid ${clr.c};margin-bottom:12px;">
                 <div class="verdict-text" style="color:${clr.c}">${label}</div>
                 <div class="verdict-rec">${d.composite?.interpretation || ''}</div>
+            </div>
+            <div style="margin-bottom:14px;">
+                <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">CONVICTION METER — ${convSummary}</div>
+                <div class="conviction-detail">${convChips}</div>
             </div>
             ${ideasHtml}
             <div class="xray-section"><div class="xray-section-header"><span>Composite Edge Score</span></div>
