@@ -2189,6 +2189,16 @@ select:focus {
     margin-left: 4px;
     letter-spacing: 0.05em;
 }
+.dte-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(34, 211, 238, 0.15);
+    color: var(--cyan);
+    margin-left: 4px;
+    letter-spacing: 0.05em;
+}
 .swing-metrics-row {
     display: flex;
     flex-wrap: wrap;

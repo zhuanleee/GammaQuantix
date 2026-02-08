@@ -1225,6 +1225,31 @@ function syncXrayExpirySelect(expirations) {
     sel.innerHTML = html;
 }
 
+function pickScanExpirations(selectEl) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const options = Array.from(selectEl.options)
+        .filter(o => o.value)
+        .map(o => {
+            const dt = new Date(o.value + 'T12:00:00');
+            return { date: o.value, dte: Math.round((dt - today) / 86400000) };
+        })
+        .filter(o => o.dte >= 0);
+    if (!options.length) return [];
+
+    const targets = [1, 7, 14, 30, 45];
+    const picked = new Map();
+    for (const target of targets) {
+        let best = null, bestDiff = Infinity;
+        for (const o of options) {
+            const diff = Math.abs(o.dte - target);
+            if (diff < bestDiff) { bestDiff = diff; best = o; }
+        }
+        if (best && !picked.has(best.date)) picked.set(best.date, best);
+    }
+    return Array.from(picked.values()).sort((a, b) => a.dte - b.dte);
+}
+
 async function loadMarketXray() {
     const ticker = optionsAnalysisTicker;
     if (!ticker) return;
@@ -1251,26 +1276,94 @@ async function loadMarketXray() {
     const expiry = (xrayExpirySelect && xrayExpirySelect.value) ? xrayExpirySelect.value
         : (document.getElementById('oa-expiry-select')?.value || '');
 
+    // Determine if multi-DTE scan: when Auto mode and we have expirations in dropdown
+    const scanExps = (!expiry && xrayExpirySelect) ? pickScanExpirations(xrayExpirySelect) : [];
+    const isMultiDTE = scanExps.length > 1;
+
     try {
         const isFutures = ticker.startsWith('/');
         const swingParam = isSwingMode() ? 'swing_mode=true' : '';
-        let url;
-        if (isFutures) {
-            const params = [`ticker=${encodeURIComponent(ticker)}`, expiry ? `expiration=${expiry}` : '', swingParam].filter(Boolean).join('&');
-            url = `${API_BASE}/options/xray?${params}`;
+
+        // Helper to build URL for a given expiration
+        const buildUrl = (exp) => {
+            if (isFutures) {
+                const params = [`ticker=${encodeURIComponent(ticker)}`, exp ? `expiration=${exp}` : '', swingParam].filter(Boolean).join('&');
+                return `${API_BASE}/options/xray?${params}`;
+            } else {
+                const params = [exp ? `expiration=${exp}` : '', swingParam].filter(Boolean).join('&');
+                return `${API_BASE}/options/xray/${ticker}${params ? '?' + params : ''}`;
+            }
+        };
+
+        let d; // Best xray data for module rendering
+        let allTradeIdeas = [];
+        let scannedCount = 0;
+
+        if (isMultiDTE) {
+            // Multi-DTE parallel scan
+            if (btn) btn.textContent = `Scanning 0/${scanExps.length}...`;
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+
+            const promises = scanExps.map(async (expObj) => {
+                const url = buildUrl(expObj.date);
+                try {
+                    const resp = await fetch(url);
+                    const json = await resp.json();
+                    scannedCount++;
+                    if (btn) btn.textContent = `Scanning ${scannedCount}/${scanExps.length}...`;
+                    if (json.ok && json.data) return { data: json.data, dte: expObj.dte, exp: expObj.date };
+                } catch (e) { scannedCount++; if (btn) btn.textContent = `Scanning ${scannedCount}/${scanExps.length}...`; }
+                return null;
+            });
+
+            const results = (await Promise.all(promises)).filter(Boolean);
+            if (!results.length) throw new Error('All DTE scans failed');
+
+            // Pick best composite for module rendering
+            d = results.reduce((best, r) => {
+                const score = r.data.composite?.score ?? -999;
+                const bestScore = best.data.composite?.score ?? -999;
+                return score > bestScore ? r : best;
+            }).data;
+
+            // Collect all trade ideas, tag with expiration/DTE
+            const confOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+            for (const r of results) {
+                const ideas = r.data.composite?.trade_ideas || [];
+                for (const idea of ideas) {
+                    idea._expiration = r.exp;
+                    idea._dte = r.dte;
+                    allTradeIdeas.push(idea);
+                }
+            }
+
+            // Deduplicate: same title+type keeps highest confidence
+            const dedup = new Map();
+            for (const idea of allTradeIdeas) {
+                const key = `${idea.title}|${idea.type}`;
+                const existing = dedup.get(key);
+                if (!existing || (confOrder[idea.confidence] ?? 3) < (confOrder[existing.confidence] ?? 3)) {
+                    dedup.set(key, idea);
+                }
+            }
+
+            // Rank by confidence then type priority
+            const typePriority = { breakout: 0, bullish: 1, bearish: 1, value: 2, neutral: 3 };
+            allTradeIdeas = Array.from(dedup.values()).sort((a, b) => {
+                const ca = confOrder[a.confidence] ?? 3, cb = confOrder[b.confidence] ?? 3;
+                if (ca !== cb) return ca - cb;
+                return (typePriority[a.type] ?? 4) - (typePriority[b.type] ?? 4);
+            }).slice(0, 5);
+
         } else {
-            const params = [expiry ? `expiration=${expiry}` : '', swingParam].filter(Boolean).join('&');
-            url = `${API_BASE}/options/xray/${ticker}${params ? '?' + params : ''}`;
+            // Single-DTE scan (existing behavior)
+            const url = buildUrl(expiry);
+            const response = await fetch(url);
+            const json = await response.json();
+            if (!json.ok || !json.data) throw new Error(json.error || 'Failed to load X-Ray data');
+            d = json.data;
+            allTradeIdeas = d.composite?.trade_ideas || [];
         }
-
-        const response = await fetch(url);
-        const json = await response.json();
-
-        if (!json.ok || !json.data) {
-            throw new Error(json.error || 'Failed to load X-Ray data');
-        }
-
-        const d = json.data;
 
         // Store for swing trade tracking
         window._lastXrayData = d;
@@ -1309,15 +1402,15 @@ async function loadMarketXray() {
             banner.style.background = clr.bg;
             banner.style.borderLeft = `4px solid ${clr.c}`;
 
-            // Render trade ideas
-            renderTradeIdeas(d.composite.trade_ideas);
+            // Render trade ideas (multi-DTE uses merged list, single uses original)
+            renderTradeIdeas(allTradeIdeas, isMultiDTE ? scanExps.length : 0);
         }
 
         // Auto-expand composite
         document.getElementById('xray-content-composite').style.display = 'block';
         document.getElementById('xray-toggle-composite').classList.add('open');
 
-        console.log('Market X-Ray loaded for', ticker);
+        console.log('Market X-Ray loaded for', ticker, isMultiDTE ? `(scanned ${scanExps.length} DTEs)` : '');
 
     } catch (e) {
         console.error('Market X-Ray error:', e);
@@ -1642,7 +1735,7 @@ function renderTradeZones(data) {
         </div>`;
 }
 
-function renderTradeIdeas(ideas) {
+function renderTradeIdeas(ideas, scannedDTEs) {
     const el = document.getElementById('xray-trade-ideas');
     if (!el || !ideas || !ideas.length) { if (el) el.style.display = 'none'; return; }
     window._lastTradeIdeas = ideas;
@@ -1660,6 +1753,7 @@ function renderTradeIdeas(ideas) {
         const conf = idea.confidence || '';
         const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
         const swingBadge = idea.swing_mode ? '<span class="swing-badge">SWING</span>' : '';
+        const dteBadge = idea._dte != null ? `<span class="dte-badge">${idea._dte}d</span>` : '';
         const swingClass = idea.swing_mode ? ' swing-idea' : '';
         // Parse action for track button
         const hasAction = idea.action && idea.action.includes('Buy $');
@@ -1693,7 +1787,7 @@ function renderTradeIdeas(ideas) {
             }
         }
         return `<div class="trade-idea-card${swingClass}" data-type="${idea.type}" data-idx="${idx}">
-            <div class="trade-idea-header">${icon} ${idea.title} ${swingBadge} ${confBadge} ${trackBtn}</div>
+            <div class="trade-idea-header">${icon} ${idea.title} ${dteBadge} ${swingBadge} ${confBadge} ${trackBtn}</div>
             <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-action">&rarr;</span><span>${idea.action}</span></div>
             <div class="trade-idea-row"><span class="trade-idea-label label-tp">TP</span><span>${idea.target}</span></div>
@@ -1703,7 +1797,8 @@ function renderTradeIdeas(ideas) {
         </div>`;
     }).join('');
 
-    el.innerHTML = `<div class="trade-ideas-title">TRADE IDEAS</div>${html}`;
+    const titleSuffix = scannedDTEs ? ` <span style="font-size:0.65rem;color:var(--text-muted)">(Best across ${scannedDTEs} DTEs)</span>` : '';
+    el.innerHTML = `<div class="trade-ideas-title">TRADE IDEAS${titleSuffix}</div>${html}`;
     el.style.display = 'block';
 }
 
@@ -4193,8 +4288,8 @@ function trackTradeIdea(idx) {
     const strike = parseFloat(m[1].replace(',', ''));
     const optType = m[2].toLowerCase();
     const premium = parseFloat(m[3]);
-    // For swing ideas, use the swing_metrics expiration; otherwise base xray expiration
-    const expiration = (idea.swing_mode && idea.swing_metrics?.expiration) || xray.expiration;
+    // For multi-DTE ideas, use per-idea expiration; for swing, use swing_metrics; otherwise base xray
+    const expiration = idea._expiration || (idea.swing_mode && idea.swing_metrics?.expiration) || xray.expiration;
 
     // Duplicate check
     const trades = getSwingTrades();
