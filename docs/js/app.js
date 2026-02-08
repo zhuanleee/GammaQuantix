@@ -4570,7 +4570,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================================================================
 // BEST SETUP SCANNER (Backtest Tab)
 // =============================================================================
-const SCANNER_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'];
+const SCANNER_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'IBIT', 'GLD'];
 window._multiTickerResults = null;
 window._scannerFilterMode = 'overall';
 
