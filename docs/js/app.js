@@ -1273,12 +1273,14 @@ async function loadMarketXray() {
 
     // Get selected expiration — prefer X-Ray's own selector, fall back to Analysis tab
     const xrayExpirySelect = document.getElementById('xray-expiry-select');
-    const expiry = (xrayExpirySelect && xrayExpirySelect.value) ? xrayExpirySelect.value
-        : (document.getElementById('oa-expiry-select')?.value || '');
+    const xrayExpiry = (xrayExpirySelect && xrayExpirySelect.value) ? xrayExpirySelect.value : '';
 
-    // Determine if multi-DTE scan: when Auto mode and we have expirations in dropdown
-    const scanExps = (!expiry && xrayExpirySelect) ? pickScanExpirations(xrayExpirySelect) : [];
+    // Determine if multi-DTE scan: when X-Ray selector is on Auto (empty) and we have expirations
+    const scanExps = (!xrayExpiry && xrayExpirySelect) ? pickScanExpirations(xrayExpirySelect) : [];
     const isMultiDTE = scanExps.length > 1;
+
+    // For single-DTE, fall back to Analysis tab's expiry if X-Ray has none selected
+    const expiry = xrayExpiry || (document.getElementById('oa-expiry-select')?.value || '');
 
     try {
         const isFutures = ticker.startsWith('/');
