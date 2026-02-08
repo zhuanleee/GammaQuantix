@@ -4034,6 +4034,10 @@ async function loadSmartMoneyFlow() {
 // TAB SWITCHING
 // =============================================================================
 function showTab(tabId) {
+    // Migrate old tab IDs from removed tabs
+    const tabMigration = { 'tab-gex': 'tab-analysis', 'tab-strategy': 'tab-chain-flow' };
+    if (tabMigration[tabId]) tabId = tabMigration[tabId];
+
     activeTab = tabId;
     localStorage.setItem('gq_tab', tabId);
 

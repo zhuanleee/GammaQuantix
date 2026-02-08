@@ -1322,14 +1322,12 @@ select:focus {
 .tab-btn[data-tab="tab-chart"] .tab-accent { background: var(--cyan); }
 .tab-btn[data-tab="tab-analysis"] .tab-accent { background: var(--blue); }
 .tab-btn[data-tab="tab-chain-flow"] .tab-accent { background: var(--green); }
-.tab-btn[data-tab="tab-gex"] .tab-accent { background: var(--orange); }
-.tab-btn[data-tab="tab-strategy"] .tab-accent { background: var(--purple); }
+.tab-btn[data-tab="tab-backtest"] .tab-accent { background: var(--magenta); }
 
 .tab-btn[data-tab="tab-chart"].active { color: var(--cyan); }
 .tab-btn[data-tab="tab-analysis"].active { color: var(--blue); }
 .tab-btn[data-tab="tab-chain-flow"].active { color: var(--green); }
-.tab-btn[data-tab="tab-gex"].active { color: var(--orange); }
-.tab-btn[data-tab="tab-strategy"].active { color: var(--purple); }
+.tab-btn[data-tab="tab-backtest"].active { color: var(--magenta); }
 
 /* Tab Content */
 .tab-content {
@@ -1338,6 +1336,27 @@ select:focus {
 
 .tab-content.active {
     display: block;
+}
+
+/* Tab Section Dividers (merged tab content separators) */
+.tab-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 20px;
+}
+.tab-section-divider::before,
+.tab-section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+.tab-section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
 }
 
 /* Expected Move Card */

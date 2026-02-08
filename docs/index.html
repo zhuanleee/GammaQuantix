@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260208f">
+    <link rel="stylesheet" href="css/styles.css?v=20260209a">
 </head>
 <body>
     <!-- Header -->
@@ -164,20 +164,12 @@
                 Chart
                 <span class="tab-accent"></span>
             </button>
-            <button class="tab-btn active" data-tab="tab-analysis" onclick="showTab('tab-analysis')" title="Options sentiment, max pain, IV rank, expected move, and IV smile">
+            <button class="tab-btn active" data-tab="tab-analysis" onclick="showTab('tab-analysis')" title="Options sentiment, expected move, IV smile, GEX dashboard, and regime analysis">
                 Analysis
                 <span class="tab-accent"></span>
             </button>
-            <button class="tab-btn" data-tab="tab-chain-flow" onclick="showTab('tab-chain-flow')" title="Full options chain with greeks, whale trades, and unusual activity scanner">
-                Chain & Flow
-                <span class="tab-accent"></span>
-            </button>
-            <button class="tab-btn" data-tab="tab-gex" onclick="showTab('tab-gex')" title="GEX dashboard with regime analysis, key levels, and strike data">
-                GEX
-                <span class="tab-accent"></span>
-            </button>
-            <button class="tab-btn" data-tab="tab-strategy" onclick="showTab('tab-strategy')" title="Market X-Ray analysis and strategy recommendations">
-                Strategy
+            <button class="tab-btn" data-tab="tab-chain-flow" onclick="showTab('tab-chain-flow')" title="Options chain, whale trades, unusual activity, smart money flow, X-Ray, and swing trades">
+                Flow
                 <span class="tab-accent"></span>
             </button>
             <button class="tab-btn" data-tab="tab-backtest" onclick="showTab('tab-backtest')" title="Scan MAG 7 + SPY/QQQ for highest-probability trade setup">
@@ -322,6 +314,131 @@
                 <div id="iv-smile-chart"></div>
             </div>
 
+            <!-- Section Divider: GEX Dashboard -->
+            <div class="tab-section-divider">
+                <span class="tab-section-label" style="color: var(--orange);">GEX DASHBOARD</span>
+            </div>
+
+            <!-- GEX Dashboard -->
+            <div id="gex-dashboard-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--orange);">
+                <div class="card-header">
+                    <div class="card-title">GEX Dashboard <span id="gex-ticker" style="color: var(--orange); margin-left: 8px;"></span></div>
+                    <button class="btn btn-primary" onclick="loadGexDashboard()">Refresh GEX</button>
+                </div>
+                <div class="card-body">
+                    <!-- Regime Row -->
+                    <div class="regime-grid">
+                        <!-- Volatility Regime -->
+                        <div class="regime-box" title="GEX-based volatility regime. Positive Gamma = low vol (sell premium). Negative Gamma = high vol (buy protection). Transition = mixed signals.">
+                            <div class="regime-header">VOLATILITY REGIME</div>
+                            <div class="regime-content">
+                                <div id="gex-regime-badge" class="regime-badge">--</div>
+                                <div class="regime-stats">
+                                    <div><span class="stat-label">Confidence:</span> <span id="gex-regime-confidence">--</span></div>
+                                    <div><span class="stat-label">Strategy:</span> <span id="gex-regime-strategy">--</span></div>
+                                </div>
+                            </div>
+                            <div class="regime-rec" id="gex-regime-recommendation">--</div>
+                        </div>
+                        <!-- Combined Regime -->
+                        <div class="regime-box" title="Combined regime using both GEX and Put/Call ratio Z-score. Provides risk level and position sizing guidance.">
+                            <div class="regime-header">COMBINED REGIME (GEX + P/C)</div>
+                            <div class="regime-content">
+                                <div id="combined-regime-badge" class="regime-badge">--</div>
+                                <div class="regime-stats">
+                                    <div><span class="stat-label">Risk Level:</span> <span id="combined-risk-level">--</span></div>
+                                    <div><span class="stat-label">Position Size:</span> <span id="combined-position-size">--</span></div>
+                                </div>
+                            </div>
+                            <div class="regime-rec" id="combined-recommendation">--</div>
+                        </div>
+                    </div>
+                    <!-- Key Levels Row -->
+                    <div class="levels-grid">
+                        <div class="level-box call-border" title="Strike with the highest call gamma exposure. Dealers are short calls here, so they sell as price rises - creating resistance.">
+                            <div class="level-header">CALL WALL (RESIST)</div>
+                            <div class="level-value call" id="gex-call-wall">--</div>
+                            <div class="level-sub" id="gex-call-wall-dist">--</div>
+                        </div>
+                        <div class="level-box put-border" title="Strike with the highest put gamma exposure. Dealers are short puts here, so they buy as price falls - creating support.">
+                            <div class="level-header">PUT WALL (SUPPORT)</div>
+                            <div class="level-value put" id="gex-put-wall">--</div>
+                            <div class="level-sub" id="gex-put-wall-dist">--</div>
+                        </div>
+                        <div class="level-box gamma-border" title="The strike where net gamma crosses zero. Above this level dealers stabilize price; below it they amplify moves.">
+                            <div class="level-header">GAMMA FLIP</div>
+                            <div class="level-value gamma" id="gex-gamma-flip">--</div>
+                            <div class="level-sub" id="gex-gamma-flip-note">Sign change zone</div>
+                        </div>
+                        <div class="level-box purple-border" title="Z-score of current P/C ratio vs recent history. Above +1 = extreme bearish positioning, below -1 = extreme bullish.">
+                            <div class="level-header">P/C RATIO Z-SCORE</div>
+                            <div class="level-value" id="gex-pc-zscore">--</div>
+                            <div class="level-sub" id="gex-pc-sentiment">--</div>
+                        </div>
+                    </div>
+                    <!-- GEX Price Ladder -->
+                    <div id="gex-price-ladder-container"></div>
+                    <!-- Zones & Signals -->
+                    <div class="zones-grid">
+                        <div class="zone-box">
+                            <div class="zone-header blue">Key Zones</div>
+                            <div class="zone-content">
+                                <div title="Strikes with high positive GEX that attract price - dealers push price toward these levels"><span class="stat-label">Magnet Zones:</span> <span id="gex-magnet-zones">--</span></div>
+                                <div title="Strikes with negative GEX where price accelerates - dealers amplify moves past these levels"><span class="stat-label">Acceleration Zones:</span> <span id="gex-accel-zones">--</span></div>
+                            </div>
+                        </div>
+                        <div class="zone-box">
+                            <div class="zone-header purple">Trading Signal</div>
+                            <div class="zone-content">
+                                <div id="gex-signal-badge" class="signal-badge">--</div>
+                                <div id="gex-signal-note" class="signal-note">--</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Interpretation -->
+                    <div class="interpretation-box orange" id="gex-interpretation">
+                        Load a ticker to see comprehensive GEX analysis with regime classification, support/resistance levels, and trading signals.
+                    </div>
+                    <!-- Key Levels Table (Collapsible) -->
+                    <div id="gex-levels-table-container" style="display: none; margin-top: 12px;">
+                        <div id="gex-levels-table-header" onclick="toggleGexLevelsTable()" class="table-toggle-header">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="gex-levels-toggle-icon" class="toggle-icon">&#9654;</span>
+                                <span style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted);">DETAILED KEY LEVELS</span>
+                                <span id="gex-levels-count" class="levels-count">0 levels</span>
+                            </div>
+                            <span style="font-size: 0.65rem; color: var(--text-muted);">Click to expand</span>
+                        </div>
+                        <div id="gex-levels-table-body" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GEX by Strike Table -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header">
+                    <span>GEX by Strike</span>
+                    <span class="level-count" id="gex-strike-count">-- levels</span>
+                </div>
+                <div class="card-body table-body" id="gex-table-container">
+                    <table class="gex-table">
+                        <thead>
+                            <tr>
+                                <th title="Option strike price">Strike</th>
+                                <th title="Gamma exposure from call options at this strike">Call GEX</th>
+                                <th title="Gamma exposure from put options at this strike">Put GEX</th>
+                                <th title="Net gamma exposure (Call GEX - Put GEX). Positive = stabilizing, Negative = amplifying.">Net GEX</th>
+                                <th title="Total call open interest at this strike">Call OI</th>
+                                <th title="Total put open interest at this strike">Put OI</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gex-table-body">
+                            <tr><td colspan="6" class="loading">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div><!-- end tab-analysis -->
 
         <!-- ===== TAB: CHAIN & FLOW ===== -->
@@ -447,6 +564,112 @@
                         <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
                             Enter a ticker to analyze institutional and smart money options flow
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Divider: Strategy & X-Ray -->
+            <div class="tab-section-divider">
+                <span class="tab-section-label" style="color: var(--purple);">STRATEGY & X-RAY</span>
+            </div>
+
+            <!-- Active Swing Trades -->
+            <div id="swing-trades-container" class="card" style="display: none; margin-bottom: 20px;">
+                <div class="card-header">
+                    <div class="card-title">Active Trades <span id="swing-trade-count" style="color: var(--blue); margin-left: 8px;">0</span></div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="swing-last-refresh" style="font-size: 0.7rem; color: var(--text-muted);"></span>
+                        <button class="btn btn-primary" onclick="refreshSwingTrades()" id="swing-refresh-btn">Refresh All</button>
+                    </div>
+                </div>
+                <div class="card-body" id="swing-trades-list">
+                    <!-- Trade cards rendered by JS -->
+                </div>
+            </div>
+
+            <!-- Market X-Ray - Institutional Edge Scanner -->
+            <div id="xray-container" class="card" style="margin-bottom: 20px; border-left: 3px solid var(--cyan);">
+                <div class="card-header">
+                    <div class="card-title">MARKET X-RAY <span id="xray-ticker" style="color: var(--cyan); margin-left: 8px;"></span></div>
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <select id="xray-expiry-select" style="padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.75rem;max-width:160px;">
+                            <option value="">Auto (nearest)</option>
+                        </select>
+                        <label class="toggle-item swing-toggle" title="Swing Mode — optimizes for 21-45 DTE swing trades">
+                            <input type="checkbox" id="xray-swing-mode" onchange="onSwingModeToggle()">
+                            <span class="toggle-label" style="color:var(--purple);font-weight:600;font-size:0.72rem;">Swing</span>
+                        </label>
+                        <div id="xray-composite-badge" style="font-size: 0.8rem; font-weight: 700; padding: 4px 14px; border-radius: 6px; background: var(--bg-hover); color: var(--text-muted);">SCORE: --</div>
+                        <button class="btn btn-primary" id="xray-scan-btn" onclick="loadMarketXray()">Scan</button>
+                    </div>
+                </div>
+                <div class="card-body" id="xray-body">
+                    <!-- Verdict Banner -->
+                    <div id="xray-verdict-banner" class="verdict-banner" style="display: none;">
+                        <div class="verdict-text" id="xray-verdict">--</div>
+                        <div class="verdict-rec" id="xray-interpretation">Click Scan to analyze market microstructure</div>
+                    </div>
+
+                    <!-- Trade Ideas -->
+                    <div id="xray-trade-ideas" style="display: none;"></div>
+
+                    <!-- Composite Score Section -->
+                    <div class="xray-section" id="xray-sec-composite">
+                        <div class="xray-section-header" onclick="toggleXraySection('composite')">
+                            <span>Composite Edge Score</span>
+                            <span class="xray-toggle" id="xray-toggle-composite">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-composite" style="display: none;"></div>
+                    </div>
+
+                    <!-- Dealer Hedging Flow -->
+                    <div class="xray-section" id="xray-sec-dealer">
+                        <div class="xray-section-header" onclick="toggleXraySection('dealer')">
+                            <span>Dealer Hedging Flow Map</span>
+                            <span class="xray-toggle" id="xray-toggle-dealer">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-dealer" style="display: none;"></div>
+                    </div>
+
+                    <!-- Gamma Squeeze / Pin Risk -->
+                    <div class="xray-section" id="xray-sec-squeeze">
+                        <div class="xray-section-header" onclick="toggleXraySection('squeeze')">
+                            <span>Gamma Squeeze / Pin Risk</span>
+                            <span class="xray-toggle" id="xray-toggle-squeeze">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-squeeze" style="display: none;"></div>
+                    </div>
+
+                    <!-- Volatility Surface Distortion -->
+                    <div class="xray-section" id="xray-sec-volsurface">
+                        <div class="xray-section-header" onclick="toggleXraySection('volsurface')">
+                            <span>Volatility Surface Distortion</span>
+                            <span class="xray-toggle" id="xray-toggle-volsurface">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-volsurface" style="display: none;"></div>
+                    </div>
+
+                    <!-- Smart Money Footprint -->
+                    <div class="xray-section" id="xray-sec-smartmoney">
+                        <div class="xray-section-header" onclick="toggleXraySection('smartmoney')">
+                            <span>Smart Money Footprint</span>
+                            <span class="xray-toggle" id="xray-toggle-smartmoney">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-smartmoney" style="display: none;"></div>
+                    </div>
+
+                    <!-- Optimal Trade Zones -->
+                    <div class="xray-section" id="xray-sec-tradezones">
+                        <div class="xray-section-header" onclick="toggleXraySection('tradezones')">
+                            <span>Optimal Trade Zones</span>
+                            <span class="xray-toggle" id="xray-toggle-tradezones">&#9660;</span>
+                        </div>
+                        <div class="xray-section-body" id="xray-content-tradezones" style="display: none;"></div>
+                    </div>
+
+                    <!-- Default message -->
+                    <div id="xray-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
+                        Click Scan to reveal hidden market dynamics beneath the price
                     </div>
                 </div>
             </div>
@@ -603,237 +826,6 @@
             </div>
         </div><!-- end tab-chart -->
 
-        <!-- ===== TAB: GEX ===== -->
-        <div class="tab-content" id="tab-gex">
-
-            <!-- GEX Dashboard -->
-            <div id="gex-dashboard-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--orange);">
-                <div class="card-header">
-                    <div class="card-title">GEX Dashboard <span id="gex-ticker" style="color: var(--orange); margin-left: 8px;"></span></div>
-                    <button class="btn btn-primary" onclick="loadGexDashboard()">Refresh GEX</button>
-                </div>
-                <div class="card-body">
-                    <!-- Regime Row -->
-                    <div class="regime-grid">
-                        <!-- Volatility Regime -->
-                        <div class="regime-box" title="GEX-based volatility regime. Positive Gamma = low vol (sell premium). Negative Gamma = high vol (buy protection). Transition = mixed signals.">
-                            <div class="regime-header">VOLATILITY REGIME</div>
-                            <div class="regime-content">
-                                <div id="gex-regime-badge" class="regime-badge">--</div>
-                                <div class="regime-stats">
-                                    <div><span class="stat-label">Confidence:</span> <span id="gex-regime-confidence">--</span></div>
-                                    <div><span class="stat-label">Strategy:</span> <span id="gex-regime-strategy">--</span></div>
-                                </div>
-                            </div>
-                            <div class="regime-rec" id="gex-regime-recommendation">--</div>
-                        </div>
-                        <!-- Combined Regime -->
-                        <div class="regime-box" title="Combined regime using both GEX and Put/Call ratio Z-score. Provides risk level and position sizing guidance.">
-                            <div class="regime-header">COMBINED REGIME (GEX + P/C)</div>
-                            <div class="regime-content">
-                                <div id="combined-regime-badge" class="regime-badge">--</div>
-                                <div class="regime-stats">
-                                    <div><span class="stat-label">Risk Level:</span> <span id="combined-risk-level">--</span></div>
-                                    <div><span class="stat-label">Position Size:</span> <span id="combined-position-size">--</span></div>
-                                </div>
-                            </div>
-                            <div class="regime-rec" id="combined-recommendation">--</div>
-                        </div>
-                    </div>
-                    <!-- Key Levels Row -->
-                    <div class="levels-grid">
-                        <div class="level-box call-border" title="Strike with the highest call gamma exposure. Dealers are short calls here, so they sell as price rises - creating resistance.">
-                            <div class="level-header">CALL WALL (RESIST)</div>
-                            <div class="level-value call" id="gex-call-wall">--</div>
-                            <div class="level-sub" id="gex-call-wall-dist">--</div>
-                        </div>
-                        <div class="level-box put-border" title="Strike with the highest put gamma exposure. Dealers are short puts here, so they buy as price falls - creating support.">
-                            <div class="level-header">PUT WALL (SUPPORT)</div>
-                            <div class="level-value put" id="gex-put-wall">--</div>
-                            <div class="level-sub" id="gex-put-wall-dist">--</div>
-                        </div>
-                        <div class="level-box gamma-border" title="The strike where net gamma crosses zero. Above this level dealers stabilize price; below it they amplify moves.">
-                            <div class="level-header">GAMMA FLIP</div>
-                            <div class="level-value gamma" id="gex-gamma-flip">--</div>
-                            <div class="level-sub" id="gex-gamma-flip-note">Sign change zone</div>
-                        </div>
-                        <div class="level-box purple-border" title="Z-score of current P/C ratio vs recent history. Above +1 = extreme bearish positioning, below -1 = extreme bullish.">
-                            <div class="level-header">P/C RATIO Z-SCORE</div>
-                            <div class="level-value" id="gex-pc-zscore">--</div>
-                            <div class="level-sub" id="gex-pc-sentiment">--</div>
-                        </div>
-                    </div>
-                    <!-- GEX Price Ladder -->
-                    <div id="gex-price-ladder-container"></div>
-                    <!-- Zones & Signals -->
-                    <div class="zones-grid">
-                        <div class="zone-box">
-                            <div class="zone-header blue">Key Zones</div>
-                            <div class="zone-content">
-                                <div title="Strikes with high positive GEX that attract price - dealers push price toward these levels"><span class="stat-label">Magnet Zones:</span> <span id="gex-magnet-zones">--</span></div>
-                                <div title="Strikes with negative GEX where price accelerates - dealers amplify moves past these levels"><span class="stat-label">Acceleration Zones:</span> <span id="gex-accel-zones">--</span></div>
-                            </div>
-                        </div>
-                        <div class="zone-box">
-                            <div class="zone-header purple">Trading Signal</div>
-                            <div class="zone-content">
-                                <div id="gex-signal-badge" class="signal-badge">--</div>
-                                <div id="gex-signal-note" class="signal-note">--</div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Interpretation -->
-                    <div class="interpretation-box orange" id="gex-interpretation">
-                        Load a ticker to see comprehensive GEX analysis with regime classification, support/resistance levels, and trading signals.
-                    </div>
-                    <!-- Key Levels Table (Collapsible) -->
-                    <div id="gex-levels-table-container" style="display: none; margin-top: 12px;">
-                        <div id="gex-levels-table-header" onclick="toggleGexLevelsTable()" class="table-toggle-header">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span id="gex-levels-toggle-icon" class="toggle-icon">&#9654;</span>
-                                <span style="font-size: 0.7rem; font-weight: 600; color: var(--text-muted);">DETAILED KEY LEVELS</span>
-                                <span id="gex-levels-count" class="levels-count">0 levels</span>
-                            </div>
-                            <span style="font-size: 0.65rem; color: var(--text-muted);">Click to expand</span>
-                        </div>
-                        <div id="gex-levels-table-body" style="display: none;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- GEX by Strike Table -->
-            <div class="card" style="margin-bottom: 20px;">
-                <div class="card-header">
-                    <span>GEX by Strike</span>
-                    <span class="level-count" id="gex-strike-count">-- levels</span>
-                </div>
-                <div class="card-body table-body" id="gex-table-container">
-                    <table class="gex-table">
-                        <thead>
-                            <tr>
-                                <th title="Option strike price">Strike</th>
-                                <th title="Gamma exposure from call options at this strike">Call GEX</th>
-                                <th title="Gamma exposure from put options at this strike">Put GEX</th>
-                                <th title="Net gamma exposure (Call GEX - Put GEX). Positive = stabilizing, Negative = amplifying.">Net GEX</th>
-                                <th title="Total call open interest at this strike">Call OI</th>
-                                <th title="Total put open interest at this strike">Put OI</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gex-table-body">
-                            <tr><td colspan="6" class="loading">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div><!-- end tab-gex -->
-
-        <!-- ===== TAB: STRATEGY ===== -->
-        <div class="tab-content" id="tab-strategy">
-
-            <!-- Active Swing Trades -->
-            <div id="swing-trades-container" class="card" style="display: none; margin-bottom: 20px;">
-                <div class="card-header">
-                    <div class="card-title">Active Trades <span id="swing-trade-count" style="color: var(--blue); margin-left: 8px;">0</span></div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span id="swing-last-refresh" style="font-size: 0.7rem; color: var(--text-muted);"></span>
-                        <button class="btn btn-primary" onclick="refreshSwingTrades()" id="swing-refresh-btn">Refresh All</button>
-                    </div>
-                </div>
-                <div class="card-body" id="swing-trades-list">
-                    <!-- Trade cards rendered by JS -->
-                </div>
-            </div>
-
-            <!-- Market X-Ray - Institutional Edge Scanner -->
-            <div id="xray-container" class="card" style="margin-bottom: 20px; border-left: 3px solid var(--cyan);">
-                <div class="card-header">
-                    <div class="card-title">MARKET X-RAY <span id="xray-ticker" style="color: var(--cyan); margin-left: 8px;"></span></div>
-                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                        <select id="xray-expiry-select" style="padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.75rem;max-width:160px;">
-                            <option value="">Auto (nearest)</option>
-                        </select>
-                        <label class="toggle-item swing-toggle" title="Swing Mode — optimizes for 21-45 DTE swing trades">
-                            <input type="checkbox" id="xray-swing-mode" onchange="onSwingModeToggle()">
-                            <span class="toggle-label" style="color:var(--purple);font-weight:600;font-size:0.72rem;">Swing</span>
-                        </label>
-                        <div id="xray-composite-badge" style="font-size: 0.8rem; font-weight: 700; padding: 4px 14px; border-radius: 6px; background: var(--bg-hover); color: var(--text-muted);">SCORE: --</div>
-                        <button class="btn btn-primary" id="xray-scan-btn" onclick="loadMarketXray()">Scan</button>
-                    </div>
-                </div>
-                <div class="card-body" id="xray-body">
-                    <!-- Verdict Banner -->
-                    <div id="xray-verdict-banner" class="verdict-banner" style="display: none;">
-                        <div class="verdict-text" id="xray-verdict">--</div>
-                        <div class="verdict-rec" id="xray-interpretation">Click Scan to analyze market microstructure</div>
-                    </div>
-
-                    <!-- Trade Ideas -->
-                    <div id="xray-trade-ideas" style="display: none;"></div>
-
-                    <!-- Composite Score Section -->
-                    <div class="xray-section" id="xray-sec-composite">
-                        <div class="xray-section-header" onclick="toggleXraySection('composite')">
-                            <span>Composite Edge Score</span>
-                            <span class="xray-toggle" id="xray-toggle-composite">&#9660;</span>
-                        </div>
-                        <div class="xray-section-body" id="xray-content-composite" style="display: none;"></div>
-                    </div>
-
-                    <!-- Dealer Hedging Flow -->
-                    <div class="xray-section" id="xray-sec-dealer">
-                        <div class="xray-section-header" onclick="toggleXraySection('dealer')">
-                            <span>Dealer Hedging Flow Map</span>
-                            <span class="xray-toggle" id="xray-toggle-dealer">&#9660;</span>
-                        </div>
-                        <div class="xray-section-body" id="xray-content-dealer" style="display: none;"></div>
-                    </div>
-
-                    <!-- Gamma Squeeze / Pin Risk -->
-                    <div class="xray-section" id="xray-sec-squeeze">
-                        <div class="xray-section-header" onclick="toggleXraySection('squeeze')">
-                            <span>Gamma Squeeze / Pin Risk</span>
-                            <span class="xray-toggle" id="xray-toggle-squeeze">&#9660;</span>
-                        </div>
-                        <div class="xray-section-body" id="xray-content-squeeze" style="display: none;"></div>
-                    </div>
-
-                    <!-- Volatility Surface Distortion -->
-                    <div class="xray-section" id="xray-sec-volsurface">
-                        <div class="xray-section-header" onclick="toggleXraySection('volsurface')">
-                            <span>Volatility Surface Distortion</span>
-                            <span class="xray-toggle" id="xray-toggle-volsurface">&#9660;</span>
-                        </div>
-                        <div class="xray-section-body" id="xray-content-volsurface" style="display: none;"></div>
-                    </div>
-
-                    <!-- Smart Money Footprint -->
-                    <div class="xray-section" id="xray-sec-smartmoney">
-                        <div class="xray-section-header" onclick="toggleXraySection('smartmoney')">
-                            <span>Smart Money Footprint</span>
-                            <span class="xray-toggle" id="xray-toggle-smartmoney">&#9660;</span>
-                        </div>
-                        <div class="xray-section-body" id="xray-content-smartmoney" style="display: none;"></div>
-                    </div>
-
-                    <!-- Optimal Trade Zones -->
-                    <div class="xray-section" id="xray-sec-tradezones">
-                        <div class="xray-section-header" onclick="toggleXraySection('tradezones')">
-                            <span>Optimal Trade Zones</span>
-                            <span class="xray-toggle" id="xray-toggle-tradezones">&#9660;</span>
-                        </div>
-                        <div class="xray-section-body" id="xray-content-tradezones" style="display: none;"></div>
-                    </div>
-
-                    <!-- Default message -->
-                    <div id="xray-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
-                        Click Scan to reveal hidden market dynamics beneath the price
-                    </div>
-                </div>
-            </div>
-
-        </div><!-- end tab-strategy -->
-
         <!-- ===== TAB: BACKTEST (Multi-Ticker Scanner) ===== -->
         <div class="tab-content" id="tab-backtest">
             <div class="card" style="margin-bottom: 20px; border-left: 3px solid var(--magenta);">
@@ -878,6 +870,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260208f"></script>
+    <script src="js/app.js?v=20260209a"></script>
 </body>
 </html>
