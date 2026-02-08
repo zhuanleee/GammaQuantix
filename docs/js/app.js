@@ -5754,7 +5754,15 @@ async function loadTermStructure(ticker) {
         }
 
         const termData = data.data;
-        const points = termData.term_structure || termData.points || [];
+        let points = Array.isArray(termData.term_structure) ? termData.term_structure : (termData.points || []);
+
+        // Build points from front/back summary if no array provided
+        if (points.length < 2 && termData.front_dte != null && termData.back_dte != null) {
+            points = [
+                { dte: termData.front_dte, iv: termData.front_iv, expiration: termData.front_expiration },
+                { dte: termData.back_dte, iv: termData.back_iv, expiration: termData.back_expiration }
+            ];
+        }
 
         if (points.length < 2) {
             container.style.display = 'none';
