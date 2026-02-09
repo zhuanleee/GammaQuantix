@@ -1106,6 +1106,49 @@
                 </div>
             </div>
 
+            <!-- Adaptive Intelligence (Phase 1-4) -->
+            <div class="card trading-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-title" style="color: var(--cyan);">Adaptive Intelligence</div>
+                    <button class="btn btn-ghost" onclick="rebuildAdaptiveSystems()" style="padding: 3px 8px; font-size: 0.7rem;" title="Force rebuild all adaptive systems from trade journal">Rebuild</button>
+                </div>
+                <div class="card-body">
+                    <!-- Learning Tier Health -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">LEARNING TIERS</div>
+                        <div id="adaptive-tiers" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <span class="tier-badge cold">Bandit: cold</span>
+                            <span class="tier-badge cold">Regime: cold</span>
+                            <span class="tier-badge cold">Exit: cold</span>
+                            <span class="tier-badge cold">Meta: cold</span>
+                        </div>
+                    </div>
+                    <!-- Adaptive Weights -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">COMPOSITE WEIGHTS</div>
+                        <div id="adaptive-weights" style="display: flex; gap: 4px; flex-wrap: wrap; font-size: 0.7rem;">
+                            <span style="color: var(--text-muted);">Loading...</span>
+                        </div>
+                    </div>
+                    <!-- Adaptive Exits -->
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">LEARNED EXIT PARAMS</div>
+                        <div id="adaptive-exits" style="font-size: 0.7rem;">
+                            <span style="color: var(--text-muted);">No data yet</span>
+                        </div>
+                    </div>
+                    <!-- Meta Adjustments -->
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">META ADJUSTMENTS</div>
+                        <div id="adaptive-meta" style="font-size: 0.7rem; display: flex; gap: 12px;">
+                            <span>Confidence: <span id="meta-confidence">1.0x</span></span>
+                            <span>Learning Rate: <span id="meta-lr">0.1</span></span>
+                            <span>Exploration: <span id="meta-explore">0.2</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Trade Journal -->
             <div class="card trading-card" style="border-left: 3px solid var(--text-muted); margin-bottom: 16px;">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">

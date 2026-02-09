@@ -6064,6 +6064,7 @@ async function loadTradingDashboard() {
         loadPaperEquityCurve(),
         loadPaperJournal(),
         loadPaperConfig(),
+        loadAdaptiveIntelligence(),
     ]);
 }
 
@@ -6514,6 +6515,75 @@ async function resetPaperAccount() {
             await loadTradingDashboard();
         }
     } catch (e) { console.error('Reset error:', e); }
+}
+
+// --- Adaptive Intelligence (Phase 1-4) ---
+async function loadAdaptiveIntelligence() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/adaptive/stats`);
+        const data = await res.json();
+        if (!data.ok || !data.data) return;
+        const d = data.data;
+
+        // Learning Tiers
+        const tiersEl = document.getElementById('adaptive-tiers');
+        if (tiersEl && d.learning_tiers && d.learning_tiers.tier_health) {
+            const th = d.learning_tiers.tier_health;
+            tiersEl.innerHTML = ['bandit', 'regime', 'exit', 'meta'].map(tier => {
+                const status = (th[tier] && th[tier].status) || 'cold';
+                const updates = (th[tier] && th[tier].updates) || 0;
+                return `<span class="tier-badge ${status}">${tier}: ${status} (${updates})</span>`;
+            }).join('');
+        }
+
+        // Composite Weights
+        const weightsEl = document.getElementById('adaptive-weights');
+        if (weightsEl && d.current_weights) {
+            const w = d.current_weights;
+            weightsEl.innerHTML = Object.entries(w).map(([k, v]) => {
+                const name = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                return `<span class="weight-chip">${name}: ${v}</span>`;
+            }).join('');
+        }
+
+        // Adaptive Exits
+        const exitsEl = document.getElementById('adaptive-exits');
+        if (exitsEl && d.adaptive_exits) {
+            const rows = Object.entries(d.adaptive_exits).map(([sig, params]) => {
+                const src = params.source || 'default';
+                const srcColor = src.includes('adaptive') ? 'var(--cyan)' : 'var(--text-muted)';
+                return `<div style="display:flex;justify-content:space-between;padding:2px 0;">
+                    <span>${sig.replace(/_/g, ' ')}</span>
+                    <span>SL: ${params.stop_loss_pct}% | TP: ${params.take_profit_pct}% | DTE: ${params.time_exit_dte}d
+                    <span style="color:${srcColor};font-size:0.6rem;margin-left:4px;">(${src})</span></span>
+                </div>`;
+            }).join('');
+            exitsEl.innerHTML = rows || '<span style="color:var(--text-muted)">No data yet</span>';
+        }
+
+        // Meta Adjustments
+        if (d.learning_tiers && d.learning_tiers.meta_adjustments) {
+            const m = d.learning_tiers.meta_adjustments;
+            const confEl = document.getElementById('meta-confidence');
+            const lrEl = document.getElementById('meta-lr');
+            const expEl = document.getElementById('meta-explore');
+            if (confEl) confEl.textContent = (m.confidence_scale || 1).toFixed(2) + 'x';
+            if (lrEl) lrEl.textContent = (m.learning_rate || 0.1).toFixed(2);
+            if (expEl) expEl.textContent = (m.exploration_rate || 0.2).toFixed(2);
+        }
+    } catch (e) {
+        console.debug('Adaptive intelligence load skipped:', e.message);
+    }
+}
+
+async function rebuildAdaptiveSystems() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/adaptive/rebuild`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            await loadAdaptiveIntelligence();
+        }
+    } catch (e) { console.error('Rebuild error:', e); }
 }
 
 // --- Auto Refresh ---
