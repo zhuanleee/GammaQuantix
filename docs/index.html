@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260209d">
+    <link rel="stylesheet" href="css/styles.css?v=20260209g">
 </head>
 <body>
     <!-- Header -->
@@ -188,6 +188,10 @@
             </button>
             <button class="tab-btn" data-tab="tab-backtest" onclick="showTab('tab-backtest')" title="Scan MAG 7 + SPY/QQQ for highest-probability trade setup">
                 Scanner
+                <span class="tab-accent"></span>
+            </button>
+            <button class="tab-btn" data-tab="tab-trading" onclick="showTab('tab-trading')" title="Paper trading dashboard with automated signals, positions, and performance analytics">
+                Trading
                 <span class="tab-accent"></span>
             </button>
         </div>
@@ -968,6 +972,163 @@
             <!-- Drill-down X-Ray detail for selected ticker -->
             <div id="scanner-xray-detail" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--cyan);"></div>
         </div><!-- end tab-backtest -->
+
+        <!-- ===== TAB: TRADING ===== -->
+        <div class="tab-content" id="tab-trading">
+
+            <!-- Account Overview -->
+            <div class="card trading-card" style="border-left: 3px solid var(--green); margin-bottom: 16px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-title" style="color: var(--green);">Paper Trading Dashboard</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span id="trading-status" class="trading-status-badge">● OFFLINE</span>
+                        <label class="toggle-switch" title="Enable/disable auto-trading">
+                            <input type="checkbox" id="auto-trade-toggle" onchange="toggleAutoTrade()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Auto</span>
+                        <button class="btn btn-ghost" onclick="triggerSignalCheck(event)" style="padding: 4px 10px; font-size: 0.75rem;" title="Manually check signals now">Check Signals</button>
+                        <button class="btn btn-ghost" onclick="refreshTradingDashboard()" style="padding: 4px 10px; font-size: 0.75rem;" title="Refresh all data">Refresh</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="trading-metrics-grid">
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">EQUITY</div>
+                            <div class="trading-metric-value" id="trading-equity">$50,000</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">CASH</div>
+                            <div class="trading-metric-value" id="trading-cash">$50,000</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">BUYING POWER</div>
+                            <div class="trading-metric-value" id="trading-buying-power">$50,000</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">TOTAL P&L</div>
+                            <div class="trading-metric-value" id="trading-total-pnl">$0</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">TODAY P&L</div>
+                            <div class="trading-metric-value" id="trading-daily-pnl">$0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signals & Risk Row -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+
+                <!-- Active Signals -->
+                <div class="card trading-card" style="border-left: 3px solid var(--orange);">
+                    <div class="card-header">
+                        <div class="card-title" style="color: var(--orange);">Active Signals</div>
+                    </div>
+                    <div class="card-body" id="trading-signals" style="max-height: 250px; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No signals yet. Click "Check Signals" or enable auto-trade.</div>
+                    </div>
+                </div>
+
+                <!-- Risk Limits -->
+                <div class="card trading-card" style="border-left: 3px solid var(--purple);">
+                    <div class="card-header">
+                        <div class="card-title" style="color: var(--purple);">Risk & Config</div>
+                    </div>
+                    <div class="card-body" id="trading-risk" style="max-height: 250px; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Open Positions -->
+            <div class="card trading-card" style="border-left: 3px solid var(--blue); margin-bottom: 16px;">
+                <div class="card-header">
+                    <div class="card-title" style="color: var(--blue);">Open Positions</div>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <div id="trading-positions" style="overflow-x: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No open positions</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Equity Curve -->
+            <div class="card trading-card" style="border-left: 3px solid var(--green); margin-bottom: 16px;">
+                <div class="card-header">
+                    <div class="card-title" style="color: var(--green);">Equity Curve</div>
+                </div>
+                <div class="card-body">
+                    <div id="trading-equity-chart" style="height: 280px;"></div>
+                </div>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="card trading-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
+                <div class="card-header">
+                    <div class="card-title" style="color: var(--cyan);">Performance Metrics</div>
+                </div>
+                <div class="card-body">
+                    <div class="trading-metrics-grid" id="trading-performance">
+                        <div class="trading-metric"><div class="trading-metric-label">WIN RATE</div><div class="trading-metric-value" id="perf-win-rate">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">PROFIT FACTOR</div><div class="trading-metric-value" id="perf-profit-factor">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">SHARPE RATIO</div><div class="trading-metric-value" id="perf-sharpe">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">MAX DRAWDOWN</div><div class="trading-metric-value" id="perf-max-dd">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">EXPECTANCY</div><div class="trading-metric-value" id="perf-expectancy">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">AVG WIN</div><div class="trading-metric-value" id="perf-avg-win">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">AVG LOSS</div><div class="trading-metric-value" id="perf-avg-loss">--</div></div>
+                        <div class="trading-metric"><div class="trading-metric-label">TOTAL TRADES</div><div class="trading-metric-value" id="perf-total-trades">0</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Breakdown & Signal Attribution Row -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+
+                <!-- Strategy Breakdown -->
+                <div class="card trading-card" style="border-left: 3px solid var(--magenta);">
+                    <div class="card-header">
+                        <div class="card-title" style="color: var(--magenta);">Strategy Breakdown</div>
+                    </div>
+                    <div class="card-body" id="trading-strategy-breakdown" style="max-height: 300px; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No strategy data yet</div>
+                    </div>
+                </div>
+
+                <!-- Signal Attribution -->
+                <div class="card trading-card" style="border-left: 3px solid var(--yellow);">
+                    <div class="card-header">
+                        <div class="card-title" style="color: var(--yellow);">Signal Attribution</div>
+                    </div>
+                    <div class="card-body" id="trading-signal-attribution" style="max-height: 300px; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No signal data yet</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trade Journal -->
+            <div class="card trading-card" style="border-left: 3px solid var(--text-muted); margin-bottom: 16px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-title">Trade Journal</div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-ghost journal-filter active" data-filter="all" onclick="filterJournal('all')" style="padding: 3px 8px; font-size: 0.7rem;">All</button>
+                        <button class="btn btn-ghost journal-filter" data-filter="open" onclick="filterJournal('open')" style="padding: 3px 8px; font-size: 0.7rem;">Open</button>
+                        <button class="btn btn-ghost journal-filter" data-filter="closed" onclick="filterJournal('closed')" style="padding: 3px 8px; font-size: 0.7rem;">Closed</button>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <div id="trading-journal" style="overflow-x: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades yet</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reset Button -->
+            <div style="text-align: center; margin-top: 10px; margin-bottom: 20px;">
+                <button class="btn btn-ghost" onclick="resetPaperAccount()" style="padding: 6px 16px; font-size: 0.75rem; color: var(--red); border-color: var(--red);" title="Reset paper account to starting capital. This clears all trades and equity history.">Reset Paper Account</button>
+            </div>
+
+        </div><!-- end tab-trading -->
     </main>
 
     <!-- Footer -->
@@ -981,6 +1142,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260209e"></script>
+    <script src="js/app.js?v=20260209g"></script>
 </body>
 </html>

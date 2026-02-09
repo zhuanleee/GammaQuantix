@@ -3044,3 +3044,272 @@ select:focus {
         flex-wrap: wrap;
     }
 }
+
+/* =============================================================================
+   PAPER TRADING TAB
+   ============================================================================= */
+
+.trading-card {
+    background: var(--bg-card);
+    border-radius: 8px;
+}
+
+.trading-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.trading-metric {
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+}
+
+.trading-metric-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.trading-metric-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.trading-metric-value.positive { color: var(--green); }
+.trading-metric-value.negative { color: var(--red); }
+
+.trading-status-badge {
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+.trading-status-badge.live {
+    color: var(--green);
+    background: var(--green-bg);
+}
+.trading-status-badge.offline {
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+}
+
+/* Auto-trade toggle switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    transition: .3s;
+}
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text-muted);
+    border-radius: 50%;
+    transition: .3s;
+}
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--green-bg);
+    border-color: var(--green);
+}
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+    background-color: var(--green);
+}
+
+/* Signal cards */
+.signal-card {
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--text-muted);
+    margin-bottom: 8px;
+}
+.signal-card.high-conf { border-left-color: var(--green); }
+.signal-card.mid-conf { border-left-color: var(--orange); }
+.signal-card.low-conf { border-left-color: var(--red); }
+
+.signal-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.signal-card-ticker {
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+.signal-card-type {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.signal-card-confidence {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg);
+}
+.signal-card-detail {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Risk config items */
+.risk-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+}
+.risk-item:last-child { border-bottom: none; }
+.risk-item-label { color: var(--text-muted); }
+.risk-item-value { font-weight: 600; }
+
+/* Positions table */
+.trading-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.trading-table th {
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+}
+.trading-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+}
+.trading-table tr:hover {
+    background: var(--bg-hover);
+}
+.trading-table .pnl-positive { color: var(--green); font-weight: 600; }
+.trading-table .pnl-negative { color: var(--red); font-weight: 600; }
+.trading-table .close-btn {
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    background: transparent;
+    border: 1px solid var(--red);
+    color: var(--red);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.trading-table .close-btn:hover {
+    background: var(--red-bg);
+}
+
+/* Strategy breakdown cards */
+.strategy-card {
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    margin-bottom: 8px;
+    border-left: 3px solid var(--magenta);
+}
+.strategy-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.strategy-card-name {
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+.strategy-card-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+.strategy-stat {
+    text-align: center;
+}
+.strategy-stat-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.strategy-stat-label {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* Journal filter buttons */
+.journal-filter.active {
+    background: var(--bg-hover);
+    color: var(--text);
+    border-color: var(--border-light);
+}
+
+/* Signal attribution bars */
+.attribution-bar {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    margin-bottom: 6px;
+}
+.attribution-bar-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    margin-bottom: 4px;
+}
+.attribution-bar-fill {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+}
+.attribution-bar-fill-inner {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+/* Trading tab responsive */
+@media (max-width: 768px) {
+    #tab-trading .card-header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+    #tab-trading > div[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+    .trading-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .strategy-card-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

@@ -4079,6 +4079,12 @@ function showTab(tabId) {
             try { ivSmileChart.updateOptions({ chart: { width: document.getElementById('iv-smile-chart')?.clientWidth } }); } catch(e) {}
         }, 50);
     }
+    if (tabId === 'tab-trading') {
+        loadTradingDashboard();
+        startTradingRefresh();
+    } else {
+        stopTradingRefresh();
+    }
 }
 
 // =============================================================================
@@ -6038,6 +6044,493 @@ async function loadGexBacktest(ticker) {
     } catch (e) {
         console.error('GEX backtest load failed:', e);
         card.style.display = 'none';
+    }
+}
+
+// =============================================================================
+// PAPER TRADING DASHBOARD
+// =============================================================================
+
+let tradingRefreshInterval = null;
+let tradingEquityChart = null;
+let journalFilter = 'all';
+
+async function loadTradingDashboard() {
+    await Promise.all([
+        loadPaperAccount(),
+        loadPaperPositions(),
+        loadPaperSignals(),
+        loadPaperAnalytics(),
+        loadPaperEquityCurve(),
+        loadPaperJournal(),
+        loadPaperConfig(),
+    ]);
+}
+
+async function refreshTradingDashboard() {
+    await loadTradingDashboard();
+}
+
+// --- Account Summary ---
+async function loadPaperAccount() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/account`);
+        const data = await res.json();
+        if (data.ok && data.data) {
+            const d = data.data;
+            const el = (id) => document.getElementById(id);
+
+            el('trading-equity').textContent = '$' + d.equity.toLocaleString(undefined, {maximumFractionDigits: 0});
+            el('trading-cash').textContent = '$' + d.cash.toLocaleString(undefined, {maximumFractionDigits: 0});
+            el('trading-buying-power').textContent = '$' + d.buying_power.toLocaleString(undefined, {maximumFractionDigits: 0});
+
+            const pnlEl = el('trading-total-pnl');
+            pnlEl.textContent = (d.total_pnl >= 0 ? '+' : '') + '$' + d.total_pnl.toLocaleString(undefined, {maximumFractionDigits: 0});
+            pnlEl.className = 'trading-metric-value ' + (d.total_pnl >= 0 ? 'positive' : 'negative');
+
+            const dailyEl = el('trading-daily-pnl');
+            const daily = d.daily_pnl || 0;
+            dailyEl.textContent = (daily >= 0 ? '+' : '') + '$' + daily.toLocaleString(undefined, {maximumFractionDigits: 0});
+            dailyEl.className = 'trading-metric-value ' + (daily >= 0 ? 'positive' : 'negative');
+
+            // Status badge
+            const statusEl = el('trading-status');
+            if (d.account_number && d.account_number !== 'offline') {
+                statusEl.textContent = '● LIVE';
+                statusEl.className = 'trading-status-badge live';
+            } else {
+                statusEl.textContent = '● OFFLINE';
+                statusEl.className = 'trading-status-badge offline';
+            }
+        }
+    } catch (e) { console.error('Paper account error:', e); }
+}
+
+// --- Positions ---
+async function loadPaperPositions() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/positions`);
+        const data = await res.json();
+        const container = document.getElementById('trading-positions');
+        if (!data.ok || !data.data) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No position data</div>';
+            return;
+        }
+
+        const trades = data.data.journal_trades || [];
+        const positions = data.data.positions || [];
+
+        if (trades.length === 0 && positions.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No open positions</div>';
+            return;
+        }
+
+        let html = '<table class="trading-table"><thead><tr>';
+        html += '<th>Ticker</th><th>Strategy</th><th>Type</th><th>Strike</th><th>Exp</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>Action</th>';
+        html += '</tr></thead><tbody>';
+
+        for (const trade of trades) {
+            const entry = trade.entry_price || 0;
+            // Try to find matching position for live mark
+            const matchPos = positions.find(p => p.symbol && trade.occ_symbol && p.symbol === trade.occ_symbol);
+            const current = matchPos ? (matchPos.mark || matchPos.close_price || entry) : entry;
+            const pnl = trade.direction === 'long'
+                ? (current - entry) * (trade.quantity || 1) * 100
+                : (entry - current) * (trade.quantity || 1) * 100;
+            const pnlPct = entry > 0 ? ((trade.direction === 'long' ? current - entry : entry - current) / entry * 100) : 0;
+            const pnlClass = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+            const pnlSign = pnl >= 0 ? '+' : '';
+
+            const expShort = trade.expiration ? trade.expiration.slice(5) : '--';
+            const strategy = trade.strategy || trade.signal_type || 'Manual';
+
+            html += `<tr>
+                <td style="font-weight: 700;">${trade.ticker}</td>
+                <td><span style="font-size: 0.7rem; color: var(--text-muted);">${strategy}</span></td>
+                <td>${trade.direction === 'long' ? '▲' : '▼'} ${(trade.option_type || 'call').charAt(0).toUpperCase()}</td>
+                <td>$${(trade.strike || 0).toLocaleString()}</td>
+                <td>${expShort}</td>
+                <td>${trade.quantity || 1}</td>
+                <td>$${entry.toFixed(2)}</td>
+                <td>$${current.toFixed(2)}</td>
+                <td class="${pnlClass}">${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)</td>
+                <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
+            </tr>`;
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('Paper positions error:', e);
+    }
+}
+
+// --- Signals ---
+async function loadPaperSignals() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/signals`);
+        const data = await res.json();
+        const container = document.getElementById('trading-signals');
+        if (!data.ok || !data.data || data.data.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No active signals</div>';
+            return;
+        }
+
+        let html = '';
+        for (const sig of data.data) {
+            const conf = sig.confidence || 0;
+            const confClass = conf >= 70 ? 'high-conf' : conf >= 50 ? 'mid-conf' : 'low-conf';
+            const confColor = conf >= 70 ? 'var(--green)' : conf >= 50 ? 'var(--orange)' : 'var(--red)';
+            const arrow = sig.direction === 'long' ? '▲' : '▼';
+            const signalLabel = (sig.signal_type || '').replace(/_/g, ' ').toUpperCase();
+
+            html += `<div class="signal-card ${confClass}">
+                <div class="signal-card-header">
+                    <div>
+                        <span class="signal-card-ticker">${arrow} ${sig.ticker}</span>
+                        <span class="signal-card-type" style="margin-left: 8px;">${signalLabel}</span>
+                    </div>
+                    <span class="signal-card-confidence" style="color: ${confColor};">${conf}%</span>
+                </div>
+                <div class="signal-card-detail">${sig.notes || ''}</div>
+            </div>`;
+        }
+        container.innerHTML = html;
+    } catch (e) { console.error('Paper signals error:', e); }
+}
+
+// --- Analytics ---
+async function loadPaperAnalytics() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/analytics`);
+        const data = await res.json();
+        if (!data.ok || !data.data) return;
+        const d = data.data;
+        const el = (id) => document.getElementById(id);
+
+        el('perf-win-rate').textContent = d.win_rate + '%';
+        el('perf-win-rate').className = 'trading-metric-value ' + (d.win_rate >= 50 ? 'positive' : d.win_rate > 0 ? 'negative' : '');
+        el('perf-profit-factor').textContent = d.profit_factor;
+        el('perf-profit-factor').className = 'trading-metric-value ' + (d.profit_factor >= 1.5 ? 'positive' : d.profit_factor > 0 ? 'negative' : '');
+        el('perf-sharpe').textContent = d.sharpe_ratio;
+        el('perf-sharpe').className = 'trading-metric-value ' + (d.sharpe_ratio >= 1 ? 'positive' : d.sharpe_ratio > 0 ? '' : 'negative');
+        el('perf-max-dd').textContent = '-' + d.max_drawdown_pct + '%';
+        el('perf-max-dd').className = 'trading-metric-value negative';
+        el('perf-expectancy').textContent = '$' + (d.expectancy || 0).toFixed(0);
+        el('perf-expectancy').className = 'trading-metric-value ' + (d.expectancy >= 0 ? 'positive' : 'negative');
+        el('perf-avg-win').textContent = '+$' + (d.avg_win || 0).toFixed(0);
+        el('perf-avg-win').className = 'trading-metric-value positive';
+        el('perf-avg-loss').textContent = '-$' + Math.abs(d.avg_loss || 0).toFixed(0);
+        el('perf-avg-loss').className = 'trading-metric-value negative';
+        el('perf-total-trades').textContent = d.total_trades || 0;
+
+        // Strategy breakdown
+        renderStrategyBreakdown(d.strategy_breakdown || {});
+
+        // Signal attribution
+        renderSignalAttribution(d.signal_attribution || {});
+
+    } catch (e) { console.error('Paper analytics error:', e); }
+}
+
+function renderStrategyBreakdown(breakdown) {
+    const container = document.getElementById('trading-strategy-breakdown');
+    if (!breakdown || Object.keys(breakdown).length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No strategy data yet</div>';
+        return;
+    }
+
+    let html = '';
+    const sorted = Object.entries(breakdown).sort((a, b) => b[1].total_pnl - a[1].total_pnl);
+    for (const [name, stats] of sorted) {
+        const pnlClass = stats.total_pnl >= 0 ? 'positive' : 'negative';
+        const pnlSign = stats.total_pnl >= 0 ? '+' : '';
+        html += `<div class="strategy-card">
+            <div class="strategy-card-header">
+                <span class="strategy-card-name">${name}</span>
+                <span class="trading-metric-value ${pnlClass}" style="font-size: 0.85rem;">${pnlSign}$${stats.total_pnl.toLocaleString()}</span>
+            </div>
+            <div class="strategy-card-stats">
+                <div class="strategy-stat"><div class="strategy-stat-value">${stats.win_rate}%</div><div class="strategy-stat-label">Win Rate</div></div>
+                <div class="strategy-stat"><div class="strategy-stat-value">${stats.profit_factor}</div><div class="strategy-stat-label">P.Factor</div></div>
+                <div class="strategy-stat"><div class="strategy-stat-value">${stats.count}</div><div class="strategy-stat-label">Trades</div></div>
+                <div class="strategy-stat"><div class="strategy-stat-value">$${stats.expectancy.toFixed(0)}</div><div class="strategy-stat-label">Expect.</div></div>
+            </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderSignalAttribution(attribution) {
+    const container = document.getElementById('trading-signal-attribution');
+    if (!attribution || Object.keys(attribution).length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No signal data yet</div>';
+        return;
+    }
+
+    const colors = {
+        'gex_flip': 'var(--orange)',
+        'regime_shift': 'var(--purple)',
+        'macro_event': 'var(--blue)',
+        'iv_reversion': 'var(--cyan)',
+        'manual': 'var(--text-muted)',
+    };
+
+    let html = '';
+    for (const [type, stats] of Object.entries(attribution)) {
+        const color = colors[type] || 'var(--text-muted)';
+        const label = type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const pnlSign = stats.total_pnl >= 0 ? '+' : '';
+        const pnlClass = stats.total_pnl >= 0 ? 'positive' : 'negative';
+
+        html += `<div class="attribution-bar">
+            <div class="attribution-bar-header">
+                <span style="font-weight: 600;">${label}</span>
+                <span>${stats.count} trades | ${stats.win_rate}% WR | <span class="${pnlClass}" style="font-weight: 600;">${pnlSign}$${stats.total_pnl.toLocaleString()}</span></span>
+            </div>
+            <div class="attribution-bar-fill">
+                <div class="attribution-bar-fill-inner" style="width: ${Math.min(stats.win_rate, 100)}%; background: ${color};"></div>
+            </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+// --- Equity Curve ---
+async function loadPaperEquityCurve() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/equity-curve`);
+        const data = await res.json();
+        if (!data.ok || !data.data || data.data.length === 0) return;
+
+        const dates = data.data.map(d => d.date);
+        const equities = data.data.map(d => d.equity);
+
+        const chartEl = document.getElementById('trading-equity-chart');
+        if (!chartEl) return;
+
+        if (tradingEquityChart) {
+            tradingEquityChart.updateSeries([{ name: 'Equity', data: equities }]);
+            tradingEquityChart.updateOptions({ xaxis: { categories: dates } });
+            return;
+        }
+
+        tradingEquityChart = new ApexCharts(chartEl, {
+            series: [{ name: 'Equity', data: equities }],
+            chart: {
+                type: 'area',
+                height: 280,
+                background: 'transparent',
+                toolbar: { show: false },
+                fontFamily: 'Inter, sans-serif',
+            },
+            colors: ['#22c55e'],
+            fill: {
+                type: 'gradient',
+                gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] },
+            },
+            stroke: { curve: 'smooth', width: 2 },
+            xaxis: {
+                categories: dates,
+                labels: { style: { colors: '#71717a', fontSize: '10px' }, rotate: -45 },
+                axisBorder: { show: false },
+                axisTicks: { show: false },
+            },
+            yaxis: {
+                labels: {
+                    style: { colors: '#71717a', fontSize: '10px' },
+                    formatter: v => '$' + (v / 1000).toFixed(1) + 'K',
+                },
+            },
+            grid: { borderColor: '#2a2a3a', strokeDashArray: 3 },
+            tooltip: {
+                theme: 'dark',
+                y: { formatter: v => '$' + v.toLocaleString(undefined, {maximumFractionDigits: 0}) },
+            },
+            annotations: {
+                yaxis: [{
+                    y: 50000,
+                    borderColor: '#71717a',
+                    strokeDashArray: 4,
+                    label: {
+                        text: 'Starting Capital',
+                        style: { color: '#71717a', background: 'transparent', fontSize: '10px' },
+                        position: 'left',
+                    },
+                }],
+            },
+        });
+        tradingEquityChart.render();
+    } catch (e) { console.error('Equity curve error:', e); }
+}
+
+// --- Journal ---
+async function loadPaperJournal() {
+    try {
+        const params = journalFilter !== 'all' ? `?status=${journalFilter}` : '';
+        const sep = params ? '&' : '?';
+        const res = await fetch(`${API_BASE}/paper/journal${params}${sep}limit=30`);
+        const data = await res.json();
+        const container = document.getElementById('trading-journal');
+
+        if (!data.ok || !data.data || data.data.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades yet</div>';
+            return;
+        }
+
+        let html = '<table class="trading-table"><thead><tr>';
+        html += '<th>Date</th><th>Ticker</th><th>Strategy</th><th>Signal</th><th>Dir</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th>';
+        html += '</tr></thead><tbody>';
+
+        // Show newest first
+        const trades = [...data.data].reverse();
+        for (const t of trades) {
+            const dateStr = t.entry_time ? t.entry_time.slice(0, 10) : '--';
+            const strategy = t.strategy || t.signal_type || 'Manual';
+            const signalLabel = (t.signal_type || '').replace(/_/g, ' ');
+            const dir = t.direction === 'long' ? '▲ Long' : '▼ Short';
+            const entry = t.entry_price ? '$' + t.entry_price.toFixed(2) : '--';
+            const exit = t.exit_price ? '$' + t.exit_price.toFixed(2) : '--';
+            const pnl = t.pnl_dollars != null ? t.pnl_dollars : null;
+            const pnlStr = pnl != null ? (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(0) : '--';
+            const pnlPctStr = t.pnl_pct != null ? ` (${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(1)}%)` : '';
+            const pnlClass = pnl != null ? (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
+            const reason = t.exit_reason ? t.exit_reason.replace(/_/g, ' ') : (t.status === 'open' ? 'OPEN' : '--');
+
+            html += `<tr>
+                <td>${dateStr}</td>
+                <td style="font-weight: 700;">${t.ticker}</td>
+                <td><span style="font-size: 0.7rem; color: var(--text-muted);">${strategy}</span></td>
+                <td style="font-size: 0.72rem;">${signalLabel}</td>
+                <td>${dir}</td>
+                <td>${entry}</td>
+                <td>${exit}</td>
+                <td class="${pnlClass}">${pnlStr}${pnlPctStr}</td>
+                <td style="font-size: 0.72rem; color: var(--text-muted);">${reason}</td>
+            </tr>`;
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    } catch (e) { console.error('Paper journal error:', e); }
+}
+
+function filterJournal(filter) {
+    journalFilter = filter;
+    document.querySelectorAll('.journal-filter').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.journal-filter[data-filter="${filter}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    loadPaperJournal();
+}
+
+// --- Config ---
+async function loadPaperConfig() {
+    try {
+        const res = await fetch(`${API_BASE}/paper/config`);
+        const data = await res.json();
+        if (!data.ok || !data.data) return;
+        const c = data.data;
+
+        // Update auto-trade toggle
+        const toggle = document.getElementById('auto-trade-toggle');
+        if (toggle) toggle.checked = c.auto_trade_enabled || false;
+
+        // Render risk config
+        const container = document.getElementById('trading-risk');
+        container.innerHTML = `
+            <div class="risk-item"><span class="risk-item-label">Max Positions</span><span class="risk-item-value">${c.max_positions || 5}</span></div>
+            <div class="risk-item"><span class="risk-item-label">Max Position Size</span><span class="risk-item-value">${c.max_position_pct || 5}%</span></div>
+            <div class="risk-item"><span class="risk-item-label">Max Exposure</span><span class="risk-item-value">${c.max_exposure_pct || 30}%</span></div>
+            <div class="risk-item"><span class="risk-item-label">Max Daily Trades</span><span class="risk-item-value">${c.max_daily_trades || 10}</span></div>
+            <div class="risk-item"><span class="risk-item-label">Max Daily Loss</span><span class="risk-item-value">-${c.max_daily_loss_pct || 5}%</span></div>
+            <div class="risk-item"><span class="risk-item-label">Stop Loss</span><span class="risk-item-value">${c.stop_loss_pct || -50}%</span></div>
+            <div class="risk-item"><span class="risk-item-label">Take Profit</span><span class="risk-item-value">+${c.take_profit_pct || 100}%</span></div>
+            <div class="risk-item"><span class="risk-item-label">Min DTE</span><span class="risk-item-value">${c.min_dte_to_open || 14}d</span></div>
+            <div class="risk-item"><span class="risk-item-label">Time Exit</span><span class="risk-item-value">${c.time_exit_dte || 7} DTE</span></div>
+            <div class="risk-item"><span class="risk-item-label">Min Confidence</span><span class="risk-item-value">${c.min_confidence || 60}%</span></div>
+            <div class="risk-item"><span class="risk-item-label">Watched Tickers</span><span class="risk-item-value">${(c.watched_tickers || []).join(', ')}</span></div>
+        `;
+    } catch (e) { console.error('Paper config error:', e); }
+}
+
+// --- Actions ---
+async function triggerSignalCheck(evt) {
+    const btn = evt ? evt.target : document.querySelector('[onclick*="triggerSignalCheck"]');
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Checking...';
+        const res = await fetch(`${API_BASE}/paper/check-signals`, { method: 'POST' });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = 'Check Signals';
+        if (data.ok) {
+            const d = data.data;
+            const msg = `Signals: ${d.signals?.length || 0} | Executed: ${d.executed?.length || 0} | Exits: ${d.exits?.length || 0}`;
+            console.log('Signal check:', msg);
+            await loadTradingDashboard();
+        }
+    } catch (e) {
+        console.error('Signal check error:', e);
+        btn.disabled = false;
+        btn.textContent = 'Check Signals';
+    }
+}
+
+async function closePaperPosition(tradeId) {
+    if (!confirm('Close this position?')) return;
+    try {
+        const res = await fetch(`${API_BASE}/paper/close/${encodeURIComponent(tradeId)}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            await loadTradingDashboard();
+        } else {
+            console.error('Close position failed:', data.error || data);
+        }
+    } catch (e) { console.error('Close position error:', e); }
+}
+
+async function toggleAutoTrade() {
+    const toggle = document.getElementById('auto-trade-toggle');
+    const enabled = toggle.checked;
+    try {
+        await fetch(`${API_BASE}/paper/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_trade_enabled: enabled }),
+        });
+    } catch (e) {
+        console.error('Toggle auto-trade error:', e);
+        toggle.checked = !enabled; // Revert
+    }
+}
+
+async function resetPaperAccount() {
+    if (!confirm('Reset paper account? This will clear ALL trades, signals, and equity history. Starting capital will be reset to $50,000.')) return;
+    if (!confirm('Are you sure? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`${API_BASE}/paper/reset`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            await loadTradingDashboard();
+        }
+    } catch (e) { console.error('Reset error:', e); }
+}
+
+// --- Auto Refresh ---
+function startTradingRefresh() {
+    stopTradingRefresh();
+    tradingRefreshInterval = setInterval(async () => {
+        if (document.getElementById('tab-trading')?.classList.contains('active')) {
+            await loadPaperAccount();
+            await loadPaperPositions();
+        }
+    }, 30000); // 30s
+}
+
+function stopTradingRefresh() {
+    if (tradingRefreshInterval) {
+        clearInterval(tradingRefreshInterval);
+        tradingRefreshInterval = null;
     }
 }
 
