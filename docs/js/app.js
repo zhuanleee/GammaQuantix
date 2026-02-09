@@ -4595,130 +4595,95 @@ const SCANNER_TICKERS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 
 window._multiTickerResults = null;
 window._scannerFilterMode = 'overall';
 
-// ── Feature 1: Weighted Scanner Score (0-100) ──────────────────────────────
+// ── Feature 1: Edge Score (PhD Intelligence) ───────────────────────────────
 function computeScannerScore(data) {
-    // Base composite (40%)
-    const baseScore = data.composite?.score ?? 0;
-    const base = baseScore * 0.4;
-
-    // Squeeze potential (15%)
-    const squeezeRaw = data.squeeze_pin?.squeeze_score ?? 0;
-    const squeeze = squeezeRaw * 0.15;
-
-    // Flow conviction (15%) — ratio of dominant side notional
-    let flowConviction = 0;
-    if (data.smart_money) {
-        const c = data.smart_money.total_call_notional || 0;
-        const p = data.smart_money.total_put_notional || 0;
-        const total = c + p;
-        if (total > 0) {
-            const ratio = Math.max(c, p) / total; // 0.5 – 1.0
-            flowConviction = ((ratio - 0.5) / 0.5) * 100; // map to 0-100
-        }
+    // Use PhD edge score if available
+    if (data.intelligence?.edge_score != null) {
+        return Math.round(Math.min(100, Math.max(0, data.intelligence.edge_score)));
     }
-    const flow = Math.min(flowConviction, 100) * 0.15;
-
-    // Trade idea quality (15%) — HIGH×33 + MEDIUM×15, cap 100
-    let ideaQuality = 0;
-    const ideas = data.composite?.trade_ideas || [];
-    ideas.forEach(idea => {
-        const conf = (idea.confidence || '').toUpperCase();
-        if (conf === 'HIGH') ideaQuality += 33;
-        else if (conf === 'MEDIUM') ideaQuality += 15;
-    });
-    const ideaScore = Math.min(ideaQuality, 100) * 0.15;
-
-    // Risk/reward position (15%) — (resistance-price)/(resistance-support) → 0-100
-    let rrScore = 50; // default neutral
-    const tz = data.trade_zones;
-    if (tz) {
-        const support = tz.support || 0;
-        const resistance = tz.resistance || 0;
-        const price = tz.current_price || 0;
-        const range = resistance - support;
-        if (range > 0 && price > 0) {
-            rrScore = Math.max(0, Math.min(100, ((resistance - price) / range) * 100));
-        }
-    }
-    const rr = rrScore * 0.15;
-
-    return Math.round(Math.min(100, Math.max(0, base + squeeze + flow + ideaScore + rr)));
+    // Fallback to composite score
+    return Math.round(Math.min(100, Math.max(0, data.composite?.score ?? 0)));
 }
 
-// ── Feature 3: Conviction Meter ────────────────────────────────────────────
+// ── Feature 3: Conviction Meter (PhD Intelligence) ─────────────────────────
 function computeConviction(data) {
-    const signals = [];
+    const intel = data.intelligence;
+    // If PhD intelligence available, use 8 PhD signals
+    if (intel) {
+        const signals = [];
 
-    // 1. Composite label
+        // 1. Edge Direction
+        const dir = (intel.edge_direction || '').toLowerCase();
+        signals.push({ name: 'Edge', dir: dir === 'bullish' ? 'bullish' : dir === 'bearish' ? 'bearish' : 'neutral' });
+
+        // 2. Regime
+        const regime = (intel.combined_regime || '').toLowerCase();
+        if (regime.includes('opportunity') || regime.includes('melt_up')) signals.push({ name: 'Regime', dir: 'bullish' });
+        else if (regime.includes('danger') || regime.includes('high_risk')) signals.push({ name: 'Regime', dir: 'bearish' });
+        else signals.push({ name: 'Regime', dir: 'neutral' });
+
+        // 3. VRP
+        const vrp = intel.vrp ?? 0;
+        if (vrp > 2) signals.push({ name: 'VRP', dir: 'bullish' }); // rich premium = good for selling
+        else if (vrp < 0) signals.push({ name: 'VRP', dir: 'bearish' }); // negative = cheap options
+        else signals.push({ name: 'VRP', dir: 'neutral' });
+
+        // 4. Flow Toxicity
+        const toxDir = (intel.flow_toxicity?.flow_direction || '').toLowerCase();
+        if (toxDir === 'bullish') signals.push({ name: 'Toxicity', dir: 'bullish' });
+        else if (toxDir === 'bearish') signals.push({ name: 'Toxicity', dir: 'bearish' });
+        else signals.push({ name: 'Toxicity', dir: 'neutral' });
+
+        // 5. Term Structure
+        const ts = (intel.term_structure || '').toLowerCase();
+        if (ts === 'contango' || ts === 'normal') signals.push({ name: 'Term', dir: 'bullish' });
+        else if (ts === 'inverted') signals.push({ name: 'Term', dir: 'bearish' });
+        else signals.push({ name: 'Term', dir: 'neutral' });
+
+        // 6. Skew
+        const skew = intel.skew_ratio ?? 1.0;
+        if (Math.abs(skew) < 0.05) signals.push({ name: 'Skew', dir: 'bullish' }); // flat
+        else if (skew > 0.15) signals.push({ name: 'Skew', dir: 'bearish' }); // steep
+        else signals.push({ name: 'Skew', dir: 'neutral' });
+
+        // 7. Strategy Type
+        const stType = (intel.strategy?.type || '').toLowerCase();
+        if (stType === 'short_premium') signals.push({ name: 'Strategy', dir: 'bullish' });
+        else if (stType === 'long_premium') signals.push({ name: 'Strategy', dir: 'bearish' });
+        else signals.push({ name: 'Strategy', dir: 'neutral' });
+
+        // 8. Kelly
+        const kelly = intel.kelly_fraction ?? 0;
+        if (kelly > 0.15) signals.push({ name: 'Kelly', dir: 'bullish' });
+        else if (kelly < 0.05) signals.push({ name: 'Kelly', dir: 'bearish' });
+        else signals.push({ name: 'Kelly', dir: 'neutral' });
+
+        const bullish = signals.filter(s => s.dir === 'bullish').length;
+        const bearish = signals.filter(s => s.dir === 'bearish').length;
+        return { total: signals.length, bullish, bearish, signals };
+    }
+
+    // Fallback: old conviction logic when no intelligence
+    const signals = [];
     const label = (data.composite?.label || '').toUpperCase();
     if (label.includes('BULLISH')) signals.push({ name: 'Composite', dir: 'bullish' });
     else if (label.includes('BEARISH')) signals.push({ name: 'Composite', dir: 'bearish' });
     else signals.push({ name: 'Composite', dir: 'neutral' });
 
-    // 2. Smart flow
     const netFlow = (data.smart_money?.net_flow || '').toLowerCase();
     if (netFlow === 'bullish') signals.push({ name: 'Smart Flow', dir: 'bullish' });
     else if (netFlow === 'bearish') signals.push({ name: 'Smart Flow', dir: 'bearish' });
     else signals.push({ name: 'Smart Flow', dir: 'neutral' });
 
-    // 3. Squeeze direction (if score >= 30)
-    const sqScore = data.squeeze_pin?.squeeze_score ?? 0;
-    const sqDir = (data.squeeze_pin?.direction || '').toUpperCase();
-    if (sqScore >= 30) {
-        if (sqDir === 'UP') signals.push({ name: 'Squeeze', dir: 'bullish' });
-        else if (sqDir === 'DOWN') signals.push({ name: 'Squeeze', dir: 'bearish' });
-        else signals.push({ name: 'Squeeze', dir: 'neutral' });
-    } else {
-        signals.push({ name: 'Squeeze', dir: 'neutral' });
-    }
-
-    // 4. MaxPain pull — price below max pain = bullish (price pulled up)
-    const maxPain = data.trade_zones?.max_pain || data.composite?.max_pain || 0;
-    const price = data.trade_zones?.current_price || 0;
-    if (maxPain > 0 && price > 0) {
-        if (price < maxPain) signals.push({ name: 'MaxPain', dir: 'bullish' });
-        else if (price > maxPain) signals.push({ name: 'MaxPain', dir: 'bearish' });
-        else signals.push({ name: 'MaxPain', dir: 'neutral' });
-    } else {
-        signals.push({ name: 'MaxPain', dir: 'neutral' });
-    }
-
-    // 5. Skew — normal/flat = bullish, steep = bearish
     const skewLabel = (data.vol_surface?.skew_label || '').toLowerCase();
     if (skewLabel === 'normal' || skewLabel === 'flat') signals.push({ name: 'Skew', dir: 'bullish' });
     else if (skewLabel === 'steep') signals.push({ name: 'Skew', dir: 'bearish' });
     else signals.push({ name: 'Skew', dir: 'neutral' });
 
-    // 6. Term structure — normal = bullish, inverted = bearish
     const termSignal = (data.vol_surface?.term_signal || '').toLowerCase();
     if (termSignal === 'normal' || termSignal === 'contango') signals.push({ name: 'Term', dir: 'bullish' });
     else if (termSignal === 'inverted') signals.push({ name: 'Term', dir: 'bearish' });
     else signals.push({ name: 'Term', dir: 'neutral' });
-
-    // 7. Trade idea — has HIGH confidence bullish/breakout idea?
-    const ideas = data.composite?.trade_ideas || [];
-    const hasBullHigh = ideas.some(i =>
-        (i.confidence || '').toUpperCase() === 'HIGH' &&
-        (i.type === 'bullish' || i.type === 'breakout')
-    );
-    const hasBearHigh = ideas.some(i =>
-        (i.confidence || '').toUpperCase() === 'HIGH' && i.type === 'bearish'
-    );
-    if (hasBullHigh) signals.push({ name: 'Trade Idea', dir: 'bullish' });
-    else if (hasBearHigh) signals.push({ name: 'Trade Idea', dir: 'bearish' });
-    else signals.push({ name: 'Trade Idea', dir: 'neutral' });
-
-    // 8. Fresh OI — more call vs put fresh positions
-    const sm = data.smart_money;
-    if (sm) {
-        const callN = sm.total_call_notional || 0;
-        const putN = sm.total_put_notional || 0;
-        if (callN > putN * 1.1) signals.push({ name: 'Fresh OI', dir: 'bullish' });
-        else if (putN > callN * 1.1) signals.push({ name: 'Fresh OI', dir: 'bearish' });
-        else signals.push({ name: 'Fresh OI', dir: 'neutral' });
-    } else {
-        signals.push({ name: 'Fresh OI', dir: 'neutral' });
-    }
 
     const bullish = signals.filter(s => s.dir === 'bullish').length;
     const bearish = signals.filter(s => s.dir === 'bearish').length;
@@ -4733,107 +4698,99 @@ function enrichScannerResults(results) {
     });
 }
 
-// ── Feature 2: Filter Mode Scores ──────────────────────────────────────────
+// ── Feature 2: Filter Mode Scores (PhD Intelligence) ───────────────────────
 function computeBuyCallsScore(data) {
-    // bullish flow(30) + bullish HIGH ideas(25) + squeeze UP(25) + cheap IV(20)
-    let score = 0;
-    const netFlow = (data.smart_money?.net_flow || '').toLowerCase();
-    if (netFlow === 'bullish') score += 30;
-    else if (netFlow !== 'bearish') score += 10;
-
-    const ideas = data.composite?.trade_ideas || [];
-    const bullHighCount = ideas.filter(i =>
-        (i.confidence || '').toUpperCase() === 'HIGH' &&
-        (i.type === 'bullish' || i.type === 'breakout')
-    ).length;
-    score += Math.min(bullHighCount * 25, 25);
-
-    const sqDir = (data.squeeze_pin?.direction || '').toUpperCase();
-    const sqScore = data.squeeze_pin?.squeeze_score ?? 0;
-    if (sqDir === 'UP' && sqScore >= 30) score += 25;
-    else if (sqDir === 'UP') score += 10;
-
-    // cheap IV: lower IV rank = better for buying calls
-    const ivRank = data.composite?.factors?.find(f => f.name && f.name.toLowerCase().includes('iv'));
-    if (ivRank && ivRank.score < 40) score += 20;
-    else if (ivRank && ivRank.score < 60) score += 10;
-
-    return Math.min(100, score);
+    const intel = data.intelligence;
+    if (intel) {
+        let score = 0;
+        // Regime: opportunity/melt_up = bullish (35)
+        const regime = (intel.combined_regime || '').toLowerCase();
+        if (regime.includes('opportunity') || regime.includes('melt_up')) score += 35;
+        else if (!regime.includes('danger') && !regime.includes('high_risk')) score += 15;
+        // VRP < 2 = cheap options, good for buying (25)
+        if ((intel.vrp ?? 0) < 0) score += 25;
+        else if ((intel.vrp ?? 0) < 2) score += 15;
+        // GEX volatile = momentum potential (20)
+        if ((intel.gex_regime || '') === 'volatile') score += 20;
+        else if ((intel.gex_regime || '') === 'transitional') score += 10;
+        // Bullish flow toxicity (20)
+        if ((intel.flow_toxicity?.flow_direction || '') === 'bullish') score += 20;
+        else if ((intel.flow_toxicity?.flow_direction || '') !== 'bearish') score += 5;
+        return Math.min(100, score);
+    }
+    // Fallback
+    return Math.round(Math.min(100, Math.max(0, data.composite?.score ?? 0)));
 }
 
 function computeBuyPutsScore(data) {
-    // bearish flow(30) + bearish HIGH ideas(25) + squeeze DOWN(25) + high IV momentum(20)
-    let score = 0;
-    const netFlow = (data.smart_money?.net_flow || '').toLowerCase();
-    if (netFlow === 'bearish') score += 30;
-    else if (netFlow !== 'bullish') score += 10;
-
-    const ideas = data.composite?.trade_ideas || [];
-    const bearHighCount = ideas.filter(i =>
-        (i.confidence || '').toUpperCase() === 'HIGH' &&
-        (i.type === 'bearish' || (i.type === 'breakout' && (i.title || '').toLowerCase().includes('put')))
-    ).length;
-    score += Math.min(bearHighCount * 25, 25);
-
-    const sqDir = (data.squeeze_pin?.direction || '').toUpperCase();
-    const sqScore = data.squeeze_pin?.squeeze_score ?? 0;
-    if (sqDir === 'DOWN' && sqScore >= 30) score += 25;
-    else if (sqDir === 'DOWN') score += 10;
-
-    // high IV rank = momentum puts benefit from vol expansion
-    const ivRank = data.composite?.factors?.find(f => f.name && f.name.toLowerCase().includes('iv'));
-    if (ivRank && ivRank.score >= 60) score += 20;
-    else if (ivRank && ivRank.score >= 40) score += 10;
-
-    return Math.min(100, score);
+    const intel = data.intelligence;
+    if (intel) {
+        let score = 0;
+        // Regime: danger/high_risk (35)
+        const regime = (intel.combined_regime || '').toLowerCase();
+        if (regime.includes('danger') || regime.includes('high_risk')) score += 35;
+        else if (!regime.includes('opportunity') && !regime.includes('melt_up')) score += 15;
+        // Bearish flow toxicity (25)
+        if ((intel.flow_toxicity?.flow_direction || '') === 'bearish') score += 25;
+        else if ((intel.flow_toxicity?.flow_direction || '') !== 'bullish') score += 5;
+        // VRP < 2 = cheap options (20)
+        if ((intel.vrp ?? 0) < 0) score += 20;
+        else if ((intel.vrp ?? 0) < 2) score += 12;
+        // Steep skew (20)
+        const skew = Math.abs(intel.skew_ratio ?? 0);
+        if (skew > 0.15) score += 20;
+        else if (skew > 0.08) score += 10;
+        return Math.min(100, score);
+    }
+    return Math.round(Math.min(100, Math.max(0, data.composite?.score ?? 0)));
 }
 
 function computeSellPremiumScore(data) {
-    // pin score(30) + rich theta count(25) + flat skew(20) + neutral label(25)
-    let score = 0;
-    const pinScore = data.squeeze_pin?.pin_score ?? 0;
-    score += (pinScore / 100) * 30;
-
-    // rich theta = high IV rank (good for selling)
-    const ivFactor = data.composite?.factors?.find(f => f.name && f.name.toLowerCase().includes('iv'));
-    if (ivFactor && ivFactor.score >= 60) score += 25;
-    else if (ivFactor && ivFactor.score >= 40) score += 12;
-
-    const skewLabel = (data.vol_surface?.skew_label || '').toLowerCase();
-    if (skewLabel === 'flat') score += 20;
-    else if (skewLabel === 'normal') score += 10;
-
-    const label = (data.composite?.label || '').toUpperCase();
-    if (label === 'NEUTRAL') score += 25;
-    else if (!label.includes('STRONG')) score += 12;
-
-    return Math.min(100, Math.round(score));
+    const intel = data.intelligence;
+    if (intel) {
+        let score = 0;
+        // VRP > 4 = rich premium (35)
+        const vrp = intel.vrp ?? 0;
+        if (vrp > 4) score += 35;
+        else if (vrp > 2) score += 20;
+        else if (vrp > 0) score += 8;
+        // GEX pinned = low gamma risk (25)
+        if ((intel.gex_regime || '') === 'pinned') score += 25;
+        else if ((intel.gex_regime || '') === 'transitional') score += 12;
+        // Low toxicity = stable environment (20)
+        const tox = intel.flow_toxicity?.toxicity ?? 0.5;
+        if (tox < 0.3) score += 20;
+        else if (tox < 0.5) score += 10;
+        // Contango = normal term structure (20)
+        const ts = (intel.term_structure || '').toLowerCase();
+        if (ts === 'contango' || ts === 'normal') score += 20;
+        else if (ts !== 'inverted') score += 8;
+        return Math.min(100, score);
+    }
+    return Math.round(Math.min(100, Math.max(0, data.composite?.score ?? 0)));
 }
 
 function computeMomentumScore(data) {
-    // breakout ideas(35) + air pockets(30) + flow conviction(35)
-    let score = 0;
-    const ideas = data.composite?.trade_ideas || [];
-    const breakoutCount = ideas.filter(i => i.type === 'breakout').length;
-    score += Math.min(breakoutCount * 35, 35);
-
-    // air pockets from dealer hedging
-    const airPockets = data.dealer_hedging?.air_pockets?.length || 0;
-    score += Math.min(airPockets * 15, 30);
-
-    // flow conviction
-    const sm = data.smart_money;
-    if (sm) {
-        const c = sm.total_call_notional || 0;
-        const p = sm.total_put_notional || 0;
-        const total = c + p;
-        if (total > 0) {
-            const ratio = Math.max(c, p) / total;
-            score += ((ratio - 0.5) / 0.5) * 35;
-        }
+    const intel = data.intelligence;
+    if (intel) {
+        let score = 0;
+        // Regime: opportunity/melt_up (35)
+        const regime = (intel.combined_regime || '').toLowerCase();
+        if (regime.includes('opportunity') || regime.includes('melt_up')) score += 35;
+        else if (!regime.includes('danger')) score += 10;
+        // GEX volatile = momentum (25)
+        if ((intel.gex_regime || '') === 'volatile') score += 25;
+        else if ((intel.gex_regime || '') === 'transitional') score += 12;
+        // High flow toxicity = informed trading (25)
+        const tox = intel.flow_toxicity?.toxicity ?? 0;
+        if (tox > 0.6) score += 25;
+        else if (tox > 0.4) score += 12;
+        // Air pockets from dealer hedging (15)
+        const airPockets = data.dealer_flow?.air_pockets?.length || data.dealer_hedging?.air_pockets?.length || 0;
+        if (airPockets > 0) score += 15;
+        return Math.min(100, score);
     }
-
-    return Math.min(100, Math.round(Math.max(0, score)));
+    return Math.round(Math.min(100, Math.max(0, data.composite?.score ?? 0)));
 }
 
 function setScannerFilter(mode) {
@@ -4874,7 +4831,7 @@ async function runBestSetupScanner() {
     const results = [];
 
     const promises = SCANNER_TICKERS.map(async (ticker, idx) => {
-        const url = `${API_BASE}/options/xray/${ticker}`;
+        const url = `${API_BASE}/options/xray/${ticker}?intel=true`;
         try {
             const resp = await fetch(url);
             const json = await resp.json();
@@ -4937,14 +4894,14 @@ function rankScannerResults(results) {
                 return (b.data.squeeze_pin?.squeeze_score ?? 0) - (a.data.squeeze_pin?.squeeze_score ?? 0);
             case 'momentum':
                 return computeMomentumScore(b.data) - computeMomentumScore(a.data);
-            default: { // 'overall'
-                const sa = a.scannerScore ?? 0;
-                const sb = b.scannerScore ?? 0;
+            default: { // 'overall' — sort by edge score, tiebreak by edge confidence
+                const sa = a.data.intelligence?.edge_score ?? a.scannerScore ?? 0;
+                const sb = b.data.intelligence?.edge_score ?? b.scannerScore ?? 0;
                 if (sb !== sa) return sb - sa;
-                const confOrder = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-                const bestA = (a.data.composite?.trade_ideas || [])[0];
-                const bestB = (b.data.composite?.trade_ideas || [])[0];
-                return (confOrder[bestA?.confidence] ?? 3) - (confOrder[bestB?.confidence] ?? 3);
+                const confOrder = { high: 0, medium: 1, low: 2 };
+                const confA = confOrder[a.data.intelligence?.edge_confidence] ?? 3;
+                const confB = confOrder[b.data.intelligence?.edge_confidence] ?? 3;
+                return confA - confB;
             }
         }
     });
@@ -4955,18 +4912,36 @@ function renderScannerResults(ranked) {
     if (!el) return;
     const mode = window._scannerFilterMode || 'overall';
 
+    const regimeColors = {
+        'opportunity': 'var(--green)', 'melt_up': 'var(--blue)',
+        'pinned': 'var(--orange)', 'neutral': 'var(--text-muted)',
+        'volatile': 'var(--purple)', 'danger': 'var(--red)', 'high_risk': 'var(--red)',
+        'transitional': 'var(--cyan)'
+    };
+    const regimeBgColors = {
+        'opportunity': 'rgba(34,197,94,0.15)', 'melt_up': 'rgba(59,130,246,0.15)',
+        'pinned': 'rgba(249,115,22,0.12)', 'neutral': 'rgba(113,113,122,0.1)',
+        'volatile': 'rgba(168,85,247,0.15)', 'danger': 'rgba(239,68,68,0.15)', 'high_risk': 'rgba(239,68,68,0.15)',
+        'transitional': 'rgba(6,182,212,0.12)'
+    };
+
     const rows = ranked.map((r, idx) => {
-        const score = r.data.composite?.score ?? 0;
-        const label = r.data.composite?.label || 'NEUTRAL';
-        const scoreColor = score >= 75 ? 'var(--green)' : score >= 60 ? 'var(--blue)' : score >= 45 ? 'var(--orange)' : 'var(--red)';
+        const intel = r.data.intelligence;
 
         // Rank badge color
         const rankColors = ['#FFD700', 'var(--purple)', 'var(--blue)'];
         const rankColor = idx < 3 ? rankColors[idx] : 'var(--text-dim)';
 
-        // Scanner score
-        const ss = r.scannerScore ?? 0;
-        const ssColor = ss >= 75 ? 'var(--green)' : ss >= 55 ? 'var(--blue)' : ss >= 40 ? 'var(--orange)' : 'var(--red)';
+        // Edge score (primary)
+        const edgeScore = intel?.edge_score ?? r.scannerScore ?? 0;
+        const edgeColor = edgeScore >= 75 ? 'var(--green)' : edgeScore >= 55 ? 'var(--blue)' : edgeScore >= 40 ? 'var(--orange)' : 'var(--red)';
+
+        // Regime badge
+        const regime = intel?.combined_regime || 'neutral';
+        const regimeKey = regime.toLowerCase().replace(/^neutral_.*/, 'neutral');
+        const regimeColor = regimeColors[regimeKey] || 'var(--text-muted)';
+        const regimeBg = regimeBgColors[regimeKey] || 'rgba(113,113,122,0.1)';
+        const regimeLabel = regime.replace(/_/g, ' ').toUpperCase();
 
         // Conviction dots
         const conv = r.conviction || { total: 0, bullish: 0, bearish: 0, signals: [] };
@@ -4975,43 +4950,43 @@ function renderScannerResults(ranked) {
         ).join('');
         const convCountHtml = `<span class="conviction-count">${conv.bullish}/${conv.total}</span>`;
 
-        // Best trade idea
-        const ideas = r.data.composite?.trade_ideas || [];
-        const bestIdea = ideas[0];
-        let ideaHtml = '<span style="color:var(--text-dim);font-size:0.7rem;">No ideas</span>';
-        if (bestIdea) {
-            const confClass = bestIdea.confidence ? `confidence-${bestIdea.confidence}` : '';
-            const typeIcon = bestIdea.type === 'bullish' ? '&#9650;' : bestIdea.type === 'bearish' ? '&#9660;' : '&#9644;';
-            ideaHtml = `<span style="font-size:0.72rem;">${typeIcon} ${bestIdea.title}</span>
-                <span class="trade-idea-confidence ${confClass}" style="font-size:0.6rem;margin-left:4px;">${(bestIdea.confidence || '').toUpperCase()}</span>`;
+        // Strategy name + type
+        let strategyHtml = '<span style="color:var(--text-dim);font-size:0.7rem;">--</span>';
+        if (intel?.strategy?.name) {
+            const stName = intel.strategy.name;
+            const stType = intel.strategy.type || '';
+            const stTypeColor = stType === 'short_premium' ? 'var(--green)' : stType === 'long_premium' ? 'var(--blue)' : 'var(--text-muted)';
+            const stTypeLabel = stType.replace(/_/g, ' ').toUpperCase();
+            strategyHtml = `<span class="scanner-strategy">${stName}</span>
+                <span class="scanner-strategy-type" style="color:${stTypeColor}">${stTypeLabel}</span>`;
+        }
+
+        // VRP badge
+        let vrpBadge = '';
+        if (intel && (intel.vrp ?? 0) > 2) {
+            vrpBadge = `<span class="scanner-vrp-badge">VRP ${intel.vrp}</span>`;
         }
 
         // Mode-specific highlight badges
         let badges = '';
-        if (mode === 'buycalls') {
-            const netFlow = (r.data.smart_money?.net_flow || '').toLowerCase();
-            if (netFlow === 'bullish') badges += '<span class="signal-highlight">BULL FLOW</span>';
-            const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
-            if (sqDir === 'UP') badges += '<span class="signal-highlight">SQ UP</span>';
-        } else if (mode === 'buyputs') {
-            const netFlow = (r.data.smart_money?.net_flow || '').toLowerCase();
-            if (netFlow === 'bearish') badges += '<span class="signal-highlight">BEAR FLOW</span>';
-            const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
-            if (sqDir === 'DOWN') badges += '<span class="signal-highlight">SQ DOWN</span>';
-        } else if (mode === 'sellpremium') {
-            const pin = r.data.squeeze_pin?.pin_score ?? 0;
-            if (pin >= 30) badges += `<span class="signal-highlight">PIN ${pin}</span>`;
-            const lbl = (r.data.composite?.label || '').toUpperCase();
-            if (lbl === 'NEUTRAL') badges += '<span class="signal-highlight">NEUTRAL</span>';
-        } else if (mode === 'squeeze') {
-            const sq = r.data.squeeze_pin?.squeeze_score ?? 0;
-            const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
-            badges += `<span class="signal-highlight">SQ ${sq} ${sqDir}</span>`;
-        } else if (mode === 'momentum') {
-            const airPockets = r.data.dealer_hedging?.air_pockets?.length || 0;
-            if (airPockets > 0) badges += `<span class="signal-highlight">${airPockets} AIR PKT</span>`;
-            const breakouts = ideas.filter(i => i.type === 'breakout').length;
-            if (breakouts > 0) badges += '<span class="signal-highlight">BREAKOUT</span>';
+        if (intel) {
+            if (mode === 'buycalls') {
+                if (regimeKey === 'opportunity' || regimeKey === 'melt_up') badges += `<span class="signal-highlight">${regimeLabel}</span>`;
+                if ((intel.flow_toxicity?.flow_direction || '') === 'bullish') badges += '<span class="signal-highlight">BULL FLOW</span>';
+            } else if (mode === 'buyputs') {
+                if (regimeKey === 'danger' || regimeKey === 'high_risk') badges += `<span class="signal-highlight">${regimeLabel}</span>`;
+                if ((intel.flow_toxicity?.flow_direction || '') === 'bearish') badges += '<span class="signal-highlight">BEAR FLOW</span>';
+            } else if (mode === 'sellpremium') {
+                if ((intel.vrp ?? 0) > 4) badges += '<span class="signal-highlight">RICH VRP</span>';
+                if ((intel.gex_regime || '') === 'pinned') badges += '<span class="signal-highlight">PINNED</span>';
+            } else if (mode === 'squeeze') {
+                const sq = r.data.squeeze_pin?.squeeze_score ?? 0;
+                const sqDir = (r.data.squeeze_pin?.direction || '').toUpperCase();
+                badges += `<span class="signal-highlight">SQ ${sq} ${sqDir}</span>`;
+            } else if (mode === 'momentum') {
+                if ((intel.gex_regime || '') === 'volatile') badges += '<span class="signal-highlight">VOLATILE</span>';
+                if ((intel.flow_toxicity?.toxicity ?? 0) > 0.6) badges += '<span class="signal-highlight">HIGH TOX</span>';
+            }
         }
 
         const priceStr = r.price ? '$' + (r.price >= 1000 ? r.price.toFixed(0) : r.price.toFixed(2)) : '--';
@@ -5020,20 +4995,17 @@ function renderScannerResults(ranked) {
             <div class="scanner-rank" style="background:${rankColor}">${idx + 1}</div>
             <div class="scanner-ticker">${r.ticker}</div>
             <div class="scanner-price">${priceStr}</div>
-            <div class="scanner-sscore-cell">
-                <span class="scanner-sscore-value" style="color:${ssColor}">${ss}</span>
+            <div class="scanner-edge-cell">
+                <span class="scanner-edge-value" style="color:${edgeColor}">${edgeScore}</span>
             </div>
             <div class="scanner-score-cell">
-                <div class="scanner-score-ring" style="border-color:${scoreColor}">
-                    <span style="color:${scoreColor}">${score}</span>
-                </div>
-                <span class="scanner-score-label" style="color:${scoreColor}">${label}</span>
+                <span class="scanner-regime-badge" style="color:${regimeColor};background:${regimeBg}">${regimeLabel}</span>
             </div>
             <div class="scanner-conviction">
                 <span class="conviction-dots">${dotsHtml}</span>
                 ${convCountHtml}
             </div>
-            <div class="scanner-idea">${ideaHtml}${badges}</div>
+            <div class="scanner-idea">${strategyHtml}${vrpBadge}${badges}</div>
         </div>`;
     }).join('');
 
@@ -5159,9 +5131,10 @@ function scannerDrillDown(ticker, idx) {
             </div></div>`;
     }
 
-    // Scanner score badge
-    const ss = entry.scannerScore ?? computeScannerScore(d);
-    const ssColor = ss >= 75 ? 'var(--green)' : ss >= 55 ? 'var(--blue)' : ss >= 40 ? 'var(--orange)' : 'var(--red)';
+    // Edge score badge
+    const intel = d.intelligence;
+    const edgeScore = intel?.edge_score ?? entry.scannerScore ?? computeScannerScore(d);
+    const edgeColor = edgeScore >= 75 ? 'var(--green)' : edgeScore >= 55 ? 'var(--blue)' : edgeScore >= 40 ? 'var(--orange)' : 'var(--red)';
 
     // Conviction detail chips
     const conv = entry.conviction || computeConviction(d);
@@ -5172,11 +5145,58 @@ function scannerDrillDown(ticker, idx) {
     }).join('');
     const convSummary = `${conv.bullish} bullish / ${conv.bearish} bearish / ${conv.total - conv.bullish - conv.bearish} neutral`;
 
+    // PhD Intelligence section
+    let intelHtml = '';
+    if (intel) {
+        const regimeColors = {
+            'opportunity': 'var(--green)', 'melt_up': 'var(--blue)',
+            'pinned': 'var(--orange)', 'neutral': 'var(--text-muted)',
+            'volatile': 'var(--purple)', 'danger': 'var(--red)', 'high_risk': 'var(--red)',
+            'transitional': 'var(--cyan)'
+        };
+        const regimeKey = (intel.combined_regime || 'neutral').toLowerCase().replace(/^neutral_.*/, 'neutral');
+        const regimeColor = regimeColors[regimeKey] || 'var(--text-muted)';
+        const gexRegimeColor = regimeColors[intel.gex_regime] || 'var(--text-muted)';
+        const vrpColor = (intel.vrp ?? 0) > 4 ? 'var(--green)' : (intel.vrp ?? 0) > 2 ? 'var(--blue)' : (intel.vrp ?? 0) > 0 ? 'var(--orange)' : 'var(--red)';
+        const toxColor = (intel.flow_toxicity?.toxicity ?? 0) > 0.6 ? 'var(--red)' : (intel.flow_toxicity?.toxicity ?? 0) > 0.3 ? 'var(--orange)' : 'var(--green)';
+        const kellyPct = Math.round((intel.kelly_fraction ?? 0) * 100);
+        const stType = (intel.strategy?.type || '').replace(/_/g, ' ').toUpperCase();
+        const stTypeColor = (intel.strategy?.type || '') === 'short_premium' ? 'var(--green)' : 'var(--blue)';
+
+        intelHtml = `<div class="xray-section"><div class="xray-section-header"><span>PhD Intelligence</span></div>
+            <div class="xray-section-body" style="display:block;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                    <div style="padding:8px;background:var(--bg-hover);border-radius:6px;">
+                        <div style="font-size:0.6rem;color:var(--text-muted);letter-spacing:0.08em;">EDGE SCORE</div>
+                        <div style="font-size:1.4rem;font-weight:700;color:${edgeColor}">${edgeScore}<span style="font-size:0.7rem;color:var(--text-dim)">/100</span></div>
+                        <div style="font-size:0.65rem;color:var(--text-muted);">${(intel.edge_direction || 'neutral').toUpperCase()} &middot; ${(intel.edge_confidence || 'low').toUpperCase()}</div>
+                    </div>
+                    <div style="padding:8px;background:var(--bg-hover);border-radius:6px;">
+                        <div style="font-size:0.6rem;color:var(--text-muted);letter-spacing:0.08em;">STRATEGY</div>
+                        <div style="font-size:0.85rem;font-weight:700;color:var(--text);margin-top:4px;">${intel.strategy?.name || '--'}</div>
+                        <div style="font-size:0.65rem;color:${stTypeColor};">${stType}</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+                    <span class="xray-badge" style="color:${regimeColor}">REGIME: ${(intel.combined_regime || 'neutral').replace(/_/g, ' ').toUpperCase()}</span>
+                    <span class="xray-badge" style="color:${gexRegimeColor}">GEX: ${(intel.gex_regime || '--').toUpperCase()}</span>
+                    <span class="xray-badge" style="color:${vrpColor}">VRP: ${intel.vrp ?? '--'} (${(intel.vrp_signal || '--').toUpperCase()})</span>
+                    <span class="xray-badge" style="color:${toxColor}">TOXICITY: ${((intel.flow_toxicity?.toxicity ?? 0) * 100).toFixed(0)}% (${(intel.flow_toxicity?.label || '--').toUpperCase()})</span>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <span class="xray-badge">KELLY: ${kellyPct}%</span>
+                    <span class="xray-badge">RISK: ${(intel.risk_level || '--').toUpperCase()}</span>
+                    <span class="xray-badge">FLOW: ${(intel.flow_toxicity?.flow_direction || '--').toUpperCase()}</span>
+                    <span class="xray-badge">FACTORS: ${intel.n_factors_agree ?? '--'}/8</span>
+                </div>
+            </div></div>`;
+    }
+
     detailEl.innerHTML = `
         <div class="card-header">
             <div class="card-title">X-RAY DETAIL <span style="color:var(--cyan);margin-left:8px;">${ticker}</span></div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span class="scanner-sscore-badge" style="background:rgba(217,70,239,0.15);color:var(--magenta);">SCANNER: ${ss}</span>
+                <span class="scanner-sscore-badge" style="background:rgba(217,70,239,0.15);color:var(--magenta);">EDGE: ${edgeScore}</span>
                 <div style="font-size:0.8rem;font-weight:700;padding:4px 14px;border-radius:6px;background:${clr.bg};color:${clr.c}">COMPOSITE: ${score}</div>
             </div>
         </div>
@@ -5189,6 +5209,7 @@ function scannerDrillDown(ticker, idx) {
                 <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:6px;">CONVICTION METER — ${convSummary}</div>
                 <div class="conviction-detail">${convChips}</div>
             </div>
+            ${intelHtml}
             ${ideasHtml}
             <div class="xray-section"><div class="xray-section-header"><span>Composite Edge Score</span></div>
                 <div class="xray-section-body" style="display:block;">
