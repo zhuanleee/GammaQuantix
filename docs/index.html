@@ -987,6 +987,11 @@
                             <span class="toggle-slider"></span>
                         </label>
                         <span style="font-size: 0.7rem; color: var(--text-muted);">Auto</span>
+                        <label class="toggle-switch" title="Enable/disable multi-leg strategies">
+                            <input type="checkbox" id="multi-leg-toggle" onchange="toggleMultiLeg()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Multi-Leg</span>
                         <button class="btn btn-ghost" onclick="triggerSignalCheck(event)" style="padding: 4px 10px; font-size: 0.75rem;" title="Manually check signals now">Check Signals</button>
                         <button class="btn btn-ghost" onclick="refreshTradingDashboard()" style="padding: 4px 10px; font-size: 0.75rem;" title="Refresh all data">Refresh</button>
                     </div>

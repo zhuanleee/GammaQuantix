@@ -6143,20 +6143,43 @@ async function loadPaperPositions() {
             const pnlSign = pnl >= 0 ? '+' : '';
 
             const expShort = trade.expiration ? trade.expiration.slice(5) : '--';
-            const strategy = trade.strategy || trade.signal_type || 'Manual';
+            const strategy = trade.strategy || trade.strategy_name || trade.signal_type || 'Manual';
 
-            html += `<tr>
-                <td style="font-weight: 700;">${trade.ticker}</td>
-                <td><span style="font-size: 0.7rem; color: var(--text-muted);">${strategy}</span></td>
-                <td>${trade.direction === 'long' ? '▲' : '▼'} ${(trade.option_type || 'call').charAt(0).toUpperCase()}</td>
-                <td>$${(trade.strike || 0).toLocaleString()}</td>
-                <td>${expShort}</td>
-                <td>${trade.quantity || 1}</td>
-                <td>$${entry.toFixed(2)}</td>
-                <td>$${current.toFixed(2)}</td>
-                <td class="${pnlClass}">${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)</td>
-                <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
-            </tr>`;
+            if (trade.is_multi_leg && trade.legs && trade.legs.length > 1) {
+                // Multi-leg trade display
+                const legsStr = trade.legs.map(l =>
+                    `${l.action === 'BUY' ? '+' : '-'}${l.quantity || 1} ${l.option_type.charAt(0).toUpperCase()} $${l.strike}`
+                ).join(' / ');
+                const maxLoss = trade.max_loss ? `$${trade.max_loss.toLocaleString()}` : '--';
+                const maxProfit = trade.max_profit && trade.max_profit < 999999 ? `$${trade.max_profit.toLocaleString()}` : '∞';
+
+                html += `<tr>
+                    <td style="font-weight: 700;">${trade.ticker}</td>
+                    <td><span style="font-size: 0.65rem; color: var(--primary); font-weight: 600;">${strategy}</span></td>
+                    <td style="font-size: 0.65rem;">${legsStr}</td>
+                    <td style="font-size: 0.65rem;">ML:${maxLoss}</td>
+                    <td>${expShort}</td>
+                    <td>${trade.quantity || 1}</td>
+                    <td>$${entry.toFixed(2)}</td>
+                    <td>$${current.toFixed(2)}</td>
+                    <td class="${pnlClass}">${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)</td>
+                    <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
+                </tr>`;
+            } else {
+                // Single-leg trade display (original)
+                html += `<tr>
+                    <td style="font-weight: 700;">${trade.ticker}</td>
+                    <td><span style="font-size: 0.7rem; color: var(--text-muted);">${strategy}</span></td>
+                    <td>${trade.direction === 'long' ? '▲' : '▼'} ${(trade.option_type || 'call').charAt(0).toUpperCase()}</td>
+                    <td>$${(trade.strike || 0).toLocaleString()}</td>
+                    <td>${expShort}</td>
+                    <td>${trade.quantity || 1}</td>
+                    <td>$${entry.toFixed(2)}</td>
+                    <td>$${current.toFixed(2)}</td>
+                    <td class="${pnlClass}">${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)</td>
+                    <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
+                </tr>`;
+            }
         }
 
         html += '</tbody></table>';
@@ -6436,6 +6459,10 @@ async function loadPaperConfig() {
         const toggle = document.getElementById('auto-trade-toggle');
         if (toggle) toggle.checked = c.auto_trade_enabled || false;
 
+        // Update multi-leg toggle
+        const mlToggle = document.getElementById('multi-leg-toggle');
+        if (mlToggle) mlToggle.checked = c.multi_leg_enabled || false;
+
         // Render risk config
         const container = document.getElementById('trading-risk');
         container.innerHTML = `
@@ -6501,6 +6528,21 @@ async function toggleAutoTrade() {
         });
     } catch (e) {
         console.error('Toggle auto-trade error:', e);
+        toggle.checked = !enabled; // Revert
+    }
+}
+
+async function toggleMultiLeg() {
+    const toggle = document.getElementById('multi-leg-toggle');
+    const enabled = toggle.checked;
+    try {
+        await fetch(`${API_BASE}/paper/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ multi_leg_enabled: enabled }),
+        });
+    } catch (e) {
+        console.error('Toggle multi-leg error:', e);
         toggle.checked = !enabled; // Revert
     }
 }
