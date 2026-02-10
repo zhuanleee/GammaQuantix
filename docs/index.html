@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260209g">
+    <link rel="stylesheet" href="css/styles.css?v=20260210b">
 </head>
 <body>
     <!-- Header -->
@@ -886,6 +886,32 @@
                         <input type="checkbox" id="viz-toggle-volume" checked onchange="toggleVolumeSeries()">
                         <span class="toggle-label vol">Vol</span>
                     </label>
+                    <span class="toggle-divider">|</span>
+                    <span class="intel-toggle-group">INTEL:</span>
+                    <label class="toggle-item" title="Expected Move envelope - 1-sigma boundaries from ATM straddle pricing">
+                        <input type="checkbox" id="viz-toggle-em" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label em">EM</span>
+                    </label>
+                    <label class="toggle-item" title="GEX Regime badge - shows pinned/volatile/transitional with dealer recommendation">
+                        <input type="checkbox" id="viz-toggle-regime" onchange="toggleRegimeBadge()">
+                        <span class="toggle-label regime">Regime</span>
+                    </label>
+                    <label class="toggle-item" title="Volatility Risk Premium gauge - IV vs RV spread">
+                        <input type="checkbox" id="viz-toggle-vrp" onchange="toggleVrpGauge()">
+                        <span class="toggle-label vrp">VRP</span>
+                    </label>
+                    <label class="toggle-item" title="GEX Heatmap - top strikes by gamma exposure magnitude">
+                        <input type="checkbox" id="viz-toggle-gexheat" onchange="toggleGexHeatmap()">
+                        <span class="toggle-label gexheat">GEX Heat</span>
+                    </label>
+                    <label class="toggle-item" title="Flow toxicity gauge - measures toxic vs informed order flow">
+                        <input type="checkbox" id="viz-toggle-toxicity" onchange="toggleFlowStrip()">
+                        <span class="toggle-label toxicity">Toxicity</span>
+                    </label>
+                    <label class="toggle-item" title="Dealer flow direction badge - net hedging flow from vanna/charm/GEX">
+                        <input type="checkbox" id="viz-toggle-dealer" onchange="toggleDealerBadge()">
+                        <span class="toggle-label dealer">Dealer</span>
+                    </label>
                 </div>
                 <!-- Fullscreen-only ticker bar -->
                 <div class="fs-ticker-bar">
@@ -911,6 +937,8 @@
                     </div>
                     <div id="rs-chart-container" class="chart-container rs-pane" style="display:none;">
                     </div>
+                    <div id="vrp-gauge-container" class="vrp-gauge" style="display:none;"></div>
+                    <div id="flow-strip-container" class="flow-strip" style="display:none;"></div>
                     <div id="gex-chart-container" class="chart-container" style="height: 200px;">
                         <div class="chart-loading">Loading GEX data...</div>
                     </div>
@@ -1190,6 +1218,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260210a"></script>
+    <script src="js/app.js?v=20260210b"></script>
 </body>
 </html>

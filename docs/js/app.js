@@ -117,7 +117,12 @@ let optionsVizData = {
     val: 0,
     poc: 0,
     vah: 0,
-    vpPosition: 'In Range'
+    vpPosition: 'In Range',
+    // Intelligence overlays
+    expectedMoveData: null,
+    gexRegime: null,
+    vrpData: null,
+    vannaCharmData: null
 };
 
 // Technical indicator state
@@ -139,7 +144,8 @@ const TOGGLE_IDS = [
     'viz-toggle-callwall','viz-toggle-putwall','viz-toggle-gammaflip','viz-toggle-maxpain',
     'viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-gex',
     'viz-toggle-sma20','viz-toggle-sma50','viz-toggle-sma200','viz-toggle-vwap','viz-toggle-bb',
-    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume','viz-toggle-flow'
+    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume','viz-toggle-flow',
+    'viz-toggle-em','viz-toggle-regime','viz-toggle-vrp','viz-toggle-gexheat','viz-toggle-toxicity','viz-toggle-dealer'
 ];
 
 function saveToggles() {
@@ -2126,6 +2132,9 @@ async function loadOptionsViz(ticker) {
 
         console.log('Options Viz loaded for', ticker);
 
+        // Fetch intelligence overlays (non-blocking, parallel)
+        fetchIntelligenceOverlays(ticker);
+
     } catch (e) {
         console.error('loadOptionsViz error:', e);
         const errorMsg = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--red);">Error: ${e.message}</div>`;
@@ -2203,6 +2212,11 @@ function renderPriceChart() {
         indicatorSeries = {};
         priceLines = {};
     }
+    // Remove floating overlay badges
+    const oldRegime = container.querySelector('.chart-regime-badge');
+    if (oldRegime) oldRegime.remove();
+    const oldDealer = container.querySelector('.chart-dealer-badge');
+    if (oldDealer) oldDealer.remove();
 
     if (!optionsVizData.candles || optionsVizData.candles.length === 0) {
         // Create a synthetic candle from current price so chart can render and live updates work
@@ -2306,6 +2320,12 @@ function renderPriceChart() {
     resizeObserver.observe(container);
 
     startLivePriceUpdates();
+
+    // Render intelligence overlay badges (if data already loaded)
+    renderRegimeBadge();
+    renderDealerBadge();
+    renderVrpGauge();
+    renderFlowStrip();
 }
 
 // =============================================================================
@@ -2409,6 +2429,275 @@ function updatePriceChartLevels() {
             title: 'VAH',
         });
     }
+
+    // Expected Move Envelope (amber dashed)
+    const emData = optionsVizData.expectedMoveData;
+    if (document.getElementById('viz-toggle-em')?.checked && emData) {
+        if (emData.upper_expected > 0) {
+            priceLines.emUpper = priceSeries.createPriceLine({
+                price: emData.upper_expected,
+                color: '#f59e0b',
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.LargeDashed,
+                axisLabelVisible: true,
+                title: 'EM+',
+            });
+        }
+        if (emData.lower_expected > 0) {
+            priceLines.emLower = priceSeries.createPriceLine({
+                price: emData.lower_expected,
+                color: '#f59e0b',
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.LargeDashed,
+                axisLabelVisible: true,
+                title: 'EM-',
+            });
+        }
+    }
+
+    // GEX Heatmap — top 5 strikes by |net_gex|
+    if (document.getElementById('viz-toggle-gexheat')?.checked && optionsVizData.gexByStrike.length > 0) {
+        const sorted = [...optionsVizData.gexByStrike].sort((a, b) => Math.abs(b.netGex) - Math.abs(a.netGex));
+        const topStrikes = sorted.slice(0, 5);
+        const maxGex = Math.abs(topStrikes[0]?.netGex) || 1;
+        topStrikes.forEach((s, i) => {
+            const isPositive = s.netGex >= 0;
+            const magnitude = Math.abs(s.netGex) / maxGex;
+            const alpha = 0.3 + magnitude * 0.5;
+            const color = isPositive
+                ? `rgba(34, 197, 94, ${alpha.toFixed(2)})`
+                : `rgba(239, 68, 68, ${alpha.toFixed(2)})`;
+            const lw = magnitude > 0.7 ? 3 : magnitude > 0.3 ? 2 : 1;
+            priceLines['gexHeat' + i] = priceSeries.createPriceLine({
+                price: s.strike,
+                color: color,
+                lineWidth: lw,
+                lineStyle: LightweightCharts.LineStyle.Dotted,
+                axisLabelVisible: false,
+                title: '',
+            });
+        });
+    }
+}
+
+// =============================================================================
+// INTELLIGENCE OVERLAYS
+// =============================================================================
+
+async function fetchIntelligenceOverlays(ticker) {
+    if (!ticker) return;
+    const tickerParam = encodeURIComponent(ticker);
+    const isFutures = ticker.startsWith('/');
+
+    // Build URLs — use query param style for futures, path style for equities
+    const emUrl = isFutures
+        ? `${API_BASE}/options/expected-move?ticker=${tickerParam}`
+        : `${API_BASE}/options/expected-move/${ticker}`;
+    const regimeUrl = isFutures
+        ? `${API_BASE}/options/gex-regime?ticker=${tickerParam}`
+        : `${API_BASE}/options/gex-regime/${ticker}`;
+    const vrpUrl = isFutures
+        ? `${API_BASE}/options/vrp?ticker=${tickerParam}`
+        : `${API_BASE}/options/vrp/${ticker}`;
+    const vcUrl = isFutures
+        ? `${API_BASE}/options/vanna-charm?ticker=${tickerParam}`
+        : `${API_BASE}/options/vanna-charm/${ticker}`;
+
+    const results = await Promise.allSettled([
+        fetch(emUrl).then(r => r.ok ? r.json() : null),
+        fetch(regimeUrl).then(r => r.ok ? r.json() : null),
+        fetch(vrpUrl).then(r => r.ok ? r.json() : null),
+        fetch(vcUrl).then(r => r.ok ? r.json() : null)
+    ]);
+
+    const [emResult, regimeResult, vrpResult, vcResult] = results;
+
+    // Store expected move data
+    if (emResult.status === 'fulfilled' && emResult.value) {
+        const d = emResult.value.data || emResult.value;
+        optionsVizData.expectedMoveData = d;
+    }
+
+    // Store GEX regime data
+    if (regimeResult.status === 'fulfilled' && regimeResult.value) {
+        const d = regimeResult.value.data || regimeResult.value;
+        optionsVizData.gexRegime = d;
+    }
+
+    // Store VRP data
+    if (vrpResult.status === 'fulfilled' && vrpResult.value) {
+        const d = vrpResult.value.data || vrpResult.value;
+        optionsVizData.vrpData = d;
+    }
+
+    // Store vanna-charm data (includes flow_toxicity)
+    if (vcResult.status === 'fulfilled' && vcResult.value) {
+        const d = vcResult.value.data || vcResult.value;
+        optionsVizData.vannaCharmData = d;
+    }
+
+    // Re-render overlays with new data
+    updatePriceChartLevels();
+    renderRegimeBadge();
+    renderDealerBadge();
+    renderVrpGauge();
+    renderFlowStrip();
+    saveToggles();
+}
+
+// Overlay 2: GEX Regime Badge
+function renderRegimeBadge() {
+    const container = document.getElementById('price-chart-container');
+    if (!container) return;
+    // Ensure container is position:relative for absolute children
+    if (getComputedStyle(container).position === 'static') {
+        container.style.position = 'relative';
+    }
+    // Remove old badge
+    const old = container.querySelector('.chart-regime-badge');
+    if (old) old.remove();
+
+    const data = optionsVizData.gexRegime;
+    if (!data || !document.getElementById('viz-toggle-regime')?.checked) return;
+
+    const regime = (data.regime || '').toLowerCase();
+    const confidence = data.confidence != null ? Math.round(data.confidence) : '';
+    const rec = data.recommendation || '';
+    const emoji = regime === 'pinned' ? '\uD83D\uDCCC' : regime === 'volatile' ? '\u26A1' : '\uD83D\uDD04';
+    const cls = regime === 'pinned' ? 'pinned' : regime === 'volatile' ? 'volatile' : 'transitional';
+
+    const badge = document.createElement('div');
+    badge.className = `chart-regime-badge ${cls}`;
+    badge.innerHTML = `<div>${emoji} <b>${(data.regime || 'Unknown').toUpperCase()}</b>${confidence ? ` ${confidence}%` : ''}</div>`
+        + (rec ? `<div style="font-size:0.62rem;opacity:0.85;margin-top:2px;">${rec}</div>` : '');
+    container.appendChild(badge);
+}
+
+function toggleRegimeBadge() {
+    saveToggles();
+    renderRegimeBadge();
+}
+
+// Overlay 6: Dealer Flow Badge
+function renderDealerBadge() {
+    const container = document.getElementById('price-chart-container');
+    if (!container) return;
+    if (getComputedStyle(container).position === 'static') {
+        container.style.position = 'relative';
+    }
+    const old = container.querySelector('.chart-dealer-badge');
+    if (old) old.remove();
+
+    const data = optionsVizData.vannaCharmData;
+    if (!data || !document.getElementById('viz-toggle-dealer')?.checked) return;
+
+    const flow = data.dealer_flow_forecast || data;
+    const direction = (flow.direction || '').toLowerCase();
+    const magnitude = flow.magnitude || '';
+    const netFlow = flow.net_flow_billions;
+    const driver = flow.dominant_driver || '';
+    const arrow = direction.includes('buy') || direction === 'net_buying' ? '\u2B06' : direction.includes('sell') || direction === 'net_selling' ? '\u2B07' : '\u2194';
+    const cls = direction.includes('buy') || direction === 'net_buying' ? 'buying' : direction.includes('sell') || direction === 'net_selling' ? 'selling' : 'neutral';
+    const dirLabel = direction.includes('buy') || direction === 'net_buying' ? 'Dealers BUY' : direction.includes('sell') || direction === 'net_selling' ? 'Dealers SELL' : 'Neutral';
+
+    const badge = document.createElement('div');
+    badge.className = `chart-dealer-badge ${cls}`;
+    let html = `<div>${arrow} <b>${dirLabel}</b>`;
+    if (netFlow != null) html += ` $${Math.abs(netFlow).toFixed(1)}B`;
+    html += '</div>';
+    if (magnitude) html += `<div style="font-size:0.58rem;opacity:0.8;">${magnitude}${driver ? ' \u00B7 ' + driver : ''}</div>`;
+    badge.innerHTML = html;
+    container.appendChild(badge);
+}
+
+function toggleDealerBadge() {
+    saveToggles();
+    renderDealerBadge();
+}
+
+// Overlay 3: VRP Gauge
+function renderVrpGauge() {
+    const container = document.getElementById('vrp-gauge-container');
+    if (!container) return;
+
+    const data = optionsVizData.vrpData;
+    if (!data || !document.getElementById('viz-toggle-vrp')?.checked) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'flex';
+    const iv = data.iv_30d_pct != null ? data.iv_30d_pct : (data.iv_30d || 0);
+    const rv = data.rv_20d_pct != null ? data.rv_20d_pct : (data.rv_20d || 0);
+    const vrp = data.vrp_pct != null ? data.vrp_pct : (data.vrp || (iv - rv));
+    const signal = (data.vrp_signal || '').toUpperCase();
+    const isRich = vrp > 0;
+
+    // Bar fill: IV as % of max(IV, RV) range
+    const maxVal = Math.max(iv, rv, 1);
+    const ivPct = Math.min((iv / (maxVal * 1.3)) * 100, 100);
+
+    const signalColor = isRich ? '#22c55e' : '#ef4444';
+    const fillColor = isRich
+        ? 'linear-gradient(90deg, rgba(34,197,94,0.4), rgba(34,197,94,0.7))'
+        : 'linear-gradient(90deg, rgba(239,68,68,0.4), rgba(239,68,68,0.7))';
+
+    container.innerHTML = `
+        <span class="vrp-gauge-label left">RV ${rv.toFixed(1)}%</span>
+        <div class="vrp-gauge-bar">
+            <div class="vrp-gauge-fill" style="width:${ivPct.toFixed(0)}%;background:${fillColor};"></div>
+        </div>
+        <span style="font-size:0.72rem;font-weight:700;color:${signalColor};min-width:100px;text-align:center;">
+            ${vrp >= 0 ? '+' : ''}${vrp.toFixed(1)}% ${isRich ? 'RICH' : 'CHEAP'}
+        </span>
+        <span class="vrp-gauge-label right">IV ${iv.toFixed(1)}%</span>
+    `;
+}
+
+function toggleVrpGauge() {
+    saveToggles();
+    renderVrpGauge();
+}
+
+// Overlay 4: GEX Heatmap toggle
+function toggleGexHeatmap() {
+    saveToggles();
+    updatePriceChartLevels();
+}
+
+// Overlay 5: Flow Toxicity Strip
+function renderFlowStrip() {
+    const container = document.getElementById('flow-strip-container');
+    if (!container) return;
+
+    const data = optionsVizData.vannaCharmData;
+    if (!data || !document.getElementById('viz-toggle-toxicity')?.checked) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'flex';
+    const ft = data.flow_toxicity || {};
+    const toxicity = ft.toxicity != null ? ft.toxicity : 0;
+    const label = ft.label || (toxicity > 0.7 ? 'HIGH' : toxicity > 0.4 ? 'MODERATE' : 'LOW');
+    const direction = ft.flow_direction || '';
+    const pctWidth = Math.min(toxicity * 100, 100);
+
+    const toxColor = toxicity > 0.7 ? '#ef4444' : toxicity > 0.4 ? '#f59e0b' : '#22c55e';
+    const dirArrow = direction.toLowerCase().includes('bull') ? '\u2B06' : direction.toLowerCase().includes('bear') ? '\u2B07' : '\u2194';
+
+    container.innerHTML = `
+        <span class="flow-strip-label left" style="color:${toxColor};">Flow: ${(toxicity * 100).toFixed(0)}% ${label}</span>
+        <div class="flow-strip-bar">
+            <div class="flow-strip-fill" style="width:${pctWidth.toFixed(0)}%;background:linear-gradient(90deg,#22c55e,#f59e0b ${Math.min(pctWidth * 1.2, 100)}%,#ef4444);"></div>
+        </div>
+        <span class="flow-strip-label right" style="color:var(--text-muted);">${dirArrow} ${direction || 'Neutral'}</span>
+    `;
+}
+
+function toggleFlowStrip() {
+    saveToggles();
+    renderFlowStrip();
 }
 
 // =============================================================================
