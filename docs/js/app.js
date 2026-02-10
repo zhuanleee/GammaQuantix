@@ -6538,6 +6538,18 @@ async function loadPaperAccount() {
     } catch (e) { console.error('Paper account error:', e); }
 }
 
+// --- OCC Symbol Builder ---
+function buildOccSymbol(ticker, expiration, strike, optionType) {
+    // OCC format: "TICKER  YYMMDDTSSSSSSSS" (6-char padded, 6-digit date, type, 8-digit strike*1000)
+    if (!ticker || !expiration || !strike || !optionType) return null;
+    const padded = (ticker + '      ').slice(0, 6);
+    const dateParts = expiration.replace(/-/g, '');  // "2026-03-20" → "20260320"
+    const dateStr = dateParts.slice(2);  // → "260320"
+    const typeChar = optionType.toLowerCase() === 'put' ? 'P' : 'C';
+    const strikeStr = String(Math.round(strike * 1000)).padStart(8, '0');
+    return padded + dateStr + typeChar + strikeStr;
+}
+
 // --- Positions ---
 async function loadPaperPositions() {
     try {
@@ -6572,13 +6584,15 @@ async function loadPaperPositions() {
                 let netMark = 0;
                 let allLegsFound = true;
                 for (const leg of trade.legs) {
-                    // Build OCC symbol for this leg
-                    const legOcc = (trade.occ_symbols || []).find(s => {
+                    // Build OCC symbol: "TICKER  YYMMDDTSSSSSSSS"
+                    const legOcc = buildOccSymbol(trade.ticker, leg.expiration, leg.strike, leg.option_type);
+                    // Also check occ_symbols array as fallback
+                    const occToFind = legOcc || (trade.occ_symbols || []).find(s => {
                         const strikeStr = String(Math.round(leg.strike * 1000)).padStart(8, '0');
                         const typeChar = leg.option_type === 'put' ? 'P' : 'C';
                         return s && s.includes(typeChar + strikeStr);
                     });
-                    const legPos = legOcc ? positions.find(p => p.symbol === legOcc) : null;
+                    const legPos = occToFind ? positions.find(p => p.symbol === occToFind) : null;
                     if (legPos) {
                         const legMark = legPos.mark || legPos.close_price || 0;
                         // SELL legs: cost to buy back; BUY legs: value if sold
