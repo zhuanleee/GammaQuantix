@@ -6698,21 +6698,15 @@ async function loadPaperAnalytics() {
         const d = data.data;
         const el = (id) => document.getElementById(id);
 
-        el('perf-win-rate').textContent = d.win_rate + '%';
-        el('perf-win-rate').className = 'trading-metric-value ' + (d.win_rate >= 50 ? 'positive' : d.win_rate > 0 ? 'negative' : '');
-        el('perf-profit-factor').textContent = d.profit_factor;
-        el('perf-profit-factor').className = 'trading-metric-value ' + (d.profit_factor >= 1.5 ? 'positive' : d.profit_factor > 0 ? 'negative' : '');
-        el('perf-sharpe').textContent = d.sharpe_ratio;
-        el('perf-sharpe').className = 'trading-metric-value ' + (d.sharpe_ratio >= 1 ? 'positive' : d.sharpe_ratio > 0 ? '' : 'negative');
-        el('perf-max-dd').textContent = '-' + d.max_drawdown_pct + '%';
-        el('perf-max-dd').className = 'trading-metric-value negative';
-        el('perf-expectancy').textContent = '$' + (d.expectancy || 0).toFixed(0);
-        el('perf-expectancy').className = 'trading-metric-value ' + (d.expectancy >= 0 ? 'positive' : 'negative');
-        el('perf-avg-win').textContent = '+$' + (d.avg_win || 0).toFixed(0);
-        el('perf-avg-win').className = 'trading-metric-value positive';
-        el('perf-avg-loss').textContent = '-$' + Math.abs(d.avg_loss || 0).toFixed(0);
-        el('perf-avg-loss').className = 'trading-metric-value negative';
-        el('perf-total-trades').textContent = d.total_trades || 0;
+        const set = (id, text, cls) => { const e = el(id); if (e) { e.textContent = text; if (cls) e.className = 'trading-metric-value ' + cls; } };
+        set('perf-win-rate', (d.win_rate || 0) + '%', d.win_rate >= 50 ? 'positive' : d.win_rate > 0 ? 'negative' : '');
+        set('perf-profit-factor', d.profit_factor || 0, d.profit_factor >= 1.5 ? 'positive' : d.profit_factor > 0 ? 'negative' : '');
+        set('perf-sharpe', d.sharpe_ratio || 0, d.sharpe_ratio >= 1 ? 'positive' : d.sharpe_ratio > 0 ? '' : 'negative');
+        set('perf-max-dd', '-' + (d.max_drawdown_pct || 0) + '%', 'negative');
+        set('perf-expectancy', '$' + (d.expectancy || 0).toFixed(0), d.expectancy >= 0 ? 'positive' : 'negative');
+        set('perf-avg-win', '+$' + (d.avg_win || 0).toFixed(0), 'positive');
+        set('perf-avg-loss', '-$' + Math.abs(d.avg_loss || 0).toFixed(0), 'negative');
+        set('perf-total-trades', d.total_trades || 0, '');
 
         // Strategy breakdown
         renderStrategyBreakdown(d.strategy_breakdown || {});
@@ -6795,6 +6789,7 @@ async function loadPaperEquityCurve() {
 
         const dates = data.data.map(d => d.date);
         const equities = data.data.map(d => d.equity);
+        const startingCapital = data.data.length > 0 ? data.data[0].equity : 50000;
 
         const chartEl = document.getElementById('trading-equity-chart');
         if (!chartEl) return;
@@ -6839,7 +6834,7 @@ async function loadPaperEquityCurve() {
             },
             annotations: {
                 yaxis: [{
-                    y: 50000,
+                    y: startingCapital,
                     borderColor: '#71717a',
                     strokeDashArray: 4,
                     label: {
@@ -6857,9 +6852,9 @@ async function loadPaperEquityCurve() {
 // --- Journal ---
 async function loadPaperJournal() {
     try {
-        const params = journalFilter !== 'all' ? `?status=${journalFilter}` : '';
-        const sep = params ? '&' : '?';
-        const res = await fetch(`${API_BASE}/paper/journal${params}${sep}limit=30`);
+        const qp = new URLSearchParams({ limit: '30' });
+        if (journalFilter !== 'all') qp.set('status', journalFilter);
+        const res = await fetch(`${API_BASE}/paper/journal?${qp.toString()}`);
         const data = await res.json();
         const container = document.getElementById('trading-journal');
 
@@ -6959,9 +6954,26 @@ async function triggerSignalCheck(evt) {
         btn.textContent = 'Check Signals';
         if (data.ok) {
             const d = data.data;
-            const msg = `Signals: ${d.signals?.length || 0} | Executed: ${d.executed?.length || 0} | Exits: ${d.exits?.length || 0}`;
-            console.log('Signal check:', msg);
+            const sigs = d.signals?.length || 0;
+            const exec = d.executed?.length || 0;
+            const exits = d.exits?.length || 0;
+            const failed = d.failed?.length || 0;
+            // Show result as status badge
+            const status = document.getElementById('trading-status');
+            if (status) {
+                const oldText = status.textContent;
+                status.textContent = `✓ ${sigs} signals, ${exec} executed, ${failed} failed`;
+                status.style.color = exec > 0 ? 'var(--green)' : failed > 0 ? 'var(--orange)' : 'var(--text-muted)';
+                setTimeout(() => { status.textContent = oldText; status.style.color = ''; }, 5000);
+            }
             await loadTradingDashboard();
+        } else {
+            const status = document.getElementById('trading-status');
+            if (status) {
+                status.textContent = `✗ ${data.error || 'Signal check failed'}`;
+                status.style.color = 'var(--red)';
+                setTimeout(() => { status.textContent = ''; status.style.color = ''; }, 5000);
+            }
         }
     } catch (e) {
         console.error('Signal check error:', e);
@@ -6978,7 +6990,14 @@ async function closePaperPosition(tradeId) {
         if (data.ok) {
             await loadTradingDashboard();
         } else {
-            console.error('Close position failed:', data.error || data);
+            const errMsg = data.error || 'Close position failed';
+            console.error('Close position failed:', errMsg);
+            const status = document.getElementById('trading-status');
+            if (status) {
+                status.textContent = `✗ Close failed: ${errMsg}`;
+                status.style.color = 'var(--red)';
+                setTimeout(() => { status.textContent = ''; status.style.color = ''; }, 5000);
+            }
         }
     } catch (e) { console.error('Close position error:', e); }
 }
@@ -7099,8 +7118,12 @@ function startTradingRefresh() {
     stopTradingRefresh();
     tradingRefreshInterval = setInterval(async () => {
         if (document.getElementById('tab-trading')?.classList.contains('active')) {
-            await loadPaperAccount();
-            await loadPaperPositions();
+            await Promise.all([
+                loadPaperAccount(),
+                loadPaperPositions(),
+                loadPaperSignals(),
+                loadPaperJournal(),
+            ]);
         }
     }, 30000); // 30s
 }
