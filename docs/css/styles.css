@@ -3407,3 +3407,119 @@ select:focus {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* PhD Trade Idea Cards */
+.phd-idea-card {
+    border-left: 3px solid var(--cyan) !important;
+}
+.phd-idea-card .trade-idea-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.phd-type-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid;
+    letter-spacing: 0.05em;
+}
+.phd-dir-badge {
+    font-size: 0.55rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+}
+.phd-legs-table {
+    width: 100%;
+    font-size: 0.72rem;
+    margin: 6px 0;
+}
+.phd-leg-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+}
+.phd-leg-row:last-child {
+    border-bottom: none;
+}
+.phd-leg-action {
+    font-weight: 800;
+    width: 36px;
+    font-size: 0.68rem;
+    flex-shrink: 0;
+}
+.phd-leg-action.sell { color: var(--red); }
+.phd-leg-action.buy { color: var(--green); }
+.phd-leg-strike {
+    font-weight: 700;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.phd-leg-price {
+    min-width: 56px;
+    color: var(--text);
+    flex-shrink: 0;
+}
+.phd-leg-greeks {
+    display: flex;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    flex-wrap: wrap;
+}
+.phd-leg-oi {
+    color: var(--text-dim);
+    font-size: 0.62rem;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.phd-risk-summary {
+    display: flex;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+.phd-position-greeks {
+    display: flex;
+    gap: 10px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    padding: 4px 0 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.phd-kelly-badge {
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--purple);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 700;
+}
+.phd-quality-badge {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--green);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 700;
+}
+.phd-dte-badge {
+    background: var(--bg-elevated);
+    color: var(--cyan);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 700;
+}

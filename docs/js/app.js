@@ -1748,6 +1748,77 @@ function renderTradeZones(data) {
         </div>`;
 }
 
+function _renderPhdIdeaCard(idea, idx) {
+    const dirIcons = { bullish: '&#9650;', bearish: '&#9660;', neutral: '&#9644;' };
+    const icon = dirIcons[idea.direction] || '&#8226;';
+    const stColor = idea.strategy_type === 'short_premium' ? 'var(--green)' : 'var(--cyan)';
+    const stLabel = (idea.strategy_type || '').replace(/_/g, ' ').toUpperCase();
+    const dirLabel = (idea.direction || 'neutral').toUpperCase();
+    const confLabel = (idea.confidence || '').toUpperCase();
+    const confCls = idea.confidence || 'low';
+    const kellyPct = idea.kelly_pct ?? 0;
+    const dte = idea.dte ?? '--';
+    const quality = idea.quality_score ?? '--';
+
+    // Legs table
+    const legsHtml = (idea.legs || []).map(leg => {
+        const actCls = leg.action === 'SELL' ? 'sell' : 'buy';
+        const iv_pct = leg.iv ? (leg.iv * 100).toFixed(0) + '%' : '--';
+        const oiFmt = leg.oi >= 1000 ? (leg.oi / 1000).toFixed(1) + 'K' : (leg.oi || 0);
+        return `<div class="phd-leg-row">
+            <span class="phd-leg-action ${actCls}">${leg.action}</span>
+            <span class="phd-leg-strike">$${leg.strike?.toFixed(0)} ${leg.option_type}</span>
+            <span class="phd-leg-price">@ $${leg.price?.toFixed(2)}</span>
+            <span class="phd-leg-greeks">
+                <span>&Delta; ${leg.delta?.toFixed(2)}</span>
+                <span>&Theta; $${Math.abs(leg.theta || 0).toFixed(2)}</span>
+                <span>&Gamma; ${leg.gamma?.toFixed(3)}</span>
+                <span>&nu; ${leg.vega?.toFixed(2)}</span>
+                <span>IV ${iv_pct}</span>
+            </span>
+            <span class="phd-leg-oi">OI ${oiFmt}</span>
+        </div>`;
+    }).join('');
+
+    // Position Greeks
+    const pg = idea.position_greeks || {};
+
+    // Risk summary
+    const mp = typeof idea.max_profit === 'number' ? '$' + idea.max_profit : idea.max_profit;
+    const ml = typeof idea.max_loss === 'number' ? '$' + idea.max_loss : idea.max_loss;
+    const np = idea.net_premium >= 0 ? `+$${idea.net_premium.toFixed(2)}` : `-$${Math.abs(idea.net_premium).toFixed(2)}`;
+    const rr = idea.risk_reward ? idea.risk_reward.toFixed(1) + ':1' : '--';
+    const dteRange = idea.recommended_dte ? `${idea.recommended_dte[0]}-${idea.recommended_dte[1]}d` : '--';
+
+    return `<div class="trade-idea-card phd-idea-card" data-type="${idea.type}" data-idx="${idx}">
+        <div class="trade-idea-header">
+            ${icon} ${idea.title}
+            <span class="phd-type-badge" style="color:${stColor};border-color:${stColor}">${stLabel}</span>
+            <span class="phd-dir-badge">${dirLabel}</span>
+            <span class="trade-idea-confidence confidence-${confCls}">${confLabel}</span>
+            ${kellyPct > 0 ? `<span class="phd-kelly-badge">${kellyPct}% Kelly</span>` : ''}
+        </div>
+        <div class="phd-legs-table">${legsHtml}</div>
+        <div class="phd-risk-summary">
+            <span>Net: ${np}</span>
+            <span>Max Loss: ${ml}</span>
+            <span>Max Profit: ${mp}</span>
+            <span>R:R ${rr}</span>
+        </div>
+        <div class="phd-position-greeks">
+            <span>&Delta; ${pg.delta?.toFixed(3) ?? '--'}</span>
+            <span>&Theta; $${Math.abs(pg.theta || 0).toFixed(3)}</span>
+            <span>&Gamma; ${pg.gamma?.toFixed(4) ?? '--'}</span>
+            <span>&nu; ${pg.vega?.toFixed(3) ?? '--'}</span>
+            <span class="phd-dte-badge">${dte}d</span>
+            <span>Rec: ${dteRange}</span>
+            <span class="phd-quality-badge">Q: ${quality}</span>
+        </div>
+        <div class="trade-idea-row"><span class="trade-idea-label label-if">IF</span><span>${idea.condition}</span></div>
+        <div class="trade-idea-rationale">${idea.rationale}</div>
+    </div>`;
+}
+
 function renderTradeIdeas(ideas, scannedDTEs) {
     const el = document.getElementById('xray-trade-ideas');
     if (!el || !ideas || !ideas.length) { if (el) el.style.display = 'none'; return; }
@@ -1762,6 +1833,10 @@ function renderTradeIdeas(ideas, scannedDTEs) {
     };
 
     const html = ideas.map((idea, idx) => {
+        // PhD Strategy enhanced card
+        if (idea.phd_strategy) {
+            return _renderPhdIdeaCard(idea, idx);
+        }
         const icon = typeIcons[idea.type] || '&#8226;';
         const conf = idea.confidence || '';
         const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
@@ -5066,7 +5141,10 @@ function scannerDrillDown(ticker, idx) {
     const typeIcons = { bullish:'&#9650;', bearish:'&#9660;', neutral:'&#9644;', breakout:'&#9733;', value:'&#127919;' };
     let ideasHtml = '';
     if (ideas.length) {
-        const cards = ideas.map(idea => {
+        const cards = ideas.map((idea, idx) => {
+            if (idea.phd_strategy) {
+                return _renderPhdIdeaCard(idea, idx);
+            }
             const icon = typeIcons[idea.type] || '&#8226;';
             const conf = idea.confidence || '';
             const confBadge = conf ? `<span class="trade-idea-confidence confidence-${conf}">${conf.toUpperCase()}</span>` : '';
@@ -5079,7 +5157,8 @@ function scannerDrillDown(ticker, idx) {
                 <div class="trade-idea-rationale">${idea.rationale}</div>
             </div>`;
         }).join('');
-        ideasHtml = `<div style="margin-bottom:16px;"><div class="trade-ideas-title">TRADE IDEAS</div>${cards}</div>`;
+        const titleLabel = ideas.some(i => i.phd_strategy) ? 'PhD TRADE IDEAS' : 'TRADE IDEAS';
+        ideasHtml = `<div style="margin-bottom:16px;"><div class="trade-ideas-title">${titleLabel}</div>${cards}</div>`;
     }
 
     // Squeeze/pin gauges
