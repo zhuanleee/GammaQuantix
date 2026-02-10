@@ -2249,7 +2249,7 @@ function renderPriceChart() {
             horzLines: { color: 'rgba(255,255,255,0.05)' },
         },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)', autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
+        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)', autoScale: isAutoScale, mode: isLogScale ? 1 : 0, scaleMargins: { top: 0.1, bottom: 0.1 } },
         timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: selectedInterval !== '1d' && selectedInterval !== '1w' },
         width: container.clientWidth,
         height: container.clientHeight || 300,
@@ -2320,6 +2320,7 @@ function renderPriceChart() {
     resizeObserver.observe(container);
 
     startLivePriceUpdates();
+    applyScaleButtons();
 
     // Render intelligence overlay badges (if data already loaded)
     renderRegimeBadge();
@@ -3193,6 +3194,43 @@ function setInterval_(interval) {
     }
 
     refreshOptionsViz();
+}
+
+// =============================================================================
+// LOG SCALE & AUTO SCALE
+// =============================================================================
+let isLogScale = localStorage.getItem('gq_log_scale') === 'true';
+let isAutoScale = localStorage.getItem('gq_auto_scale') !== 'false'; // default true
+
+function toggleLogScale() {
+    isLogScale = !isLogScale;
+    localStorage.setItem('gq_log_scale', isLogScale);
+    const btn = document.getElementById('btn-log-scale');
+    if (btn) btn.classList.toggle('active', isLogScale);
+    if (priceChart) {
+        priceChart.priceScale('right').applyOptions({
+            mode: isLogScale ? 1 : 0,
+        });
+    }
+}
+
+function toggleAutoScale() {
+    isAutoScale = !isAutoScale;
+    localStorage.setItem('gq_auto_scale', isAutoScale);
+    const btn = document.getElementById('btn-auto-scale');
+    if (btn) btn.classList.toggle('active', isAutoScale);
+    if (priceChart) {
+        priceChart.priceScale('right').applyOptions({
+            autoScale: isAutoScale,
+        });
+    }
+}
+
+function applyScaleButtons() {
+    const logBtn = document.getElementById('btn-log-scale');
+    const autoBtn = document.getElementById('btn-auto-scale');
+    if (logBtn) logBtn.classList.toggle('active', isLogScale);
+    if (autoBtn) autoBtn.classList.toggle('active', isAutoScale);
 }
 
 // =============================================================================

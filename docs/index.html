@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260210b">
+    <link rel="stylesheet" href="css/styles.css?v=20260210c">
 </head>
 <body>
     <!-- Header -->
@@ -802,6 +802,10 @@
                             <button class="interval-btn active" onclick="setInterval_('1d')">1D</button>
                             <button class="interval-btn" onclick="setInterval_('1w')">1W</button>
                         </div>
+                        <div class="interval-selector">
+                            <button class="interval-btn" id="btn-log-scale" onclick="toggleLogScale()" title="Toggle logarithmic price scale">Log</button>
+                            <button class="interval-btn active" id="btn-auto-scale" onclick="toggleAutoScale()" title="Toggle auto-scale (fit price to visible range)">Auto</button>
+                        </div>
                         <select id="viz-timeframe" onchange="refreshOptionsViz()" title="Chart timeframe - select how far back to show price history">
                             <option value="1825" selected>5Y</option>
                             <option value="7300">All</option>
@@ -1218,6 +1222,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260210b"></script>
+    <script src="js/app.js?v=20260210c"></script>
 </body>
 </html>
