@@ -2207,12 +2207,12 @@ function renderPriceChart() {
     if (!optionsVizData.candles || optionsVizData.candles.length === 0) {
         // Create a synthetic candle from current price so chart can render and live updates work
         if (optionsVizData.currentPrice > 0) {
-            const today = new Date();
+            const nyNow = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
             const isDaily = selectedInterval === '1d' || selectedInterval === '1w';
             const p = optionsVizData.currentPrice;
             const t = isDaily
-                ? today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
-                : Math.floor(today.getTime() / 1000);
+                ? nyNow.getFullYear() + '-' + String(nyNow.getMonth() + 1).padStart(2, '0') + '-' + String(nyNow.getDate()).padStart(2, '0')
+                : Math.floor(Date.now() / 1000);
             optionsVizData.candles = [{
                 time: t,
                 open: p, high: p, low: p, close: p, volume: 0
@@ -2550,13 +2550,17 @@ function updateLivePrice(price) {
             // Daily/weekly: match candle time format (could be string "YYYY-MM-DD" or object {year,month,day})
             const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
             const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
+            const todayStr = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
             const lastTime = lastCandle ? lastCandle.time : null;
-            const isToday = lastTime && (typeof lastTime === 'string'
-                ? lastTime === y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0')
-                : lastTime.year === y && lastTime.month === m && lastTime.day === d);
 
-            if (lastCandle && isToday) {
-                // Today's candle exists — update OHLC
+            // Check if last candle is today OR ahead of today (timezone edge case:
+            // API may return UTC dates while NY is still on the previous day)
+            const isTodayOrAhead = lastTime && (typeof lastTime === 'string'
+                ? lastTime >= todayStr
+                : (lastTime.year > y || (lastTime.year === y && (lastTime.month > m || (lastTime.month === m && lastTime.day >= d)))));
+
+            if (lastCandle && isTodayOrAhead) {
+                // Today's (or most recent) candle exists — update OHLC
                 const updatedCandle = {
                     time: lastCandle.time,
                     open: lastCandle.open,
@@ -2565,7 +2569,7 @@ function updateLivePrice(price) {
                     close: price,
                     volume: lastCandle.volume || 0
                 };
-                priceSeries.update(updatedCandle);
+                try { priceSeries.update(updatedCandle); } catch(e) {}
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             } else {
                 // No candle for today — only create one on weekdays (trading days)
@@ -2573,7 +2577,7 @@ function updateLivePrice(price) {
                 const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
                 if (isWeekday) {
                     const useObjFormat = optionsVizData.candles.length > 0 && typeof optionsVizData.candles[0].time === 'object';
-                    const newTime = useObjFormat ? { year: y, month: m, day: d } : y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+                    const newTime = useObjFormat ? { year: y, month: m, day: d } : todayStr;
                     const newCandle = {
                         time: newTime,
                         open: price,
@@ -2582,7 +2586,7 @@ function updateLivePrice(price) {
                         close: price,
                         volume: 0
                     };
-                    priceSeries.update(newCandle);
+                    try { priceSeries.update(newCandle); } catch(e) {}
                     optionsVizData.candles.push(newCandle);
                 }
                 // Weekend/holiday: don't create a fake candle, just update price displays
