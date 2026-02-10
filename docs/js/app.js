@@ -6563,13 +6563,48 @@ async function loadPaperPositions() {
 
         for (const trade of trades) {
             const entry = trade.entry_price || 0;
-            // Try to find matching position for live mark
-            const matchPos = positions.find(p => p.symbol && trade.occ_symbol && p.symbol === trade.occ_symbol);
-            const current = matchPos ? (matchPos.mark || matchPos.close_price || entry) : entry;
-            const pnl = trade.direction === 'long'
-                ? (current - entry) * (trade.quantity || 1) * 100
-                : (entry - current) * (trade.quantity || 1) * 100;
-            const pnlPct = entry > 0 ? ((trade.direction === 'long' ? current - entry : entry - current) / entry * 100) : 0;
+            let current = entry;
+            let pnl = 0;
+            let pnlPct = 0;
+
+            if (trade.is_multi_leg && trade.legs && trade.legs.length > 1) {
+                // Multi-leg: calculate net mark from all leg positions
+                let netMark = 0;
+                let allLegsFound = true;
+                for (const leg of trade.legs) {
+                    // Build OCC symbol for this leg
+                    const legOcc = (trade.occ_symbols || []).find(s => {
+                        const strikeStr = String(Math.round(leg.strike * 1000)).padStart(8, '0');
+                        const typeChar = leg.option_type === 'put' ? 'P' : 'C';
+                        return s && s.includes(typeChar + strikeStr);
+                    });
+                    const legPos = legOcc ? positions.find(p => p.symbol === legOcc) : null;
+                    if (legPos) {
+                        const legMark = legPos.mark || legPos.close_price || 0;
+                        // SELL legs: cost to buy back; BUY legs: value if sold
+                        if (leg.action === 'SELL') netMark += legMark;
+                        else netMark -= legMark;
+                    } else {
+                        allLegsFound = false;
+                    }
+                }
+                if (allLegsFound && entry > 0) {
+                    // Credit spread: PnL = (credit_received - cost_to_close) / credit * 100
+                    current = netMark;
+                    pnlPct = ((entry - netMark) / entry) * 100;
+                    pnl = (entry - netMark) * (trade.quantity || 1) * 100;
+                }
+                // If not all legs found (e.g. after hours), pnl stays at 0
+            } else {
+                // Single-leg trade
+                const matchPos = positions.find(p => p.symbol && trade.occ_symbol && p.symbol === trade.occ_symbol);
+                current = matchPos ? (matchPos.mark || matchPos.close_price || entry) : entry;
+                pnl = trade.direction === 'long'
+                    ? (current - entry) * (trade.quantity || 1) * 100
+                    : (entry - current) * (trade.quantity || 1) * 100;
+                pnlPct = entry > 0 ? ((trade.direction === 'long' ? current - entry : entry - current) / entry * 100) : 0;
+            }
+
             const pnlClass = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
             const pnlSign = pnl >= 0 ? '+' : '';
 
