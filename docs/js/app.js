@@ -6563,6 +6563,7 @@ async function loadPaperPositions() {
 
         const trades = data.data.journal_trades || [];
         const positions = data.data.positions || [];
+        const liveMarks = data.data.marks || {};
 
         if (trades.length === 0 && positions.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No open positions</div>';
@@ -6579,6 +6580,7 @@ async function loadPaperPositions() {
             let pnl = 0;
             let pnlPct = 0;
 
+            let allMarksZero = true;
             if (trade.is_multi_leg && trade.legs && trade.legs.length > 1) {
                 // Multi-leg: calculate net mark from all leg positions
                 let netMark = 0;
@@ -6593,34 +6595,54 @@ async function loadPaperPositions() {
                         return s && s.includes(typeChar + strikeStr);
                     });
                     const legPos = occToFind ? positions.find(p => p.symbol === occToFind) : null;
+                    // Try cert position mark, then prod live marks fallback
+                    let legMark = 0;
                     if (legPos) {
-                        const legMark = legPos.mark || legPos.close_price || 0;
-                        // SELL legs: cost to buy back; BUY legs: value if sold
+                        legMark = legPos.mark || legPos.close_price || 0;
+                    }
+                    if (legMark === 0 && occToFind && liveMarks[occToFind]) {
+                        legMark = liveMarks[occToFind];
+                    }
+                    if (legMark > 0) {
+                        allMarksZero = false;
                         if (leg.action === 'SELL') netMark += legMark;
                         else netMark -= legMark;
                     } else {
                         allLegsFound = false;
                     }
                 }
-                if (allLegsFound && entry > 0) {
+                if (allLegsFound && entry > 0 && !allMarksZero) {
                     // Credit spread: PnL = (credit_received - cost_to_close) / credit * 100
                     current = netMark;
                     pnlPct = ((entry - netMark) / entry) * 100;
                     pnl = (entry - netMark) * (trade.quantity || 1) * 100;
+                } else {
+                    // Marks stale/zero — signal NaN to render "--"
+                    pnlPct = NaN;
                 }
-                // If not all legs found (e.g. after hours), pnl stays at 0
             } else {
                 // Single-leg trade
                 const matchPos = positions.find(p => p.symbol && trade.occ_symbol && p.symbol === trade.occ_symbol);
-                current = matchPos ? (matchPos.mark || matchPos.close_price || entry) : entry;
-                pnl = trade.direction === 'long'
-                    ? (current - entry) * (trade.quantity || 1) * 100
-                    : (entry - current) * (trade.quantity || 1) * 100;
-                pnlPct = entry > 0 ? ((trade.direction === 'long' ? current - entry : entry - current) / entry * 100) : 0;
+                let rawMark = matchPos ? (matchPos.mark || matchPos.close_price || 0) : 0;
+                if (rawMark === 0 && trade.occ_symbol && liveMarks[trade.occ_symbol]) {
+                    rawMark = liveMarks[trade.occ_symbol];
+                }
+                if (rawMark > 0) allMarksZero = false;
+                current = rawMark > 0 ? rawMark : entry;
+                if (allMarksZero) {
+                    pnlPct = NaN;
+                } else {
+                    pnl = trade.direction === 'long'
+                        ? (current - entry) * (trade.quantity || 1) * 100
+                        : (entry - current) * (trade.quantity || 1) * 100;
+                    pnlPct = entry > 0 ? ((trade.direction === 'long' ? current - entry : entry - current) / entry * 100) : 0;
+                }
             }
 
-            const pnlClass = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
-            const pnlSign = pnl >= 0 ? '+' : '';
+            const pnlClass = isNaN(pnlPct) ? '' : (pnl >= 0 ? 'pnl-positive' : 'pnl-negative');
+            const pnlSign = isNaN(pnlPct) ? '' : (pnl >= 0 ? '+' : '');
+            const pnlDisplay = isNaN(pnlPct) ? '--' : `${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)`;
+            const currentDisplay = isNaN(pnlPct) ? '--' : `$${current.toFixed(2)}`;
 
             const expShort = trade.expiration ? trade.expiration.slice(5) : '--';
             const strategy = trade.strategy || trade.strategy_name || trade.signal_type || 'Manual';
@@ -6641,8 +6663,8 @@ async function loadPaperPositions() {
                     <td>${expShort}</td>
                     <td>${trade.quantity || 1}</td>
                     <td>$${entry.toFixed(2)}</td>
-                    <td>$${current.toFixed(2)}</td>
-                    <td class="${pnlClass}">${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)</td>
+                    <td>${currentDisplay}</td>
+                    <td class="${pnlClass}">${pnlDisplay}</td>
                     <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
                 </tr>`;
             } else {
@@ -6655,8 +6677,8 @@ async function loadPaperPositions() {
                     <td>${expShort}</td>
                     <td>${trade.quantity || 1}</td>
                     <td>$${entry.toFixed(2)}</td>
-                    <td>$${current.toFixed(2)}</td>
-                    <td class="${pnlClass}">${pnlSign}$${pnl.toFixed(0)} (${pnlSign}${pnlPct.toFixed(1)}%)</td>
+                    <td>${currentDisplay}</td>
+                    <td class="${pnlClass}">${pnlDisplay}</td>
                     <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
                 </tr>`;
             }
