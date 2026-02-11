@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260211e">
+    <link rel="stylesheet" href="css/styles.css?v=20260211f">
 </head>
 <body>
     <!-- Header -->
@@ -77,6 +77,8 @@
                                 <circle cx="100" cy="95" r="5" fill="white" opacity="0.95"/>
                                 <circle cx="100" cy="95" r="2.5" fill="var(--bg-elevated)"/>
                             </g>
+                            <!-- Score display in center -->
+                            <text x="100" y="78" text-anchor="middle" fill="white" font-size="20" font-weight="800" font-family="'SF Mono', 'Fira Code', monospace" opacity="0.2" id="sentiment-score-text">--</text>
                             <!-- Labels along arc -->
                             <text x="18" y="112" fill="var(--text-dim)" font-size="8" text-anchor="start" font-family="Inter, sans-serif">Bearish</text>
                             <text x="100" y="112" fill="var(--text-dim)" font-size="8" text-anchor="middle" font-family="Inter, sans-serif">Neutral</text>
@@ -85,27 +87,28 @@
                     </div>
                     <div class="sentiment-label" id="sentiment-label">--</div>
                     <div class="sentiment-description" id="sentiment-description">Loading...</div>
+                    <div class="sentiment-factors" id="sentiment-factors"></div>
                 </div>
 
                 <!-- Right: Key Metrics Grid -->
                 <div>
                     <div class="options-metrics-grid">
-                        <div class="metric-card" title="CBOE Volatility Index - measures expected 30-day S&P 500 volatility. Below 15 = low fear, 15-25 = normal, above 25 = elevated fear.">
+                        <div class="metric-card hero-metric" id="metric-card-vix" title="CBOE Volatility Index - measures expected 30-day S&P 500 volatility. Below 15 = low fear, 15-25 = normal, above 25 = elevated fear.">
                             <div class="metric-label">VIX</div>
                             <div class="metric-value" id="vix-level">--</div><span class="sparkline-container" id="sparkline-vix"></span>
                             <div class="metric-sub" id="vix-label">--</div>
                         </div>
-                        <div class="metric-card" title="Put/Call Ratio - total put OI divided by call OI. Below 0.7 = bullish, 0.7-1.0 = neutral, above 1.0 = bearish/hedging heavy.">
+                        <div class="metric-card hero-metric" id="metric-card-pc" title="Put/Call Ratio - total put OI divided by call OI. Below 0.7 = bullish, 0.7-1.0 = neutral, above 1.0 = bearish/hedging heavy.">
                             <div class="metric-label">P/C RATIO</div>
                             <div class="metric-value" id="spy-pc-ratio">--</div><span class="sparkline-container" id="sparkline-pc-ratio"></span>
                             <div class="metric-sub" id="spy-pc-label">--</div>
                         </div>
-                        <div class="metric-card" style="border: 1px solid var(--purple);" title="Max Pain - the strike price where option holders (buyers) lose the most money. Price tends to gravitate toward this level near expiration.">
-                            <div class="metric-label" style="color: var(--purple);">MAX PAIN</div>
-                            <div class="metric-value" id="spy-max-pain" style="color: var(--purple);">--</div>
+                        <div class="metric-card hero-metric" id="metric-card-mp" title="Max Pain - the strike price where option holders (buyers) lose the most money. Price tends to gravitate toward this level near expiration.">
+                            <div class="metric-label">MAX PAIN</div>
+                            <div class="metric-value" id="spy-max-pain">--</div>
                             <div class="metric-sub" id="spy-max-pain-dist">--</div>
                         </div>
-                        <div class="metric-card" title="Gamma Exposure (GEX) - net dealer gamma. Positive GEX = dealers sell rallies/buy dips (stabilizing). Negative GEX = dealers amplify moves (volatile).">
+                        <div class="metric-card hero-metric" id="metric-card-gex" title="Gamma Exposure (GEX) - net dealer gamma. Positive GEX = dealers sell rallies/buy dips (stabilizing). Negative GEX = dealers amplify moves (volatile).">
                             <div class="metric-label">GEX</div>
                             <div class="metric-value" id="market-gex">--</div><span class="sparkline-container" id="sparkline-gex"></span>
                             <div class="metric-sub" id="gex-label">--</div>
@@ -1314,6 +1317,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260211g"></script>
+    <script src="js/app.js?v=20260211h"></script>
 </body>
 </html>

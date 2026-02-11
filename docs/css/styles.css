@@ -368,6 +368,50 @@ body {
     margin-top: 2px;
 }
 
+/* Sentiment factor breakdown */
+.sentiment-factors {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.sentiment-factor {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+}
+.sentiment-factor-name {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.sentiment-factor-bar {
+    width: 28px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    position: relative;
+}
+.sentiment-factor-fill {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+.sentiment-factor-fill.positive { left: 50%; background: var(--green); }
+.sentiment-factor-fill.negative { right: 50%; background: var(--red); }
+.sentiment-factor-value {
+    font-family: var(--font-mono, monospace);
+    font-weight: 600;
+    min-width: 22px;
+    text-align: right;
+}
+
 .options-hero-grid {
     display: grid;
     grid-template-columns: 1fr 2fr;
@@ -387,6 +431,32 @@ body {
     border-radius: 10px;
     text-align: center;
 }
+
+/* Hero metric cards with colored top accent */
+.hero-metric {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: border-color 0.3s ease;
+}
+.hero-metric::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--border);
+    transition: background 0.3s ease;
+}
+.hero-metric.accent-green::before { background: var(--green); }
+.hero-metric.accent-green { border-color: rgba(80, 200, 120, 0.2); }
+.hero-metric.accent-red::before { background: var(--red); }
+.hero-metric.accent-red { border-color: rgba(255, 99, 71, 0.2); }
+.hero-metric.accent-yellow::before { background: var(--yellow); }
+.hero-metric.accent-yellow { border-color: rgba(255, 183, 77, 0.2); }
+.hero-metric.accent-purple::before { background: var(--purple); }
+.hero-metric.accent-purple { border-color: rgba(168, 85, 247, 0.2); }
 
 .metric-label {
     font-size: 0.65rem;

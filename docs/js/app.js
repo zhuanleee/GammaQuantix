@@ -3903,7 +3903,7 @@ async function loadMarketSentimentForExpiry() {
 
         const vixText = document.getElementById('vix-level').textContent;
         const vix = parseFloat(vixText) || 0;
-        updateSentimentGauge(pcRatio, vix);
+        updateSentimentGauge(pcRatio, vix, gexValue);
 
     } catch (e) {
         console.error('Failed to load sentiment for expiry:', e);
@@ -3915,65 +3915,85 @@ async function loadMarketSentimentForExpiry() {
 // =============================================================================
 // SENTIMENT GAUGE
 // =============================================================================
-function updateSentimentGauge(pcRatio, vix) {
-    let score = 50;
+function updateSentimentGauge(pcRatio, vix, gexValue) {
+    // --- Factor contributions ---
+    let pcScore = 0;
+    if (pcRatio < 0.6) pcScore = 30;
+    else if (pcRatio < 0.8) pcScore = 15;
+    else if (pcRatio > 1.2) pcScore = -30;
+    else if (pcRatio > 1.0) pcScore = -15;
 
-    if (pcRatio < 0.6) score += 30;
-    else if (pcRatio < 0.8) score += 15;
-    else if (pcRatio > 1.2) score -= 30;
-    else if (pcRatio > 1.0) score -= 15;
+    let vixScore = 0;
+    if (vix < 15) vixScore = 10;
+    else if (vix > 30) vixScore = -15;
+    else if (vix > 25) vixScore = -10;
 
-    if (vix < 15) score += 10;
-    else if (vix > 30) score -= 15;
-    else if (vix > 25) score -= 10;
-
-    score = Math.max(0, Math.min(100, score));
-
-    const angle = -90 + (score / 100) * 180;
-
-    const needle = document.getElementById('sentiment-needle');
-    if (needle) {
-        needle.setAttribute('transform', 'rotate(' + angle + ', 100, 95)');
+    let gexScore = 0;
+    if (typeof gexValue === 'number' && gexValue !== 0) {
+        if (gexValue > 0) gexScore = 10;
+        else if (gexValue < -5e8) gexScore = -10;
+        else if (gexValue < 0) gexScore = -5;
     }
 
-    // Update glow color based on sentiment
-    var glow = document.getElementById('sentiment-glow');
+    const score = Math.max(0, Math.min(100, 50 + pcScore + vixScore + gexScore));
+    const angle = -90 + (score / 100) * 180;
+
+    // Needle
+    const needle = document.getElementById('sentiment-needle');
+    if (needle) needle.setAttribute('transform', 'rotate(' + angle + ', 100, 95)');
+
+    // Score text in SVG
+    const scoreText = document.getElementById('sentiment-score-text');
+    if (scoreText) scoreText.textContent = score;
+
+    // Glow
+    const glow = document.getElementById('sentiment-glow');
     if (glow) {
-        var glowColor;
-        if (score >= 65) glowColor = 'rgba(34,197,94,0.12)';
-        else if (score >= 40) glowColor = 'rgba(234,179,8,0.12)';
-        else glowColor = 'rgba(239,68,68,0.12)';
+        const glowColor = score >= 65 ? 'rgba(34,197,94,0.15)' : score >= 40 ? 'rgba(234,179,8,0.12)' : 'rgba(239,68,68,0.15)';
         glow.style.background = 'radial-gradient(ellipse, ' + glowColor + ' 0%, transparent 70%)';
     }
 
+    // Label + description
     const label = document.getElementById('sentiment-label');
     const description = document.getElementById('sentiment-description');
-
-    // Build dynamic description based on actual inputs
     const pcDesc = pcRatio > 1.2 ? 'High P/C' : pcRatio < 0.7 ? 'Low P/C' : 'Neutral P/C';
     const vixDesc = vix > 25 ? 'High VIX' : vix < 15 ? 'Low VIX' : 'Normal VIX';
 
-    if (score >= 75) {
-        label.textContent = 'BULLISH';
-        label.style.color = 'var(--green)';
-        description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk On';
-    } else if (score >= 60) {
-        label.textContent = 'LEAN BULLISH';
-        label.style.color = 'var(--green)';
-        description.textContent = pcDesc + ' + ' + vixDesc;
-    } else if (score >= 40) {
-        label.textContent = 'NEUTRAL';
-        label.style.color = 'var(--text)';
-        description.textContent = pcDesc + ' + ' + vixDesc + ' = Mixed signals';
-    } else if (score >= 25) {
-        label.textContent = 'LEAN BEARISH';
-        label.style.color = 'var(--red)';
-        description.textContent = pcDesc + ' + ' + vixDesc + ' = Elevated caution';
-    } else {
-        label.textContent = 'BEARISH';
-        label.style.color = 'var(--red)';
-        description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk Off';
+    if (score >= 75) { label.textContent = 'BULLISH'; label.style.color = 'var(--green)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk On'; }
+    else if (score >= 60) { label.textContent = 'LEAN BULLISH'; label.style.color = 'var(--green)'; description.textContent = pcDesc + ' + ' + vixDesc; }
+    else if (score >= 40) { label.textContent = 'NEUTRAL'; label.style.color = 'var(--text)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Mixed signals'; }
+    else if (score >= 25) { label.textContent = 'LEAN BEARISH'; label.style.color = 'var(--red)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Elevated caution'; }
+    else { label.textContent = 'BEARISH'; label.style.color = 'var(--red)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk Off'; }
+
+    // Factor breakdown
+    const factorsEl = document.getElementById('sentiment-factors');
+    if (factorsEl) {
+        const factors = [
+            { name: 'P/C', value: pcScore, max: 30 },
+            { name: 'VIX', value: vixScore, max: 15 },
+            { name: 'GEX', value: gexScore, max: 10 },
+        ];
+        factorsEl.innerHTML = factors.map(f => {
+            const pct = Math.abs(f.value) / f.max * 50;
+            const cls = f.value >= 0 ? 'positive' : 'negative';
+            const color = f.value > 0 ? 'var(--green)' : f.value < 0 ? 'var(--red)' : 'var(--text-dim)';
+            return `<div class="sentiment-factor">
+                <span class="sentiment-factor-name">${f.name}</span>
+                <div class="sentiment-factor-bar"><div class="sentiment-factor-fill ${cls}" style="width:${pct}%;"></div></div>
+                <span class="sentiment-factor-value" style="color:${color}">${f.value > 0 ? '+' : ''}${f.value}</span>
+            </div>`;
+        }).join('');
     }
+
+    // Metric card accents
+    const vixCard = document.getElementById('metric-card-vix');
+    if (vixCard) vixCard.className = 'metric-card hero-metric accent-' + (vix > 25 ? 'red' : vix < 15 ? 'green' : 'yellow');
+    const pcCard = document.getElementById('metric-card-pc');
+    if (pcCard) pcCard.className = 'metric-card hero-metric accent-' + (pcRatio > 1.0 ? 'red' : pcRatio < 0.7 ? 'green' : 'yellow');
+    const mpCard = document.getElementById('metric-card-mp');
+    if (mpCard) mpCard.className = 'metric-card hero-metric accent-purple';
+    const gexCard = document.getElementById('metric-card-gex');
+    if (gexCard) gexCard.className = 'metric-card hero-metric accent-' + (typeof gexValue === 'number' && gexValue > 0 ? 'green' : 'red');
 }
 
 // =============================================================================
