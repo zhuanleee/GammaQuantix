@@ -4252,6 +4252,7 @@ function gfMetricBox(label, value, sub, color, tooltip) {
 
 function fmtGreekFlowNum(n) {
     if (n == null || isNaN(n)) return '--';
+    if (n === 0) return '0';
     var abs = Math.abs(n);
     if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
     if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
@@ -7044,6 +7045,13 @@ async function loadPaperPositions() {
                     }
                 }
                 if (hasGreeks) { posDelta = netD; posTheta = netT; posGamma = netG; }
+                // Fallback: use entry-time greeks from journal when position-level unavailable
+                if (!hasGreeks && trade.greeks) {
+                    const qty = trade.quantity || 1;
+                    if (trade.greeks.delta != null) posDelta = trade.greeks.delta * qty;
+                    if (trade.greeks.theta != null) posTheta = trade.greeks.theta * qty;
+                    if (trade.greeks.gamma != null) posGamma = trade.greeks.gamma * qty;
+                }
             } else {
                 const matchPos = positions.find(p => p.symbol && trade.occ_symbol && p.symbol === trade.occ_symbol);
                 if (matchPos) {
@@ -7052,6 +7060,14 @@ async function loadPaperPositions() {
                     if (matchPos.delta != null) posDelta = matchPos.delta * qty * sign;
                     if (matchPos.theta != null) posTheta = matchPos.theta * qty * sign;
                     if (matchPos.gamma != null) posGamma = matchPos.gamma * qty * sign;
+                }
+                // Fallback: use entry-time greeks from journal
+                if (posDelta == null && trade.greeks) {
+                    const qty = trade.quantity || 1;
+                    const sign = trade.direction === 'long' ? 1 : -1;
+                    if (trade.greeks.delta != null) posDelta = trade.greeks.delta * qty * sign;
+                    if (trade.greeks.theta != null) posTheta = trade.greeks.theta * qty * sign;
+                    if (trade.greeks.gamma != null) posGamma = trade.greeks.gamma * qty * sign;
                 }
             }
 
