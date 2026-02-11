@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260211d">
+    <link rel="stylesheet" href="css/styles.css?v=20260211e">
 </head>
 <body>
     <!-- Header -->
@@ -1196,12 +1196,16 @@
             </div>
 
             <!-- Strategy x Regime Matrix -->
-            <div id="strategy-matrix-card" class="card trading-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
-                <div class="card-header">
-                    <div class="card-title" style="color: var(--cyan);">STRATEGY &times; REGIME MATRIX</div>
+            <div id="strategy-matrix-card" class="card trading-card" style="border-left: 3px solid var(--magenta, #e879f9); margin-bottom: 16px;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="card-title" style="color: var(--magenta, #e879f9);">STRATEGY &times; REGIME MATRIX</div>
+                        <span id="srm-regime-badge" class="srm-regime-badge">--</span>
+                    </div>
+                    <button class="btn btn-ghost" onclick="loadStrategyMatrix()" style="padding: 3px 8px; font-size: 0.7rem;">Refresh</button>
                 </div>
                 <div class="card-body" id="strategy-matrix-body">
-                    <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No matrix data yet</div>
+                    <div class="srm-empty">Loading matrix...</div>
                 </div>
             </div>
 
@@ -1310,6 +1314,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260211f"></script>
+    <script src="js/app.js?v=20260211g"></script>
 </body>
 </html>

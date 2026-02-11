@@ -7276,135 +7276,199 @@ function renderSignalAttribution(attribution) {
 }
 
 // --- Strategy x Regime Matrix ---
+function _srmFormatRegime(regime) {
+    if (!regime) return 'Unknown';
+    return regime.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function _srmRegimeClass(regime) {
+    if (!regime) return '';
+    if (regime.includes('opportunity') || regime.includes('melt_up')) return 'regime-bullish';
+    if (regime.includes('danger') || regime.includes('high_risk')) return 'regime-bearish';
+    if (regime.includes('volatile')) return 'regime-volatile';
+    return 'regime-neutral';
+}
+
 async function loadStrategyMatrix() {
     const container = document.getElementById('strategy-matrix-body');
     if (!container) return;
-
-    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">Loading matrix...</div>';
+    container.innerHTML = '<div class="srm-empty">Loading matrix...</div>';
 
     try {
-        const [analyticsRes, journalRes] = await Promise.all([
-            safeFetchJson(`${API_BASE}/paper/analytics`),
-            safeFetchJson(`${API_BASE}/paper/journal?limit=500`)
-        ]);
-
+        const journalRes = await safeFetchJson(`${API_BASE}/paper/journal?limit=500`);
         if (!journalRes || !journalRes.ok || !journalRes.data) {
-            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No journal data available</div>';
+            container.innerHTML = '<div class="srm-empty">No journal data available</div>';
             return;
         }
 
-        const entries = journalRes.data.entries || journalRes.data || [];
-        if (!Array.isArray(entries) || entries.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades to analyze</div>';
+        const entries = Array.isArray(journalRes.data) ? journalRes.data : (journalRes.data.entries || []);
+        const closed = entries.filter(e => e.status === 'closed' && e.pnl_dollars != null);
+
+        if (closed.length === 0) {
+            container.innerHTML = '<div class="srm-empty">No closed trades to analyze yet</div>';
             return;
         }
 
-        const REGIMES = ['opportunity', 'neutral', 'pinned', 'volatile', 'danger'];
-        const REGIME_LABELS = {
-            opportunity: 'Opportunity',
-            neutral: 'Neutral',
-            pinned: 'Pinned',
-            volatile: 'Volatile',
-            danger: 'Danger'
-        };
+        // Helpers
+        const simplifyStrategy = s => s ? s.replace(/\s*\(.*\)$/, '') || s : 'Unknown';
+        const getRegime = e => (e.regime_at_entry && e.regime_at_entry.combined_regime) || null;
 
-        // Accumulate stats per (strategy, regime) pair
-        const matrix = {}; // { strategy: { regime: { wins, losses, total_pnl } } }
-        const strategies = new Set();
+        // Build data structures
+        const tickerStats = {}, strategyStats = {}, matrix = {};
+        const allRegimes = new Set(), allStrategies = new Set();
 
-        for (const entry of entries) {
-            const strategy = entry.strategy;
-            const regime = entry.signal_data && entry.signal_data.regime;
-            if (!strategy || !regime || !REGIMES.includes(regime)) continue;
-            if (entry.pnl === undefined || entry.pnl === null) continue;
+        for (const e of closed) {
+            const ticker = e.ticker, pnl = e.pnl_dollars, isWin = pnl >= 0;
+            const strategy = simplifyStrategy(e.strategy_name || e.strategy);
+            const regime = getRegime(e);
 
-            strategies.add(strategy);
-            if (!matrix[strategy]) matrix[strategy] = {};
-            if (!matrix[strategy][regime]) matrix[strategy][regime] = { wins: 0, losses: 0, total_pnl: 0 };
+            // Per ticker
+            if (!tickerStats[ticker]) tickerStats[ticker] = { wins: 0, losses: 0, pnl: 0 };
+            if (isWin) tickerStats[ticker].wins++; else tickerStats[ticker].losses++;
+            tickerStats[ticker].pnl += pnl;
 
-            const cell = matrix[strategy][regime];
-            if (entry.pnl >= 0) cell.wins++;
-            else cell.losses++;
-            cell.total_pnl += entry.pnl;
+            // Per strategy
+            if (!strategyStats[strategy]) strategyStats[strategy] = { wins: 0, losses: 0, pnl: 0 };
+            if (isWin) strategyStats[strategy].wins++; else strategyStats[strategy].losses++;
+            strategyStats[strategy].pnl += pnl;
+
+            // Matrix: strategy × regime
+            if (regime) {
+                allRegimes.add(regime);
+                allStrategies.add(strategy);
+                if (!matrix[strategy]) matrix[strategy] = {};
+                if (!matrix[strategy][regime]) matrix[strategy][regime] = { wins: 0, losses: 0, pnl: 0 };
+                const cell = matrix[strategy][regime];
+                if (isWin) cell.wins++; else cell.losses++;
+                cell.pnl += pnl;
+            }
         }
 
-        if (strategies.size === 0) {
-            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades with regime data found</div>';
-            return;
-        }
+        // Totals
+        const totalWins = closed.filter(e => e.pnl_dollars >= 0).length;
+        const totalPnl = closed.reduce((s, e) => s + (e.pnl_dollars || 0), 0);
+        const overallWr = ((totalWins / closed.length) * 100).toFixed(0);
+        const latestRegime = getRegime(entries[0]) || 'unknown';
 
-        // Compute win rates and find best per regime
-        const bestPerRegime = {};
-        for (const regime of REGIMES) {
-            let bestWr = -1;
-            let bestStrategy = null;
+        // --- Build HTML ---
+        let html = '';
+
+        // 1. Overview strip
+        html += `<div class="srm-overview">
+            <div class="srm-overview-item">
+                <span class="srm-overview-label">Current Regime</span>
+                <span class="srm-overview-value srm-regime-tag">${_srmFormatRegime(latestRegime)}</span>
+            </div>
+            <div class="srm-overview-item">
+                <span class="srm-overview-label">Win Rate</span>
+                <span class="srm-overview-value" style="color:${overallWr >= 60 ? 'var(--green)' : 'var(--red)'}">${overallWr}%</span>
+            </div>
+            <div class="srm-overview-item">
+                <span class="srm-overview-label">Total P&L</span>
+                <span class="srm-overview-value" style="color:${totalPnl >= 0 ? 'var(--green)' : 'var(--red)'}">$${totalPnl >= 0 ? '+' : ''}${totalPnl.toLocaleString()}</span>
+            </div>
+            <div class="srm-overview-item">
+                <span class="srm-overview-label">Closed Trades</span>
+                <span class="srm-overview-value">${closed.length}</span>
+            </div>
+        </div>`;
+
+        // 2. Ticker performance grid
+        const sortedTickers = Object.entries(tickerStats).sort((a, b) => (b[1].wins + b[1].losses) - (a[1].wins + a[1].losses));
+        html += '<div class="srm-section-title">PERFORMANCE BY TICKER</div>';
+        html += '<div class="srm-ticker-grid">';
+        for (const [ticker, stats] of sortedTickers) {
+            const total = stats.wins + stats.losses;
+            const wr = ((stats.wins / total) * 100).toFixed(0);
+            const wrColor = wr >= 80 ? 'var(--green)' : wr >= 50 ? 'var(--yellow)' : 'var(--red)';
+            const pnlColor = stats.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+            html += `<div class="srm-ticker-card">
+                <div class="srm-ticker-name">${ticker}</div>
+                <div class="srm-ticker-wr" style="color:${wrColor}">${wr}%</div>
+                <div class="srm-ticker-bar-track"><div class="srm-ticker-bar-fill" style="width:${wr}%;background:${wrColor};"></div></div>
+                <div class="srm-ticker-details">
+                    <span>${stats.wins}W/${stats.losses}L</span>
+                    <span style="color:${pnlColor}">$${stats.pnl >= 0 ? '+' : ''}${stats.pnl.toLocaleString()}</span>
+                </div>
+            </div>`;
+        }
+        html += '</div>';
+
+        // 3. Regime matrix table
+        if (allRegimes.size > 0 && allStrategies.size > 0) {
+            const regimes = [...allRegimes].sort();
+            const strategies = [...allStrategies].sort((a, b) => {
+                const tA = regimes.reduce((s, r) => { const c = matrix[a] && matrix[a][r]; return s + (c ? c.wins + c.losses : 0); }, 0);
+                const tB = regimes.reduce((s, r) => { const c = matrix[b] && matrix[b][r]; return s + (c ? c.wins + c.losses : 0); }, 0);
+                return tB - tA;
+            });
+
+            // Best per regime
+            const bestPerRegime = {};
+            for (const regime of regimes) {
+                let best = { strategy: null, wr: -1, total: 0 };
+                for (const strategy of strategies) {
+                    const c = matrix[strategy] && matrix[strategy][regime];
+                    if (!c) continue;
+                    const total = c.wins + c.losses;
+                    const wr = total > 0 ? c.wins / total : 0;
+                    if (wr > best.wr || (wr === best.wr && total > best.total)) best = { strategy, wr, total };
+                }
+                if (best.strategy) bestPerRegime[regime] = best.strategy;
+            }
+
+            html += '<div class="srm-section-title" style="margin-top:14px;">REGIME HEATMAP</div>';
+            html += '<table class="srm-matrix-table"><thead><tr><th>Strategy</th>';
+            for (const regime of regimes) html += `<th>${_srmFormatRegime(regime)}</th>`;
+            html += '<th>Total</th></tr></thead><tbody>';
+
             for (const strategy of strategies) {
-                const cell = matrix[strategy] && matrix[strategy][regime];
-                if (!cell) continue;
-                const total = cell.wins + cell.losses;
-                if (total === 0) continue;
-                const wr = (cell.wins / total) * 100;
-                if (wr > bestWr || (wr === bestWr && total > ((matrix[bestStrategy] && matrix[bestStrategy][regime]) ? matrix[bestStrategy][regime].wins + matrix[bestStrategy][regime].losses : 0))) {
-                    bestWr = wr;
-                    bestStrategy = strategy;
+                html += `<tr><td class="srm-strategy-name">${strategy}</td>`;
+                let stW = 0, stL = 0, stP = 0;
+                for (const regime of regimes) {
+                    const c = matrix[strategy] && matrix[strategy][regime];
+                    if (!c || (c.wins + c.losses) === 0) {
+                        html += '<td class="srm-cell-empty">&mdash;</td>';
+                    } else {
+                        const total = c.wins + c.losses;
+                        const wr = ((c.wins / total) * 100).toFixed(0);
+                        const isBest = bestPerRegime[regime] === strategy;
+                        const hue = Math.round((wr / 100) * 120);
+                        stW += c.wins; stL += c.losses; stP += c.pnl;
+                        html += `<td><div class="srm-matrix-cell${isBest ? ' srm-cell-best' : ''}" style="background:hsla(${hue},70%,50%,0.12);">
+                            <span class="srm-cell-wr" style="color:hsl(${hue},70%,60%)">${wr}%</span>
+                            <span class="srm-cell-count">${total} trade${total !== 1 ? 's' : ''}</span>
+                            <span class="srm-cell-pnl" style="color:${c.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">$${c.pnl >= 0 ? '+' : ''}${c.pnl.toLocaleString()}</span>
+                        </div></td>`;
+                    }
                 }
-            }
-            if (bestStrategy) bestPerRegime[regime] = bestStrategy;
-        }
-
-        // Sort strategies by total trades descending
-        const sortedStrategies = [...strategies].sort((a, b) => {
-            const totalA = REGIMES.reduce((sum, r) => {
-                const c = matrix[a] && matrix[a][r];
-                return sum + (c ? c.wins + c.losses : 0);
-            }, 0);
-            const totalB = REGIMES.reduce((sum, r) => {
-                const c = matrix[b] && matrix[b][r];
-                return sum + (c ? c.wins + c.losses : 0);
-            }, 0);
-            return totalB - totalA;
-        });
-
-        // Build HTML table
-        let html = '<table class="strategy-matrix-table"><thead><tr>';
-        html += '<th>Strategy</th>';
-        for (const regime of REGIMES) {
-            html += `<th>${REGIME_LABELS[regime]}</th>`;
-        }
-        html += '</tr></thead><tbody>';
-
-        for (const strategy of sortedStrategies) {
-            html += '<tr>';
-            html += `<td>${strategy}</td>`;
-            for (const regime of REGIMES) {
-                const cell = matrix[strategy] && matrix[strategy][regime];
-                if (!cell || (cell.wins + cell.losses) === 0) {
-                    html += '<td style="color: var(--text-dim);">&mdash;</td>';
-                    continue;
+                // Total column
+                const stT = stW + stL;
+                if (stT > 0) {
+                    const stWr = ((stW / stT) * 100).toFixed(0);
+                    html += `<td><div class="srm-matrix-cell srm-cell-total">
+                        <span class="srm-cell-wr">${stWr}%</span>
+                        <span class="srm-cell-count">${stT}</span>
+                        <span class="srm-cell-pnl" style="color:${stP >= 0 ? 'var(--green)' : 'var(--red)'}">$${stP >= 0 ? '+' : ''}${stP.toLocaleString()}</span>
+                    </div></td>`;
                 }
-                const total = cell.wins + cell.losses;
-                const wr = ((cell.wins / total) * 100).toFixed(0);
-                const isBest = bestPerRegime[regime] === strategy;
-
-                let wrColor = 'var(--text)';
-                if (wr > 60) wrColor = 'var(--green)';
-                else if (wr < 40) wrColor = 'var(--red)';
-
-                html += `<td><div class="matrix-cell${isBest ? ' matrix-cell-best' : ''}">`;
-                html += `<span class="matrix-cell-wr" style="color: ${wrColor};">${wr}%</span>`;
-                html += `<span class="matrix-cell-count">${total} trade${total !== 1 ? 's' : ''}</span>`;
-                html += '</div></td>';
+                html += '</tr>';
             }
-            html += '</tr>';
+            html += '</tbody></table>';
         }
 
-        html += '</tbody></table>';
         container.innerHTML = html;
+
+        // Update header badge
+        const badgeEl = document.getElementById('srm-regime-badge');
+        if (badgeEl) {
+            badgeEl.textContent = _srmFormatRegime(latestRegime);
+            badgeEl.className = 'srm-regime-badge ' + _srmRegimeClass(latestRegime);
+        }
 
     } catch (e) {
         console.error('Strategy matrix error:', e);
-        container.innerHTML = `<div style="text-align: center; color: var(--red); padding: 20px; font-size: 0.8rem;">
-            Failed to load matrix. <button class="btn btn-ghost" onclick="loadStrategyMatrix()" style="padding: 2px 8px; font-size: 0.7rem; margin-left: 8px;">Retry</button>
+        container.innerHTML = `<div class="srm-empty" style="color:var(--red);">
+            Failed to load matrix. <button class="btn btn-ghost" onclick="loadStrategyMatrix()" style="padding:2px 8px;font-size:0.7rem;margin-left:8px;">Retry</button>
         </div>`;
     }
 }
