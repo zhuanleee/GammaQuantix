@@ -8093,14 +8093,15 @@ async function updatePortfolioIntelStrip(portfolioDelta, portfolioTheta, portfol
                 const d = regimeData.data;
                 _intelStripCache.regime = d.combined_regime || d.gex_regime || null;
                 _intelStripCache.vrp = d.vrp != null ? d.vrp : (d.iv_rank != null ? d.iv_rank : null);
-                // Fallback: use spy_iv_rank from market sentiment (already loaded)
-                if (_intelStripCache.vrp == null && _lastSentimentData && _lastSentimentData.spy_iv_rank != null) {
-                    _intelStripCache.vrp = _lastSentimentData.spy_iv_rank;
-                }
                 _intelStripCache.riskLevel = d.risk_level || null;
                 _intelStripCache.ts = now;
             }
         } catch (e) { console.error('Intel strip regime fetch:', e); }
+    }
+
+    // VRP fallback: use spy_iv_rank from market sentiment (runs every cycle, not just on fetch)
+    if (_intelStripCache.vrp == null && _lastSentimentData && _lastSentimentData.spy_iv_rank != null) {
+        _intelStripCache.vrp = _lastSentimentData.spy_iv_rank;
     }
 
     // Regime
