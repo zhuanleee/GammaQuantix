@@ -7700,58 +7700,171 @@ async function resetPaperAccount() {
     } catch (e) { console.error('Reset error:', e); }
 }
 
-// --- Adaptive Intelligence (Phase 1-4) ---
+// --- Adaptive Intelligence ---
 async function loadAdaptiveIntelligence() {
     try {
         const data = await safeFetchJson(`${API_BASE}/paper/adaptive/stats`);
         if (!data || !data.ok || !data.data) return;
         const d = data.data;
+        const meta = (d.learning_tiers && d.learning_tiers.meta_adjustments) || {};
 
-        // Learning Tiers
-        const tiersEl = document.getElementById('adaptive-tiers');
+        // --- System Overview Metrics ---
+        const totalCycles = (d.learning_tiers && d.learning_tiers.total_feedback_loops) || 0;
+        const el = id => document.getElementById(id);
+
+        // Count active modules (have meaningful data)
+        let activeCount = 0, totalModules = 0;
+        if (d.learning_tiers && d.learning_tiers.tier_health) {
+            Object.values(d.learning_tiers.tier_health).forEach(t => {
+                totalModules++;
+                if (t.status !== 'cold' || t.updates > 0) activeCount++;
+            });
+        }
+        const moduleChecks = [
+            { key: 'ticker_clusters', active: d.ticker_clusters && d.ticker_clusters.tickers_tracked > 0 },
+            { key: 'regime_predictor', active: d.regime_predictor && d.regime_predictor.total_observations > 0 },
+            { key: 'param_tuner', active: d.param_tuner && d.param_tuner.total_observations > 0 },
+            { key: 'rl_policy', active: d.rl_policy && d.rl_policy.total_episodes > 0 },
+            { key: 'regime_aware_weights', active: d.regime_aware_weights && d.regime_aware_weights.global_updates > 0 },
+        ];
+        moduleChecks.forEach(c => { if (d[c.key]) { totalModules++; if (c.active) activeCount++; } });
+
+        if (el('ai-cycles')) el('ai-cycles').textContent = totalCycles;
+        if (el('ai-components')) el('ai-components').textContent = `${activeCount}/${totalModules}`;
+        if (el('ai-confidence')) el('ai-confidence').textContent = (meta.confidence_scale || 1).toFixed(2) + 'x';
+        if (el('ai-exploration')) el('ai-exploration').textContent = ((meta.exploration_rate || 0.2) * 100).toFixed(0) + '%';
+
+        // Health badge
+        const badge = el('adaptive-health-badge');
+        if (badge) {
+            const pct = activeCount / Math.max(totalModules, 1);
+            if (totalCycles >= 10) {
+                badge.textContent = `${activeCount}/${totalModules} ACTIVE`;
+                badge.className = 'ai-health-badge ' + (pct >= 0.5 ? 'active' : pct >= 0.2 ? 'partial' : 'cold');
+            } else if (totalCycles > 0) {
+                badge.textContent = 'WARMING UP';
+                badge.className = 'ai-health-badge partial';
+            } else {
+                badge.textContent = 'INITIALIZING';
+                badge.className = 'ai-health-badge cold';
+            }
+        }
+
+        // --- Learning Tiers ---
+        const tiersEl = el('adaptive-tiers');
         if (tiersEl && d.learning_tiers && d.learning_tiers.tier_health) {
             const th = d.learning_tiers.tier_health;
             tiersEl.innerHTML = ['bandit', 'regime', 'exit', 'meta'].map(tier => {
                 const status = (th[tier] && th[tier].status) || 'cold';
                 const updates = (th[tier] && th[tier].updates) || 0;
-                return `<span class="tier-badge ${status}">${tier}: ${status} (${updates})</span>`;
+                return `<span class="tier-badge ${status}"><span class="tier-dot"></span>${tier}: ${status} (${updates})</span>`;
             }).join('');
         }
 
-        // Composite Weights
-        const weightsEl = document.getElementById('adaptive-weights');
-        if (weightsEl && d.current_weights) {
-            const w = d.current_weights;
-            weightsEl.innerHTML = Object.entries(w).map(([k, v]) => {
-                const name = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                return `<span class="weight-chip">${name}: ${v}</span>`;
-            }).join('');
-        }
-
-        // Adaptive Exits
-        const exitsEl = document.getElementById('adaptive-exits');
-        if (exitsEl && d.adaptive_exits) {
-            const rows = Object.entries(d.adaptive_exits).map(([sig, params]) => {
-                const src = params.source || 'default';
-                const srcColor = src.includes('adaptive') ? 'var(--cyan)' : 'var(--text-muted)';
-                return `<div style="display:flex;justify-content:space-between;padding:2px 0;">
-                    <span>${sig.replace(/_/g, ' ')}</span>
-                    <span>SL: ${params.stop_loss_pct}% | TP: ${params.take_profit_pct}% | DTE: ${params.time_exit_dte}d
-                    <span style="color:${srcColor};font-size:0.6rem;margin-left:4px;">(${src})</span></span>
+        // --- Factor Weights (sorted bars) ---
+        const factorBarsEl = el('adaptive-factor-bars');
+        if (factorBarsEl && d.adaptive_weights && d.adaptive_weights.factors) {
+            const sorted = Object.entries(d.adaptive_weights.factors)
+                .sort((a, b) => b[1].current_weight - a[1].current_weight);
+            factorBarsEl.innerHTML = sorted.map(([name, f]) => {
+                const w = f.current_weight;
+                const wH = (f.wins_when_high || 0) + (f.wins_when_low || 0);
+                const lH = (f.losses_when_high || 0) + (f.losses_when_low || 0);
+                const barColor = w >= 70 ? 'var(--cyan)' : w >= 50 ? 'var(--green)' : w >= 30 ? 'var(--yellow)' : 'var(--text-dim)';
+                const label = name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const wl = (wH + lH) > 0 ? `${wH}W/${lH}L` : '';
+                return `<div class="ai-factor-row">
+                    <span class="ai-factor-name" title="${label}">${label}</span>
+                    <div class="ai-factor-bar-track">
+                        <div class="ai-factor-bar-fill" style="width:${Math.min(w, 100)}%;background:${barColor};"></div>
+                    </div>
+                    <span class="ai-factor-value" style="color:${barColor};">${w.toFixed(0)}</span>
+                    <span class="ai-factor-wl">${wl}</span>
                 </div>`;
             }).join('');
-            exitsEl.innerHTML = rows || '<span style="color:var(--text-muted)">No data yet</span>';
         }
 
-        // Meta Adjustments
-        if (d.learning_tiers && d.learning_tiers.meta_adjustments) {
-            const m = d.learning_tiers.meta_adjustments;
-            const confEl = document.getElementById('meta-confidence');
-            const lrEl = document.getElementById('meta-lr');
-            const expEl = document.getElementById('meta-explore');
-            if (confEl) confEl.textContent = (m.confidence_scale || 1).toFixed(2) + 'x';
-            if (lrEl) lrEl.textContent = (m.learning_rate || 0.1).toFixed(2);
-            if (expEl) expEl.textContent = (m.exploration_rate || 0.2).toFixed(2);
+        // --- Intelligence Modules ---
+        const modulesEl = el('adaptive-modules');
+        if (modulesEl) {
+            let html = '';
+
+            // Ticker Clusters
+            const tc = d.ticker_clusters || {};
+            const tcActive = tc.tickers_tracked > 0 ? 'active' : 'cold';
+            let tcStats = `<span class="ai-stat-value">${tc.tickers_tracked || 0}</span> tickers &middot; <span class="ai-stat-value">${tc.clusters_tracked || 0}</span> clusters`;
+            if (tc.cluster_summary) {
+                const best = Object.entries(tc.cluster_summary).sort((a, b) => b[1].total - a[1].total)[0];
+                if (best) tcStats += `<br>${best[0]}: <span class="ai-stat-value">${best[1].win_rate}%</span> WR (${best[1].total})`;
+            }
+            html += `<div class="ai-module-card ${tcActive}">
+                <div class="ai-module-header"><span class="ai-module-name">Ticker Clusters</span><span class="ai-module-status ${tcActive}">${tcActive}</span></div>
+                <div class="ai-module-stats">${tcStats}</div></div>`;
+
+            // Regime Predictor
+            const rp = d.regime_predictor || {};
+            const rpSt = rp.total_observations > 10 ? 'active' : rp.total_observations > 0 ? 'learning' : 'cold';
+            html += `<div class="ai-module-card ${rpSt}">
+                <div class="ai-module-header"><span class="ai-module-name">Regime Predictor</span><span class="ai-module-status ${rpSt}">${rpSt}</span></div>
+                <div class="ai-module-stats"><span class="ai-stat-value">${rp.total_observations || 0}</span> observations<br><span class="ai-stat-value">${rp.total_transitions || 0}</span> transitions</div></div>`;
+
+            // Param Tuner
+            const pt = d.param_tuner || {};
+            const ptSt = pt.params_learned > 0 ? 'active' : pt.total_observations > 0 ? 'learning' : 'cold';
+            html += `<div class="ai-module-card ${ptSt}">
+                <div class="ai-module-header"><span class="ai-module-name">Param Tuner</span><span class="ai-module-status ${ptSt}">${ptSt}</span></div>
+                <div class="ai-module-stats"><span class="ai-stat-value">${pt.total_observations || 0}</span> observations<br><span class="ai-stat-value">${pt.params_learned || 0}</span> params learned</div></div>`;
+
+            // RL Policy
+            const rl = d.rl_policy || {};
+            const rlSt = rl.total_episodes > 10 ? 'active' : rl.total_episodes > 0 ? 'learning' : 'cold';
+            html += `<div class="ai-module-card ${rlSt}">
+                <div class="ai-module-header"><span class="ai-module-name">RL Policy</span><span class="ai-module-status ${rlSt}">${rlSt}</span></div>
+                <div class="ai-module-stats"><span class="ai-stat-value">${rl.total_episodes || 0}</span> episodes<br>reward: <span class="ai-stat-value">${(rl.recent_avg_reward || 0).toFixed(2)}</span></div></div>`;
+
+            // Regime-Aware Weights (spans full width)
+            const raw = d.regime_aware_weights || {};
+            const rawSt = raw.global_updates > 0 ? 'active' : 'cold';
+            let rawStats = `<span class="ai-stat-value">${raw.global_updates || 0}</span> global updates`;
+            if (d.adaptive_weights && d.adaptive_weights.regime_weights) {
+                const rwCount = Object.keys(d.adaptive_weights.regime_weights).length;
+                rawStats += ` &middot; <span class="ai-stat-value">${rwCount}</span> regime profile${rwCount !== 1 ? 's' : ''}`;
+            }
+            html += `<div class="ai-module-card ${rawSt}" style="grid-column:1/-1;">
+                <div class="ai-module-header"><span class="ai-module-name">Regime-Aware Weights</span><span class="ai-module-status ${rawSt}">${rawSt}</span></div>
+                <div class="ai-module-stats">${rawStats}</div></div>`;
+
+            modulesEl.innerHTML = html;
+        }
+
+        // --- Exit Parameters ---
+        const exitsEl = el('adaptive-exits');
+        if (exitsEl && d.adaptive_exits) {
+            const rows = Object.entries(d.adaptive_exits).map(([sig, p]) => {
+                const isAdaptive = p.source && p.source.includes('adaptive');
+                return `<tr>
+                    <td>${sig.replace(/_/g, ' ')}</td>
+                    <td>${p.stop_loss_pct}%</td>
+                    <td>${p.take_profit_pct}%</td>
+                    <td>${p.time_exit_dte}d</td>
+                    <td>${p.sample_size || 0}</td>
+                    <td><span class="ai-source-dot ${isAdaptive ? 'adaptive' : 'default'}"></span>${isAdaptive ? p.source.replace('adaptive_by_', '') : 'default'}</td>
+                </tr>`;
+            }).join('');
+            exitsEl.innerHTML = `<table class="ai-exits-table">
+                <thead><tr><th>Signal</th><th>SL</th><th>TP</th><th>DTE</th><th>Trades</th><th>Source</th></tr></thead>
+                <tbody>${rows}</tbody></table>`;
+        }
+
+        // --- Meta Engine Footer ---
+        const metaEl = el('adaptive-meta');
+        if (metaEl) {
+            metaEl.innerHTML = `
+                <span class="ai-meta-label">Meta Engine</span>
+                <span>Confidence: <span class="ai-meta-val">${(meta.confidence_scale || 1).toFixed(2)}x</span></span>
+                <span>Learning Rate: <span class="ai-meta-val">${(meta.learning_rate || 0.1).toFixed(2)}</span></span>
+                <span>Exploration: <span class="ai-meta-val">${((meta.exploration_rate || 0.2) * 100).toFixed(0)}%</span></span>
+            `;
         }
     } catch (e) {
         console.debug('Adaptive intelligence load skipped:', e.message);

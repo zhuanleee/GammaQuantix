@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260211c">
+    <link rel="stylesheet" href="css/styles.css?v=20260211d">
 </head>
 <body>
     <!-- Header -->
@@ -1205,45 +1205,71 @@
                 </div>
             </div>
 
-            <!-- Adaptive Intelligence (Phase 1-4) -->
-            <div class="card trading-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
+            <!-- Adaptive Intelligence -->
+            <div class="card trading-card" id="adaptive-intel-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div class="card-title" style="color: var(--cyan);">Adaptive Intelligence</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="card-title" style="color: var(--cyan);">Adaptive Intelligence</div>
+                        <span id="adaptive-health-badge" class="ai-health-badge cold">--</span>
+                    </div>
                     <button class="btn btn-ghost" onclick="rebuildAdaptiveSystems()" style="padding: 3px 8px; font-size: 0.7rem;" title="Force rebuild all adaptive systems from trade journal">Rebuild</button>
                 </div>
-                <div class="card-body">
-                    <!-- Learning Tier Health -->
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">LEARNING TIERS</div>
-                        <div id="adaptive-tiers" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <span class="tier-badge cold">Bandit: cold</span>
-                            <span class="tier-badge cold">Regime: cold</span>
-                            <span class="tier-badge cold">Exit: cold</span>
-                            <span class="tier-badge cold">Meta: cold</span>
+                <div class="card-body" style="padding: 12px;">
+                    <!-- System Overview Metrics -->
+                    <div class="ai-overview" id="adaptive-overview">
+                        <div class="ai-metric-box">
+                            <div class="ai-metric-value" id="ai-cycles">--</div>
+                            <div class="ai-metric-label">Feedback Loops</div>
+                        </div>
+                        <div class="ai-metric-box">
+                            <div class="ai-metric-value" id="ai-components">--</div>
+                            <div class="ai-metric-label">Active Modules</div>
+                        </div>
+                        <div class="ai-metric-box">
+                            <div class="ai-metric-value" id="ai-confidence">--</div>
+                            <div class="ai-metric-label">Confidence</div>
+                        </div>
+                        <div class="ai-metric-box">
+                            <div class="ai-metric-value" id="ai-exploration">--</div>
+                            <div class="ai-metric-label">Exploration</div>
                         </div>
                     </div>
-                    <!-- Adaptive Weights -->
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">COMPOSITE WEIGHTS</div>
-                        <div id="adaptive-weights" style="display: flex; gap: 4px; flex-wrap: wrap; font-size: 0.7rem;">
-                            <span style="color: var(--text-muted);">Loading...</span>
+                    <!-- Learning Tiers -->
+                    <div class="ai-section">
+                        <div class="ai-section-title">LEARNING TIERS</div>
+                        <div id="adaptive-tiers" class="ai-tiers-row">
+                            <span class="tier-badge cold"><span class="tier-dot"></span>Bandit: cold</span>
+                            <span class="tier-badge cold"><span class="tier-dot"></span>Regime: cold</span>
+                            <span class="tier-badge cold"><span class="tier-dot"></span>Exit: cold</span>
+                            <span class="tier-badge cold"><span class="tier-dot"></span>Meta: cold</span>
                         </div>
                     </div>
-                    <!-- Adaptive Exits -->
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">LEARNED EXIT PARAMS</div>
-                        <div id="adaptive-exits" style="font-size: 0.7rem;">
-                            <span style="color: var(--text-muted);">No data yet</span>
+                    <!-- Two-column: Factor Weights + Intelligence Modules -->
+                    <div class="ai-columns">
+                        <div class="ai-col-left">
+                            <div class="ai-section-title">FACTOR WEIGHTS <span style="color: var(--text-dim); font-weight: 400;">(Thompson Sampling)</span></div>
+                            <div id="adaptive-factor-bars">
+                                <span style="color: var(--text-muted); font-size: 0.7rem;">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="ai-col-right">
+                            <div class="ai-section-title">INTELLIGENCE MODULES</div>
+                            <div id="adaptive-modules" class="ai-modules-grid">
+                                <span style="color: var(--text-muted); font-size: 0.7rem;">Loading...</span>
+                            </div>
                         </div>
                     </div>
-                    <!-- Meta Adjustments -->
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">META ADJUSTMENTS</div>
-                        <div id="adaptive-meta" style="font-size: 0.7rem; display: flex; gap: 12px;">
-                            <span>Confidence: <span id="meta-confidence">1.0x</span></span>
-                            <span>Learning Rate: <span id="meta-lr">0.1</span></span>
-                            <span>Exploration: <span id="meta-explore">0.2</span></span>
+                    <!-- Exit Parameters -->
+                    <div class="ai-section">
+                        <div class="ai-section-title">EXIT PARAMETERS</div>
+                        <div id="adaptive-exits">
+                            <span style="color: var(--text-muted); font-size: 0.7rem;">No data yet</span>
                         </div>
+                    </div>
+                    <!-- Meta Engine Footer -->
+                    <div id="adaptive-meta" class="ai-meta-footer">
+                        <span class="ai-meta-label">Meta Engine</span>
+                        <span style="color: var(--text-muted); font-size: 0.65rem;">Loading...</span>
                     </div>
                 </div>
             </div>
@@ -1284,6 +1310,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260211e"></script>
+    <script src="js/app.js?v=20260211f"></script>
 </body>
 </html>
