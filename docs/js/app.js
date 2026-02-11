@@ -6486,6 +6486,16 @@ let tradingRefreshInterval = null;
 let tradingEquityChart = null;
 let journalFilter = 'all';
 
+// Safe fetch helper: returns parsed JSON or null on network/parse errors
+async function safeFetchJson(url, opts) {
+    try {
+        const res = await fetch(url, opts);
+        if (!res.ok) return null;
+        const text = await res.text();
+        return JSON.parse(text);
+    } catch { return null; }
+}
+
 async function loadTradingDashboard() {
     await Promise.all([
         loadPaperAccount(),
@@ -6506,9 +6516,8 @@ async function refreshTradingDashboard() {
 // --- Account Summary ---
 async function loadPaperAccount() {
     try {
-        const res = await fetch(`${API_BASE}/paper/account`);
-        const data = await res.json();
-        if (data.ok && data.data) {
+        const data = await safeFetchJson(`${API_BASE}/paper/account`);
+        if (data && data.ok && data.data) {
             const d = data.data;
             const el = (id) => document.getElementById(id);
 
@@ -6553,10 +6562,9 @@ function buildOccSymbol(ticker, expiration, strike, optionType) {
 // --- Positions ---
 async function loadPaperPositions() {
     try {
-        const res = await fetch(`${API_BASE}/paper/positions`);
-        const data = await res.json();
+        const data = await safeFetchJson(`${API_BASE}/paper/positions`);
         const container = document.getElementById('trading-positions');
-        if (!data.ok || !data.data) {
+        if (!data || !data.ok || !data.data) {
             container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No position data</div>';
             return;
         }
@@ -6694,10 +6702,9 @@ async function loadPaperPositions() {
 // --- Signals ---
 async function loadPaperSignals() {
     try {
-        const res = await fetch(`${API_BASE}/paper/signals`);
-        const data = await res.json();
+        const data = await safeFetchJson(`${API_BASE}/paper/signals`);
         const container = document.getElementById('trading-signals');
-        if (!data.ok || !data.data || data.data.length === 0) {
+        if (!data || !data.ok || !data.data || data.data.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No active signals</div>';
             return;
         }
@@ -6728,15 +6735,14 @@ async function loadPaperSignals() {
 // --- Analytics ---
 async function loadPaperAnalytics() {
     try {
-        const res = await fetch(`${API_BASE}/paper/analytics`);
-        const data = await res.json();
-        if (!data.ok || !data.data) return;
+        const data = await safeFetchJson(`${API_BASE}/paper/analytics`);
+        if (!data || !data.ok || !data.data) return;
         const d = data.data;
         const el = (id) => document.getElementById(id);
 
         const set = (id, text, cls) => { const e = el(id); if (e) { e.textContent = text; if (cls) e.className = 'trading-metric-value ' + cls; } };
         set('perf-win-rate', (d.win_rate || 0) + '%', d.win_rate >= 50 ? 'positive' : d.win_rate > 0 ? 'negative' : '');
-        set('perf-profit-factor', d.profit_factor || 0, d.profit_factor >= 1.5 ? 'positive' : d.profit_factor > 0 ? 'negative' : '');
+        set('perf-profit-factor', d.profit_factor >= 999 ? '∞' : (d.profit_factor || 0), d.profit_factor >= 1.5 ? 'positive' : d.profit_factor > 0 ? 'negative' : '');
         set('perf-sharpe', d.sharpe_ratio || 0, d.sharpe_ratio >= 1 ? 'positive' : d.sharpe_ratio > 0 ? '' : 'negative');
         set('perf-max-dd', '-' + (d.max_drawdown_pct || 0) + '%', 'negative');
         set('perf-expectancy', '$' + (d.expectancy || 0).toFixed(0), d.expectancy >= 0 ? 'positive' : 'negative');
@@ -6772,7 +6778,7 @@ function renderStrategyBreakdown(breakdown) {
             </div>
             <div class="strategy-card-stats">
                 <div class="strategy-stat"><div class="strategy-stat-value">${stats.win_rate}%</div><div class="strategy-stat-label">Win Rate</div></div>
-                <div class="strategy-stat"><div class="strategy-stat-value">${stats.profit_factor}</div><div class="strategy-stat-label">P.Factor</div></div>
+                <div class="strategy-stat"><div class="strategy-stat-value">${stats.profit_factor >= 999 ? '∞' : stats.profit_factor}</div><div class="strategy-stat-label">P.Factor</div></div>
                 <div class="strategy-stat"><div class="strategy-stat-value">${stats.count}</div><div class="strategy-stat-label">Trades</div></div>
                 <div class="strategy-stat"><div class="strategy-stat-value">$${stats.expectancy.toFixed(0)}</div><div class="strategy-stat-label">Expect.</div></div>
             </div>
@@ -6819,9 +6825,8 @@ function renderSignalAttribution(attribution) {
 // --- Equity Curve ---
 async function loadPaperEquityCurve() {
     try {
-        const res = await fetch(`${API_BASE}/paper/equity-curve`);
-        const data = await res.json();
-        if (!data.ok || !data.data || data.data.length === 0) return;
+        const data = await safeFetchJson(`${API_BASE}/paper/equity-curve`);
+        if (!data || !data.ok || !data.data || data.data.length === 0) return;
 
         const dates = data.data.map(d => d.date);
         const equities = data.data.map(d => d.equity);
@@ -6890,11 +6895,10 @@ async function loadPaperJournal() {
     try {
         const qp = new URLSearchParams({ limit: '30' });
         if (journalFilter !== 'all') qp.set('status', journalFilter);
-        const res = await fetch(`${API_BASE}/paper/journal?${qp.toString()}`);
-        const data = await res.json();
+        const data = await safeFetchJson(`${API_BASE}/paper/journal?${qp.toString()}`);
         const container = document.getElementById('trading-journal');
 
-        if (!data.ok || !data.data || data.data.length === 0) {
+        if (!data || !data.ok || !data.data || data.data.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades yet</div>';
             return;
         }
@@ -6916,7 +6920,11 @@ async function loadPaperJournal() {
             const pnlStr = pnl != null ? (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(0) : '--';
             const pnlPctStr = t.pnl_pct != null ? ` (${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(1)}%)` : '';
             const pnlClass = pnl != null ? (pnl >= 0 ? 'pnl-positive' : 'pnl-negative') : '';
-            const reason = t.exit_reason ? t.exit_reason.replace(/_/g, ' ') : (t.status === 'open' ? 'OPEN' : '--');
+            let reason = t.exit_reason ? t.exit_reason.replace(/_/g, ' ') : (t.status === 'open' ? 'OPEN' : '--');
+            // Fix misleading reason: stop_loss with positive P&L was from mark=0 bug
+            if (t.exit_reason && t.exit_reason.startsWith('stop_loss') && pnl != null && pnl > 0) {
+                reason = 'auto close';
+            }
 
             html += `<tr>
                 <td>${dateStr}</td>
@@ -6947,9 +6955,8 @@ function filterJournal(filter) {
 // --- Config ---
 async function loadPaperConfig() {
     try {
-        const res = await fetch(`${API_BASE}/paper/config`);
-        const data = await res.json();
-        if (!data.ok || !data.data) return;
+        const data = await safeFetchJson(`${API_BASE}/paper/config`);
+        if (!data || !data.ok || !data.data) return;
         const c = data.data;
 
         // Update auto-trade toggle
@@ -7083,9 +7090,8 @@ async function resetPaperAccount() {
 // --- Adaptive Intelligence (Phase 1-4) ---
 async function loadAdaptiveIntelligence() {
     try {
-        const res = await fetch(`${API_BASE}/paper/adaptive/stats`);
-        const data = await res.json();
-        if (!data.ok || !data.data) return;
+        const data = await safeFetchJson(`${API_BASE}/paper/adaptive/stats`);
+        if (!data || !data.ok || !data.data) return;
         const d = data.data;
 
         // Learning Tiers
