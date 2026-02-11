@@ -326,8 +326,8 @@ body {
 
 .sentiment-gauge-container {
     position: relative;
-    width: 200px;
-    height: 115px;
+    width: 220px;
+    height: 125px;
     margin: 0 auto;
 }
 
@@ -335,8 +335,8 @@ body {
     position: absolute;
     top: 20%;
     left: 50%;
-    width: 120px;
-    height: 80px;
+    width: 130px;
+    height: 90px;
     transform: translateX(-50%);
     border-radius: 50%;
     background: radial-gradient(ellipse, rgba(234,179,8,0.12) 0%, transparent 70%);
@@ -381,36 +381,129 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
-/* Weighted factor bars (v2) */
+/* Confidence Decomposition (AGR/STR/DIR micro-bars) */
+.confidence-decomp {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    max-width: 200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.conf-bar-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 32px;
+    align-items: center;
+    gap: 6px;
+}
+.conf-bar-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-align: right;
+}
+.conf-bar-track {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+}
+.conf-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease, background 0.4s ease;
+    width: 0%;
+    background: var(--text-dim);
+}
+.conf-bar-val {
+    font-size: 0.55rem;
+    font-family: var(--font-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* Weighted factor bars (v2) — categorized */
 .sentiment-factors-v2 {
     display: flex;
     flex-direction: column;
     gap: 3px;
     margin-top: 10px;
-    max-width: 240px;
-    margin-left: auto;
-    margin-right: auto;
 }
-.sf2-row {
-    display: grid;
-    grid-template-columns: 96px 1fr 38px;
+/* Category header */
+.sf2-cat-header {
+    display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.6rem;
+    margin-top: 6px;
+    margin-bottom: 2px;
+}
+.sf2-cat-header:first-child { margin-top: 0; }
+.sf2-cat-pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.sf2-cat-pip.cat-volatility { background: var(--cyan); }
+.sf2-cat-pip.cat-flow { background: var(--green); }
+.sf2-cat-pip.cat-credit { background: var(--orange); }
+.sf2-cat-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+.sf2-cat-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+}
+/* Factor row — taller and more readable */
+.sf2-row {
+    display: grid;
+    grid-template-columns: 4px 80px 30px 1fr 40px 40px;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background 0.15s ease;
+}
+.sf2-row:hover {
+    background: rgba(255,255,255,0.03);
+}
+.sf2-cat-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 .sf2-label {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     color: var(--text-muted);
-    text-align: right;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.sf2-weight {
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    font-weight: 500;
+    font-family: var(--font-mono, monospace);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
 .sf2-bar-track {
-    height: 6px;
-    border-radius: 3px;
+    height: 10px;
+    border-radius: 5px;
     background: rgba(255,255,255,0.04);
     position: relative;
     overflow: hidden;
@@ -429,7 +522,7 @@ body {
     position: absolute;
     top: 0;
     height: 100%;
-    border-radius: 3px;
+    border-radius: 5px;
     transition: width 0.5s ease, left 0.5s ease, right 0.5s ease;
 }
 .sf2-bar-fill.bullish {
@@ -440,18 +533,39 @@ body {
     right: 50%;
     background: linear-gradient(270deg, rgba(239,68,68,0.5), rgba(239,68,68,0.9));
 }
-.sf2-signal {
+.sf2-zscore {
     font-family: var(--font-mono, monospace);
-    font-weight: 700;
+    font-weight: 500;
     font-size: 0.6rem;
     text-align: right;
     font-variant-numeric: tabular-nums;
-}
-.sf2-weight {
-    font-size: 0.45rem;
     color: var(--text-dim);
-    font-weight: 400;
-    margin-left: 2px;
+}
+.sf2-signal {
+    font-family: var(--font-mono, monospace);
+    font-weight: 700;
+    font-size: 0.65rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Z-score pips on metric cards */
+.zscore-pip {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    vertical-align: middle;
+    margin-left: 3px;
+    transition: background 0.3s ease;
+}
+.zscore-pip.z-extreme {
+    animation: zpulse 1.2s ease-in-out infinite;
+}
+@keyframes zpulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.4); }
 }
 
 /* SPX Institutional Strip */
@@ -496,17 +610,41 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+/* Hero grid: fixed left gauge, fluid right */
 .options-hero-grid {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 280px 1fr;
     gap: 24px;
-    align-items: center;
+    align-items: start;
 }
 
+/* Metric cards: 3x2 grid */
 .options-metrics-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
+}
+
+/* Responsive: hero grid */
+@media (max-width: 1200px) {
+    .options-hero-grid {
+        grid-template-columns: 1fr;
+    }
+    .sentiment-gauge-wrapper {
+        max-width: 300px;
+        margin: 0 auto;
+    }
+}
+@media (max-width: 768px) {
+    .options-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .sf2-row {
+        grid-template-columns: 4px 70px 1fr 40px;
+    }
+    .sf2-weight, .sf2-zscore {
+        display: none;
+    }
 }
 
 .metric-card {

@@ -3814,6 +3814,13 @@ async function loadMarketSentiment() {
             if (vixSpark && _sparklineData.vix) renderSparkline(vixSpark, _sparklineData.vix);
             document.getElementById('vix-label').textContent = vix > 25 ? 'High Fear' : vix < 15 ? 'Low Fear' : 'Normal';
 
+            // VRP card
+            _populateVrpCard(sentiment);
+            // SKEW INDEX card
+            _populateSkewCard(sentiment);
+            // HY SPREAD card
+            _populateHyCard(sentiment);
+
             // SPX Institutional Strip
             _renderSpxStrip(sentiment);
 
@@ -3834,11 +3841,88 @@ async function loadMarketSentiment() {
     }
 }
 
+function _populateVrpCard(sentiment) {
+    const vrp = sentiment.vrp;
+    const el = document.getElementById('vrp-value');
+    const sub = document.getElementById('vrp-label');
+    if (!el) return;
+    if (vrp != null) {
+        el.textContent = (vrp > 0 ? '+' : '') + vrp.toFixed(1);
+        el.style.color = vrp > 0 ? 'var(--green)' : 'var(--red)';
+        sub.textContent = vrp > 0 ? 'IV > RV' : 'RV > IV';
+    } else {
+        el.textContent = '--';
+        sub.textContent = 'N/A';
+    }
+    const card = document.getElementById('metric-card-vrp');
+    if (card) card.className = 'metric-card hero-metric accent-' + (vrp > 0 ? 'green' : vrp != null ? 'red' : 'yellow');
+    _updateZscorePip('zscore-pip-vrp', sentiment.factors && sentiment.factors.vrp ? sentiment.factors.vrp.zscore : null);
+}
+
+function _populateSkewCard(sentiment) {
+    const skew = sentiment.skew_index;
+    const el = document.getElementById('skew-value');
+    const sub = document.getElementById('skew-label');
+    if (!el) return;
+    if (skew != null) {
+        el.textContent = skew.toFixed(0);
+        el.style.color = skew > 145 ? 'var(--red)' : skew > 130 ? 'var(--yellow)' : 'var(--green)';
+        sub.textContent = skew > 145 ? 'Tail Hedging' : skew > 130 ? 'Elevated' : 'Normal';
+    } else {
+        el.textContent = '--';
+        sub.textContent = 'N/A';
+    }
+    const card = document.getElementById('metric-card-skew');
+    if (card) card.className = 'metric-card hero-metric accent-' + (skew > 145 ? 'red' : skew > 130 ? 'yellow' : 'green');
+    _updateZscorePip('zscore-pip-skew', sentiment.factors && sentiment.factors.skew_idx ? sentiment.factors.skew_idx.zscore : null);
+}
+
+function _populateHyCard(sentiment) {
+    const hy = sentiment.hy_oas_bps;
+    const el = document.getElementById('hy-value');
+    const sub = document.getElementById('hy-label');
+    if (!el) return;
+    if (hy != null) {
+        el.textContent = hy.toFixed(0) + 'bp';
+        el.style.color = hy > 600 ? 'var(--red)' : hy > 450 ? 'var(--orange)' : hy > 350 ? 'var(--yellow)' : 'var(--green)';
+        sub.textContent = hy > 600 ? 'Stress' : hy > 450 ? 'Wide' : hy > 350 ? 'Normal' : 'Tight';
+    } else {
+        el.textContent = '--';
+        sub.textContent = 'N/A';
+    }
+    const card = document.getElementById('metric-card-hy');
+    if (card) card.className = 'metric-card hero-metric accent-' + (hy > 600 ? 'red' : hy > 450 ? 'yellow' : 'green');
+    _updateZscorePip('zscore-pip-hy', sentiment.factors && sentiment.factors.hy_oas ? sentiment.factors.hy_oas.zscore : null);
+}
+
+function _updateZscorePip(id, zscore) {
+    const pip = document.getElementById(id);
+    if (!pip) return;
+    if (zscore == null) {
+        pip.style.background = 'var(--text-dim)';
+        pip.classList.remove('z-extreme');
+        return;
+    }
+    const absZ = Math.abs(zscore);
+    if (absZ >= 2) {
+        pip.style.background = zscore > 0 ? 'var(--red)' : 'var(--green)';
+        pip.classList.add('z-extreme');
+    } else if (absZ >= 1) {
+        pip.style.background = zscore > 0 ? 'var(--yellow)' : 'var(--cyan)';
+        pip.classList.remove('z-extreme');
+    } else {
+        pip.style.background = 'var(--text-dim)';
+        pip.classList.remove('z-extreme');
+    }
+}
+
 function _renderSpxStrip(sentiment) {
     const spx = sentiment.spx || {};
     const spxGex = spx.total_gex || 0;
     const ivRank = sentiment.spy_iv_rank;
+    const ivPctl = sentiment.spy_iv_percentile;
     const skew = sentiment.spy_skew_ratio;
+    const rv = sentiment.realized_vol;
     const zeroDte = sentiment.zero_dte_volume || 0;
 
     // SPX GEX
@@ -3857,11 +3941,29 @@ function _renderSpxStrip(sentiment) {
         ivEl.style.color = ivRank > 80 ? 'var(--red)' : ivRank < 20 ? 'var(--green)' : 'var(--text)';
     }
 
+    // IV Percentile
+    const ivPctlEl = document.getElementById('spx-iv-pctl');
+    if (ivPctlEl && ivPctl != null) {
+        ivPctlEl.textContent = ivPctl.toFixed(0) + '%';
+        ivPctlEl.style.color = ivPctl > 80 ? 'var(--red)' : ivPctl < 20 ? 'var(--green)' : 'var(--text)';
+    }
+
     // Skew
     const skewEl = document.getElementById('spx-skew-ratio');
     if (skewEl && skew != null) {
         skewEl.textContent = skew.toFixed(2) + 'x';
         skewEl.style.color = skew > 1.5 ? 'var(--yellow)' : 'var(--text)';
+    }
+
+    // RV 20d
+    const rvEl = document.getElementById('spx-rv-20d');
+    if (rvEl) {
+        if (rv != null) {
+            rvEl.textContent = rv.toFixed(1) + '%';
+            rvEl.style.color = rv > 25 ? 'var(--red)' : rv < 12 ? 'var(--green)' : 'var(--text)';
+        } else {
+            rvEl.textContent = '--';
+        }
     }
 
     // 0DTE Volume
@@ -3890,7 +3992,6 @@ async function loadMarketSentimentForExpiry() {
     }
 
     document.getElementById('spy-pc-ratio').textContent = '...';
-    document.getElementById('spy-max-pain').textContent = '...';
     document.getElementById('market-gex').textContent = '...';
     document.getElementById('spy-call-put-oi').textContent = '...';
 
@@ -3940,21 +4041,17 @@ async function loadMarketSentimentForExpiry() {
         if (gexSpark && _sparklineData.gex) renderSparkline(gexSpark, _sparklineData.gex);
         document.getElementById('gex-label').textContent = gexValue > 0 ? 'Stabilizing' : 'Volatile';
 
-        // Max Pain
-        const maxPainEl = document.getElementById('spy-max-pain');
-        const distEl = document.getElementById('spy-max-pain-dist');
+        // Max Pain — moved to SPX strip
         const maxPain = mp.max_pain_price || 0;
-        maxPainEl.textContent = maxPain > 0 ? '$' + maxPain.toFixed(0) : '--';
-
-        const dist = mp.distance_pct || 0;
-        const direction = mp.direction || '';
-        const arrow = direction === 'above' ? '\u2193' : direction === 'below' ? '\u2191' : '';
-        distEl.textContent = (dist > 0 ? '+' : '') + dist.toFixed(1) + '% ' + arrow;
-        distEl.style.color = Math.abs(dist) < 2 ? 'var(--green)' : Math.abs(dist) < 5 ? 'var(--yellow)' : 'var(--text-muted)';
+        const spxMpEl = document.getElementById('spx-max-pain');
+        if (spxMpEl) {
+            spxMpEl.textContent = maxPain > 0 ? '$' + maxPain.toFixed(0) : '--';
+            const dist = mp.distance_pct || 0;
+            spxMpEl.style.color = Math.abs(dist) < 2 ? 'var(--green)' : Math.abs(dist) < 5 ? 'var(--yellow)' : 'var(--text)';
+        }
 
         // Update gauge: merge expiry-specific data into cached sentiment
         if (_lastSentimentData) {
-            // Update SPY GEX in the cached data for accurate display
             _lastSentimentData._spyGex = gexValue;
             _lastSentimentData._spyPcRatio = pcRatio;
             updateSentimentGauge(_lastSentimentData);
@@ -3962,42 +4059,68 @@ async function loadMarketSentimentForExpiry() {
 
     } catch (e) {
         console.error('Failed to load sentiment for expiry:', e);
-        document.getElementById('spy-max-pain').textContent = '--';
-        document.getElementById('spy-max-pain-dist').textContent = 'N/A';
     }
 }
 
 // =============================================================================
 // SENTIMENT GAUGE (uses backend composite score + factor breakdown)
 // =============================================================================
+
+function _formatFactorRaw(key, raw) {
+    if (raw == null) return '--';
+    if (key === 'spx_gex') {
+        if (Math.abs(raw) >= 1e9) return '$' + (raw / 1e9).toFixed(1) + 'B';
+        if (Math.abs(raw) >= 1e6) return '$' + (raw / 1e6).toFixed(0) + 'M';
+        return raw === 0 ? '--' : '$' + (raw / 1e3).toFixed(0) + 'K';
+    }
+    if (key === 'vix') return raw.toFixed(1);
+    if (key === 'spy_pc' || key === 'spy_skew') return raw.toFixed(2);
+    if (key === 'vix_ts') return raw.toFixed(3);
+    if (key === 'vrp') return (raw > 0 ? '+' : '') + raw.toFixed(1);
+    if (key === 'skew_idx') return raw.toFixed(0);
+    if (key === 'hy_oas') return raw.toFixed(0) + 'bp';
+    return typeof raw === 'number' ? raw.toFixed(2) : String(raw);
+}
+
+function _renderConfBar(id, valId, value) {
+    const bar = document.getElementById(id);
+    const val = document.getElementById(valId);
+    if (!bar || !val) return;
+    const v = Math.max(0, Math.min(100, value || 0));
+    bar.style.width = v + '%';
+    val.textContent = Math.round(v) + '%';
+    if (v >= 70) { bar.style.background = 'var(--green)'; val.style.color = 'var(--green)'; }
+    else if (v >= 40) { bar.style.background = 'var(--yellow)'; val.style.color = 'var(--yellow)'; }
+    else { bar.style.background = 'var(--text-dim)'; val.style.color = 'var(--text-dim)'; }
+}
+
 function updateSentimentGauge(sentiment) {
-    // Use backend composite score as source of truth
     const score = sentiment.market_sentiment_score || 50;
     const label_text = sentiment.market_label || 'Neutral';
     const confidence = sentiment.confidence || 0;
     const factors = sentiment.factors || {};
     const vix = sentiment.vix || 20;
 
+    // Needle — SVG coordinates for 220x125 viewbox: pivot at 110,105, radius 88
     const angle = -90 + (score / 100) * 180;
-
-    // Needle
     const needle = document.getElementById('sentiment-needle');
-    if (needle) needle.setAttribute('transform', 'rotate(' + angle + ', 100, 95)');
+    if (needle) needle.setAttribute('transform', 'rotate(' + angle + ', 110, 105)');
 
     // Score text in SVG
     const scoreText = document.getElementById('sentiment-score-text');
     if (scoreText) scoreText.textContent = Math.round(score);
 
-    // Confidence badge with decomposition tooltip
+    // Confidence badge
     const confEl = document.getElementById('sentiment-confidence');
     if (confEl) {
         confEl.textContent = Math.round(confidence) + '% conf';
         confEl.style.color = confidence >= 60 ? 'var(--green)' : confidence >= 30 ? 'var(--text-muted)' : 'var(--text-dim)';
-        const ag = sentiment.confidence_agreement || 0;
-        const st = sentiment.confidence_strength || 0;
-        const di = sentiment.confidence_directionality || 0;
-        confEl.title = 'Agreement: ' + Math.round(ag) + '% | Strength: ' + Math.round(st) + '% | Direction: ' + Math.round(di) + '%';
     }
+
+    // Confidence decomposition bars
+    _renderConfBar('conf-bar-agr', 'conf-val-agr', sentiment.confidence_agreement);
+    _renderConfBar('conf-bar-str', 'conf-val-str', sentiment.confidence_strength);
+    _renderConfBar('conf-bar-dir', 'conf-val-dir', sentiment.confidence_directionality);
 
     // Glow
     const glow = document.getElementById('sentiment-glow');
@@ -4012,7 +4135,6 @@ function updateSentimentGauge(sentiment) {
     const labelColor = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--text)' : 'var(--red)';
     if (labelEl) { labelEl.textContent = label_text.toUpperCase(); labelEl.style.color = labelColor; }
 
-    // Description: summarize dominant factor
     if (description) {
         const sortedFactors = Object.values(factors).sort((a, b) => Math.abs(b.signal * b.weight) - Math.abs(a.signal * a.weight));
         const dominant = sortedFactors[0];
@@ -4024,45 +4146,57 @@ function updateSentimentGauge(sentiment) {
         }
     }
 
-    // Weighted factor bars
+    // Categorized factor bars
     const factorsEl = document.getElementById('sentiment-factors');
     if (factorsEl) {
-        // Render in weight order (highest weight first)
-        const ordered = Object.entries(factors).sort((a, b) => b[1].weight - a[1].weight);
-        factorsEl.innerHTML = ordered.map(([key, f]) => {
-            const signal = f.signal || 0;
-            const weightPct = Math.round(f.weight * 100);
-            const barWidth = Math.abs(signal) * 50; // signal -1..+1 maps to 0..50% of half-bar
-            const cls = signal >= 0 ? 'bullish' : 'bearish';
-            const color = signal > 0 ? 'var(--green)' : signal < 0 ? 'var(--red)' : 'var(--text-dim)';
-            // Format raw value
-            let rawFmt = '';
-            const raw = f.raw;
-            if (key === 'spx_gex') {
-                if (Math.abs(raw) >= 1e9) rawFmt = '$' + (raw / 1e9).toFixed(1) + 'B';
-                else if (Math.abs(raw) >= 1e6) rawFmt = '$' + (raw / 1e6).toFixed(0) + 'M';
-                else rawFmt = raw === 0 ? '--' : '$' + (raw / 1e3).toFixed(0) + 'K';
-            } else if (key === 'vix') {
-                rawFmt = raw.toFixed(1);
-            } else if (key === 'spy_pc' || key === 'spy_skew') {
-                rawFmt = raw.toFixed(2);
-            } else if (key === 'vix_ts') {
-                rawFmt = raw != null ? raw.toFixed(3) : '--';
-            } else if (key === 'vrp') {
-                rawFmt = raw != null ? raw.toFixed(1) : '--';
-            } else if (key === 'skew_idx') {
-                rawFmt = raw != null ? raw.toFixed(0) : '--';
-            } else if (key === 'hy_oas') {
-                rawFmt = raw != null ? raw.toFixed(0) + 'bp' : '--';
-            } else {
-                rawFmt = typeof raw === 'number' ? raw.toFixed(2) : String(raw);
+        const CAT_ORDER = ['Volatility', 'Flow', 'Credit'];
+        const CAT_COLORS = { Volatility: 'cat-volatility', Flow: 'cat-flow', Credit: 'cat-credit' };
+        const CAT_DOT_COLORS = { Volatility: 'var(--cyan)', Flow: 'var(--green)', Credit: 'var(--orange)' };
+
+        // Group factors by category
+        const grouped = {};
+        for (const [key, f] of Object.entries(factors)) {
+            const cat = f.category || 'Other';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push([key, f]);
+        }
+
+        let html = '';
+        for (const cat of CAT_ORDER) {
+            const items = grouped[cat];
+            if (!items || items.length === 0) continue;
+            const pipCls = CAT_COLORS[cat] || '';
+            html += '<div class="sf2-cat-header"><span class="sf2-cat-pip ' + pipCls + '"></span><span class="sf2-cat-label">' + cat.toUpperCase() + '</span><span class="sf2-cat-line"></span></div>';
+
+            for (const [key, f] of items) {
+                const signal = f.signal || 0;
+                const weightPct = Math.round(f.weight * 100);
+                const barWidth = Math.abs(signal) * 50;
+                const cls = signal >= 0 ? 'bullish' : 'bearish';
+                const color = signal > 0 ? 'var(--green)' : signal < 0 ? 'var(--red)' : 'var(--text-dim)';
+                const dotColor = CAT_DOT_COLORS[cat] || 'var(--text-dim)';
+
+                // Z-score display
+                let zFmt = '--';
+                let zColor = 'var(--text-dim)';
+                if (f.zscore != null) {
+                    const absZ = Math.abs(f.zscore);
+                    zFmt = 'z' + (f.zscore >= 0 ? '+' : '') + f.zscore.toFixed(1);
+                    if (absZ >= 2) zColor = f.zscore > 0 ? 'var(--red)' : 'var(--green)';
+                    else if (absZ >= 1) zColor = 'var(--yellow)';
+                }
+
+                html += '<div class="sf2-row" title="' + f.label + ': ' + _formatFactorRaw(key, f.raw) + '">' +
+                    '<span class="sf2-cat-dot" style="background:' + dotColor + '"></span>' +
+                    '<span class="sf2-label">' + f.label + '</span>' +
+                    '<span class="sf2-weight">' + weightPct + '%</span>' +
+                    '<div class="sf2-bar-track"><div class="sf2-bar-fill ' + cls + '" style="width:' + barWidth + '%;"></div></div>' +
+                    '<span class="sf2-zscore" style="color:' + zColor + '">' + zFmt + '</span>' +
+                    '<span class="sf2-signal" style="color:' + color + '">' + (signal > 0 ? '+' : '') + signal.toFixed(2) + '</span>' +
+                '</div>';
             }
-            return '<div class="sf2-row">' +
-                '<span class="sf2-label" title="' + f.label + ' (' + weightPct + '% weight)">' + f.label + ' <span class="sf2-weight">' + weightPct + '%</span></span>' +
-                '<div class="sf2-bar-track"><div class="sf2-bar-fill ' + cls + '" style="width:' + barWidth + '%;"></div></div>' +
-                '<span class="sf2-signal" style="color:' + color + '">' + (signal > 0 ? '+' : '') + signal.toFixed(2) + '</span>' +
-            '</div>';
-        }).join('');
+        }
+        factorsEl.innerHTML = html;
     }
 
     // Metric card accents
@@ -4073,8 +4207,6 @@ function updateSentimentGauge(sentiment) {
     if (vixCard) vixCard.className = 'metric-card hero-metric accent-' + (vix > 25 ? 'red' : vix < 15 ? 'green' : 'yellow');
     const pcCard = document.getElementById('metric-card-pc');
     if (pcCard) pcCard.className = 'metric-card hero-metric accent-' + (pcRatio > 1.0 ? 'red' : pcRatio < 0.7 ? 'green' : 'yellow');
-    const mpCard = document.getElementById('metric-card-mp');
-    if (mpCard) mpCard.className = 'metric-card hero-metric accent-purple';
     const gexCard = document.getElementById('metric-card-gex');
     if (gexCard) gexCard.className = 'metric-card hero-metric accent-' + (typeof gexValue === 'number' && gexValue > 0 ? 'green' : 'red');
 }

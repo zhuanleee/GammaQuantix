@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260212b">
+    <link rel="stylesheet" href="css/styles.css?v=20260212e">
 </head>
 <body>
     <!-- Header -->
@@ -34,12 +34,12 @@
         <!-- TIER 1: Market Sentiment Hero Zone -->
         <div class="hero-zone">
             <div class="options-hero-grid">
-                <!-- Left: Visual Sentiment Gauge -->
+                <!-- ZONE A: Gauge + Confidence Decomposition -->
                 <div class="sentiment-gauge-wrapper" title="8-factor institutional sentiment: VIX, VIX T.S., VRP, SKEW, HY Spread, SPX GEX, SPY P/C, Put Skew. Z-score normalized, equal-weighted, I²-based confidence.">
                     <div class="sentiment-gauge-title">MARKET SENTIMENT <span class="sentiment-confidence-badge" id="sentiment-confidence">--% conf</span></div>
                     <div class="sentiment-gauge-container">
                         <div class="sentiment-gauge-glow" id="sentiment-glow"></div>
-                        <svg viewBox="0 0 200 115" class="sentiment-gauge-svg">
+                        <svg viewBox="0 0 220 125" class="sentiment-gauge-svg">
                             <defs>
                                 <linearGradient id="sentimentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                                     <stop offset="0%" stop-color="#ef4444"/>
@@ -62,37 +62,42 @@
                                 </filter>
                             </defs>
                             <!-- Background track -->
-                            <path d="M 20 95 A 80 80 0 0 1 180 95" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-linecap="round"/>
+                            <path d="M 22 105 A 88 88 0 0 1 198 105" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-linecap="round"/>
                             <!-- Glowing arc -->
-                            <path d="M 20 95 A 80 80 0 0 1 180 95" fill="none" stroke="url(#sentimentGradient)" stroke-width="10" stroke-linecap="round" filter="url(#arcGlow)"/>
+                            <path d="M 22 105 A 88 88 0 0 1 198 105" fill="none" stroke="url(#sentimentGradient)" stroke-width="10" stroke-linecap="round" filter="url(#arcGlow)"/>
                             <!-- Tick marks -->
-                            <line x1="24" y1="82" x2="28" y2="86" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
-                            <line x1="52" y1="47" x2="55" y2="51" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
-                            <line x1="100" y1="18" x2="100" y2="23" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
-                            <line x1="148" y1="47" x2="145" y2="51" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
-                            <line x1="176" y1="82" x2="172" y2="86" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                            <line x1="26" y1="91" x2="30" y2="95" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                            <line x1="57" y1="52" x2="60" y2="56" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                            <line x1="110" y1="20" x2="110" y2="25" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+                            <line x1="163" y1="52" x2="160" y2="56" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+                            <line x1="194" y1="91" x2="190" y2="95" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
                             <!-- Needle -->
-                            <g id="sentiment-needle" transform="rotate(0, 100, 95)" filter="url(#needleShadow)">
-                                <line x1="100" y1="95" x2="100" y2="30" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
-                                <circle cx="100" cy="95" r="5" fill="white" opacity="0.95"/>
-                                <circle cx="100" cy="95" r="2.5" fill="var(--bg-elevated)"/>
+                            <g id="sentiment-needle" transform="rotate(0, 110, 105)" filter="url(#needleShadow)">
+                                <line x1="110" y1="105" x2="110" y2="32" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+                                <circle cx="110" cy="105" r="5" fill="white" opacity="0.95"/>
+                                <circle cx="110" cy="105" r="2.5" fill="var(--bg-elevated)"/>
                             </g>
-                            <!-- Score display in center -->
-                            <text x="100" y="78" text-anchor="middle" fill="white" font-size="20" font-weight="800" font-family="'SF Mono', 'Fira Code', monospace" opacity="0.2" id="sentiment-score-text">--</text>
-                            <!-- Labels along arc -->
-                            <text x="18" y="112" fill="var(--text-dim)" font-size="8" text-anchor="start" font-family="Inter, sans-serif">Bearish</text>
-                            <text x="100" y="112" fill="var(--text-dim)" font-size="8" text-anchor="middle" font-family="Inter, sans-serif">Neutral</text>
-                            <text x="182" y="112" fill="var(--text-dim)" font-size="8" text-anchor="end" font-family="Inter, sans-serif">Bullish</text>
+                            <!-- Score display -->
+                            <text x="110" y="86" text-anchor="middle" fill="white" font-size="22" font-weight="800" font-family="'SF Mono', 'Fira Code', monospace" opacity="0.2" id="sentiment-score-text">--</text>
+                            <!-- Labels -->
+                            <text x="18" y="122" fill="var(--text-dim)" font-size="8" text-anchor="start" font-family="Inter, sans-serif">Bearish</text>
+                            <text x="110" y="122" fill="var(--text-dim)" font-size="8" text-anchor="middle" font-family="Inter, sans-serif">Neutral</text>
+                            <text x="202" y="122" fill="var(--text-dim)" font-size="8" text-anchor="end" font-family="Inter, sans-serif">Bullish</text>
                         </svg>
                     </div>
                     <div class="sentiment-label" id="sentiment-label">--</div>
                     <div class="sentiment-description" id="sentiment-description">Loading...</div>
-                    <!-- Weighted factor bars -->
-                    <div class="sentiment-factors-v2" id="sentiment-factors"></div>
+                    <!-- Confidence Decomposition: AGR / STR / DIR micro-bars -->
+                    <div class="confidence-decomp" id="confidence-decomp">
+                        <div class="conf-bar-row"><span class="conf-bar-label">AGR</span><div class="conf-bar-track"><div class="conf-bar-fill" id="conf-bar-agr"></div></div><span class="conf-bar-val" id="conf-val-agr">--</span></div>
+                        <div class="conf-bar-row"><span class="conf-bar-label">STR</span><div class="conf-bar-track"><div class="conf-bar-fill" id="conf-bar-str"></div></div><span class="conf-bar-val" id="conf-val-str">--</span></div>
+                        <div class="conf-bar-row"><span class="conf-bar-label">DIR</span><div class="conf-bar-track"><div class="conf-bar-fill" id="conf-bar-dir"></div></div><span class="conf-bar-val" id="conf-val-dir">--</span></div>
+                    </div>
                 </div>
 
-                <!-- Center: Key Metrics Grid + SPX Panel -->
+                <!-- ZONE B + C: Metrics + Factors -->
                 <div>
+                    <!-- ZONE B: 6 Metric Cards (3x2 grid) -->
                     <div class="options-metrics-grid">
                         <div class="metric-card hero-metric" id="metric-card-vix" title="CBOE Volatility Index - measures expected 30-day S&P 500 volatility. Below 15 = low fear, 15-25 = normal, above 25 = elevated fear.">
                             <div class="metric-label">VIX</div>
@@ -104,52 +109,76 @@
                             <div class="metric-value" id="spy-pc-ratio">--</div><span class="sparkline-container" id="sparkline-pc-ratio"></span>
                             <div class="metric-sub" id="spy-pc-label">--</div>
                         </div>
-                        <div class="metric-card hero-metric" id="metric-card-mp" title="Max Pain - strike where option buyers lose most. Price gravitates here near expiry.">
-                            <div class="metric-label">MAX PAIN</div>
-                            <div class="metric-value" id="spy-max-pain">--</div>
-                            <div class="metric-sub" id="spy-max-pain-dist">--</div>
-                        </div>
                         <div class="metric-card hero-metric" id="metric-card-gex" title="SPY Gamma Exposure. Positive = stabilizing (dealers sell rallies/buy dips). Negative = volatile.">
                             <div class="metric-label">SPY GEX</div>
                             <div class="metric-value" id="market-gex">--</div><span class="sparkline-container" id="sparkline-gex"></span>
                             <div class="metric-sub" id="gex-label">--</div>
                         </div>
-                    </div>
-                    <!-- SPX Institutional Strip -->
-                    <div class="spx-strip" id="spx-strip">
-                        <div class="spx-strip-label">SPX INSTITUTIONAL</div>
-                        <div class="spx-strip-items">
-                            <div class="spx-strip-item">
-                                <span class="spx-strip-key">GEX</span>
-                                <span class="spx-strip-val" id="spx-gex-value">--</span>
-                            </div>
-                            <div class="spx-strip-item">
-                                <span class="spx-strip-key">IV Rank</span>
-                                <span class="spx-strip-val" id="spx-iv-rank">--</span>
-                            </div>
-                            <div class="spx-strip-item">
-                                <span class="spx-strip-key">Skew</span>
-                                <span class="spx-strip-val" id="spx-skew-ratio">--</span>
-                            </div>
-                            <div class="spx-strip-item">
-                                <span class="spx-strip-key">0DTE Vol</span>
-                                <span class="spx-strip-val" id="spx-0dte-vol">--</span>
-                            </div>
+                        <div class="metric-card hero-metric" id="metric-card-vrp" title="Volatility Risk Premium = VIX - Realized Vol. Positive = implied > realized (normal). Negative = unusual stress.">
+                            <div class="metric-label">VRP <span class="zscore-pip" id="zscore-pip-vrp"></span></div>
+                            <div class="metric-value" id="vrp-value">--</div>
+                            <div class="metric-sub" id="vrp-label">--</div>
+                        </div>
+                        <div class="metric-card hero-metric" id="metric-card-skew" title="CBOE SKEW Index - measures tail risk premium. Above 145 = elevated crash hedging, below 120 = complacent.">
+                            <div class="metric-label">SKEW INDEX <span class="zscore-pip" id="zscore-pip-skew"></span></div>
+                            <div class="metric-value" id="skew-value">--</div>
+                            <div class="metric-sub" id="skew-label">--</div>
+                        </div>
+                        <div class="metric-card hero-metric" id="metric-card-hy" title="High Yield OAS Credit Spread (bps). Wide = stress (>450bp), tight = complacent (<350bp).">
+                            <div class="metric-label">HY SPREAD <span class="zscore-pip" id="zscore-pip-hy"></span></div>
+                            <div class="metric-value" id="hy-value">--</div>
+                            <div class="metric-sub" id="hy-label">--</div>
                         </div>
                     </div>
-                    <!-- Expiry selector -->
-                    <div class="expiry-bar">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 0.7rem; color: var(--text-muted);">SPY Expiry:</span>
-                            <select id="market-sentiment-expiry" onchange="loadMarketSentimentForExpiry()">
-                                <option value="">Loading...</option>
-                            </select>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 0.65rem; color: var(--text-muted);" id="spy-call-put-oi">--</span>
-                            <button class="btn btn-ghost" onclick="loadMarketSentiment()" style="font-size: 0.7rem; padding: 4px 10px;">Refresh</button>
-                        </div>
+                    <!-- ZONE C: Categorized Factor Breakdown -->
+                    <div class="sentiment-factors-v2" id="sentiment-factors"></div>
+                </div>
+            </div>
+            <!-- SPX Institutional Strip (full width) -->
+            <div class="spx-strip" id="spx-strip">
+                <div class="spx-strip-label">SPX INSTITUTIONAL</div>
+                <div class="spx-strip-items">
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">GEX</span>
+                        <span class="spx-strip-val" id="spx-gex-value">--</span>
                     </div>
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">IV Rank</span>
+                        <span class="spx-strip-val" id="spx-iv-rank">--</span>
+                    </div>
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">IV Pctl</span>
+                        <span class="spx-strip-val" id="spx-iv-pctl">--</span>
+                    </div>
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">Skew</span>
+                        <span class="spx-strip-val" id="spx-skew-ratio">--</span>
+                    </div>
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">RV 20d</span>
+                        <span class="spx-strip-val" id="spx-rv-20d">--</span>
+                    </div>
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">Max Pain</span>
+                        <span class="spx-strip-val" id="spx-max-pain">--</span>
+                    </div>
+                    <div class="spx-strip-item">
+                        <span class="spx-strip-key">0DTE Vol</span>
+                        <span class="spx-strip-val" id="spx-0dte-vol">--</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Expiry selector -->
+            <div class="expiry-bar">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 0.7rem; color: var(--text-muted);">SPY Expiry:</span>
+                    <select id="market-sentiment-expiry" onchange="loadMarketSentimentForExpiry()">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 0.65rem; color: var(--text-muted);" id="spy-call-put-oi">--</span>
+                    <button class="btn btn-ghost" onclick="loadMarketSentiment()" style="font-size: 0.7rem; padding: 4px 10px;">Refresh</button>
                 </div>
             </div>
             <div class="macro-bar" id="macro-bar" style="display: none;">
@@ -1339,6 +1368,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260212d"></script>
+    <script src="js/app.js?v=20260212e"></script>
 </body>
 </html>
