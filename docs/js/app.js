@@ -4040,15 +4040,19 @@ function updateSentimentGauge(sentiment) {
                 else rawFmt = raw === 0 ? '--' : '$' + (raw / 1e3).toFixed(0) + 'K';
             } else if (key === 'vix') {
                 rawFmt = raw.toFixed(1);
-            } else if (key === 'spy_pc') {
+            } else if (key === 'spy_pc' || key === 'spy_skew') {
                 rawFmt = raw.toFixed(2);
+            } else if (key === 'vix_ts') {
+                rawFmt = raw != null ? raw.toFixed(3) : '--';
+            } else if (key === 'gex_regime') {
+                rawFmt = raw > 0.3 ? 'Pin' : raw < -0.3 ? 'Vol' : 'Mix';
             } else {
-                rawFmt = typeof raw === 'number' ? raw.toFixed(0) : String(raw);
+                rawFmt = typeof raw === 'number' ? raw.toFixed(2) : String(raw);
             }
             return '<div class="sf2-row">' +
                 '<span class="sf2-label" title="' + f.label + ' (' + weightPct + '% weight)">' + f.label + ' <span class="sf2-weight">' + weightPct + '%</span></span>' +
                 '<div class="sf2-bar-track"><div class="sf2-bar-fill ' + cls + '" style="width:' + barWidth + '%;"></div></div>' +
-                '<span class="sf2-signal" style="color:' + color + '">' + (signal > 0 ? '+' : '') + signal.toFixed(1) + '</span>' +
+                '<span class="sf2-signal" style="color:' + color + '">' + (signal > 0 ? '+' : '') + signal.toFixed(2) + '</span>' +
             '</div>';
         }).join('');
     }
