@@ -6578,8 +6578,12 @@ async function loadPaperPositions() {
             return;
         }
 
+        // Portfolio greeks accumulators for intel strip
+        let portfolioDelta = 0, portfolioTheta = 0, portfolioGamma = 0;
+        const positionTickers = new Set();
+
         let html = '<table class="trading-table"><thead><tr>';
-        html += '<th>Ticker</th><th>Strategy</th><th>Type</th><th>Strike</th><th>Exp</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>Action</th>';
+        html += '<th>Ticker</th><th>Strategy</th><th>Type</th><th>Strike</th><th>Exp</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th title="Position delta">Delta</th><th title="Daily theta decay">Theta</th><th title="Distance to stop loss / take profit">Exit Zone</th><th>Action</th>';
         html += '</tr></thead><tbody>';
 
         for (const trade of trades) {
@@ -6654,6 +6658,62 @@ async function loadPaperPositions() {
 
             const expShort = trade.expiration ? trade.expiration.slice(5) : '--';
             const strategy = trade.strategy || trade.strategy_name || trade.signal_type || 'Manual';
+            positionTickers.add(trade.ticker);
+
+            // Extract greeks from position data
+            let posDelta = null, posTheta = null, posGamma = null;
+            if (trade.is_multi_leg && trade.legs && trade.legs.length > 1) {
+                let netD = 0, netT = 0, netG = 0, hasGreeks = false;
+                for (const leg of trade.legs) {
+                    const legOcc = buildOccSymbol(trade.ticker, leg.expiration, leg.strike, leg.option_type);
+                    const legPos = legOcc ? positions.find(p => p.symbol === legOcc) : null;
+                    if (legPos) {
+                        const qty = (leg.quantity || 1) * (trade.quantity || 1);
+                        const sign = leg.action === 'BUY' ? 1 : -1;
+                        if (legPos.delta != null) { netD += legPos.delta * qty * sign; hasGreeks = true; }
+                        if (legPos.theta != null) { netT += legPos.theta * qty * sign; hasGreeks = true; }
+                        if (legPos.gamma != null) { netG += legPos.gamma * qty * sign; hasGreeks = true; }
+                    }
+                }
+                if (hasGreeks) { posDelta = netD; posTheta = netT; posGamma = netG; }
+            } else {
+                const matchPos = positions.find(p => p.symbol && trade.occ_symbol && p.symbol === trade.occ_symbol);
+                if (matchPos) {
+                    const qty = trade.quantity || 1;
+                    const sign = trade.direction === 'long' ? 1 : -1;
+                    if (matchPos.delta != null) posDelta = matchPos.delta * qty * sign;
+                    if (matchPos.theta != null) posTheta = matchPos.theta * qty * sign;
+                    if (matchPos.gamma != null) posGamma = matchPos.gamma * qty * sign;
+                }
+            }
+
+            // Accumulate portfolio greeks
+            if (posDelta != null) portfolioDelta += posDelta;
+            if (posTheta != null) portfolioTheta += posTheta;
+            if (posGamma != null) portfolioGamma += posGamma;
+
+            const deltaStr = posDelta != null ? posDelta.toFixed(2) : '--';
+            const thetaStr = posTheta != null ? `$${(posTheta * 100).toFixed(0)}` : '--';
+            const deltaColor = posDelta != null ? (posDelta >= 0 ? 'color:var(--green)' : 'color:var(--red)') : '';
+            const thetaColor = posTheta != null ? (posTheta >= 0 ? 'color:var(--green)' : 'color:var(--red)') : '';
+
+            // Exit zone progress bar
+            const slPct = trade.stop_loss_pct || -50;
+            const tpPct = trade.take_profit_pct || 100;
+            let exitZoneHtml = '--';
+            if (!isNaN(pnlPct)) {
+                const totalRange = tpPct - slPct;
+                const pctInRange = ((pnlPct - slPct) / totalRange) * 100;
+                const clampedPct = Math.max(0, Math.min(100, pctInRange));
+                const fillClass = pnlPct >= 0 ? 'profit' : 'loss';
+                const zoneLabel = pnlPct >= 0 ? `+${pnlPct.toFixed(0)}%` : `${pnlPct.toFixed(0)}%`;
+                exitZoneHtml = `<div class="exit-zone-bar">
+                    <div class="exit-zone-track">
+                        <div class="exit-zone-fill ${fillClass}" style="width:${clampedPct}%"></div>
+                    </div>
+                    <span class="exit-zone-label">${zoneLabel}</span>
+                </div>`;
+            }
 
             if (trade.is_multi_leg && trade.legs && trade.legs.length > 1) {
                 // Multi-leg trade display
@@ -6673,6 +6733,9 @@ async function loadPaperPositions() {
                     <td>$${entry.toFixed(2)}</td>
                     <td>${currentDisplay}</td>
                     <td class="${pnlClass}">${pnlDisplay}</td>
+                    <td style="font-size:0.75rem;${deltaColor}">${deltaStr}</td>
+                    <td style="font-size:0.75rem;${thetaColor}">${thetaStr}</td>
+                    <td>${exitZoneHtml}</td>
                     <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
                 </tr>`;
             } else {
@@ -6687,6 +6750,9 @@ async function loadPaperPositions() {
                     <td>$${entry.toFixed(2)}</td>
                     <td>${currentDisplay}</td>
                     <td class="${pnlClass}">${pnlDisplay}</td>
+                    <td style="font-size:0.75rem;${deltaColor}">${deltaStr}</td>
+                    <td style="font-size:0.75rem;${thetaColor}">${thetaStr}</td>
+                    <td>${exitZoneHtml}</td>
                     <td><button class="close-btn" onclick="closePaperPosition('${trade.id}')">Close</button></td>
                 </tr>`;
             }
@@ -6694,6 +6760,9 @@ async function loadPaperPositions() {
 
         html += '</tbody></table>';
         container.innerHTML = html;
+
+        // Update portfolio intelligence strip with accumulated greeks
+        updatePortfolioIntelStrip(portfolioDelta, portfolioTheta, portfolioGamma, positionTickers);
     } catch (e) {
         console.error('Paper positions error:', e);
     }
@@ -7153,6 +7222,104 @@ async function rebuildAdaptiveSystems() {
             await loadAdaptiveIntelligence();
         }
     } catch (e) { console.error('Rebuild error:', e); }
+}
+
+// --- Portfolio Intelligence Strip ---
+let _intelStripCache = { regime: null, vrp: null, ts: 0 };
+
+async function updatePortfolioIntelStrip(portfolioDelta, portfolioTheta, portfolioGamma, positionTickers) {
+    const el = (id) => document.getElementById(id);
+
+    // Daily Theta (per-contract * 100 multiplier already done in caller display, but raw is per-share)
+    const thetaVal = portfolioTheta !== 0 ? `$${(portfolioTheta * 100).toFixed(0)}` : '--';
+    const thetaEl = el('intel-daily-theta');
+    if (thetaEl) {
+        thetaEl.textContent = thetaVal;
+        thetaEl.style.color = portfolioTheta > 0 ? 'var(--green)' : portfolioTheta < 0 ? 'var(--red)' : '';
+    }
+
+    // Net Delta
+    const deltaEl = el('intel-net-delta');
+    if (deltaEl) {
+        deltaEl.textContent = portfolioDelta !== 0 ? portfolioDelta.toFixed(2) : '--';
+        deltaEl.style.color = portfolioDelta > 0 ? 'var(--green)' : portfolioDelta < 0 ? 'var(--red)' : '';
+    }
+
+    // Net Gamma
+    const gammaEl = el('intel-net-gamma');
+    if (gammaEl) {
+        gammaEl.textContent = portfolioGamma !== 0 ? portfolioGamma.toFixed(3) : '--';
+        gammaEl.style.color = portfolioGamma > 0 ? 'var(--green)' : portfolioGamma < 0 ? 'var(--red)' : '';
+    }
+
+    // Correlation (simple: # unique tickers as diversification proxy)
+    const corrEl = el('intel-correlation');
+    if (corrEl) {
+        const n = positionTickers.size;
+        if (n <= 1) {
+            corrEl.textContent = n === 0 ? '--' : 'HIGH';
+            corrEl.style.color = n === 0 ? '' : 'var(--red)';
+        } else if (n <= 3) {
+            corrEl.textContent = 'MED';
+            corrEl.style.color = 'var(--orange)';
+        } else {
+            corrEl.textContent = 'LOW';
+            corrEl.style.color = 'var(--green)';
+        }
+    }
+
+    // Fetch regime + VRP from combined-regime endpoint (throttle to 60s)
+    const now = Date.now();
+    if (now - _intelStripCache.ts > 60000) {
+        try {
+            const regimeData = await safeFetchJson(`${API_BASE}/options/combined-regime/SPY`);
+            if (regimeData && regimeData.ok && regimeData.data) {
+                const d = regimeData.data;
+                _intelStripCache.regime = d.combined_regime || d.gex_regime || null;
+                _intelStripCache.vrp = d.vrp != null ? d.vrp : (d.iv_rank != null ? d.iv_rank : null);
+                _intelStripCache.riskLevel = d.risk_level || null;
+                _intelStripCache.ts = now;
+            }
+        } catch (e) { console.error('Intel strip regime fetch:', e); }
+    }
+
+    // Regime
+    const regimeEl = el('intel-regime');
+    if (regimeEl && _intelStripCache.regime) {
+        const r = _intelStripCache.regime.toUpperCase().replace('_', ' ');
+        regimeEl.textContent = r;
+        const regimeColors = {
+            'OPPORTUNITY': 'var(--green)', 'LOW VOL': 'var(--green)',
+            'NORMAL': 'var(--blue)', 'BALANCED': 'var(--blue)',
+            'CAUTION': 'var(--orange)', 'HIGH VOL': 'var(--orange)', 'TRANSITION': 'var(--orange)',
+            'DANGER': 'var(--red)', 'CRISIS': 'var(--red)',
+        };
+        regimeEl.style.color = regimeColors[r] || 'var(--text)';
+    }
+
+    // VRP
+    const vrpEl = el('intel-vrp');
+    if (vrpEl) {
+        if (_intelStripCache.vrp != null) {
+            const v = _intelStripCache.vrp;
+            vrpEl.textContent = typeof v === 'number' ? v.toFixed(1) + '%' : v;
+            vrpEl.style.color = v > 50 ? 'var(--green)' : v > 25 ? 'var(--orange)' : 'var(--red)';
+        }
+    }
+
+    // Risk
+    const riskEl = el('intel-risk');
+    if (riskEl && _intelStripCache.riskLevel) {
+        const rl = _intelStripCache.riskLevel.toUpperCase();
+        riskEl.textContent = rl;
+        riskEl.style.color = rl === 'LOW' ? 'var(--green)' : rl === 'MEDIUM' ? 'var(--orange)' : 'var(--red)';
+    }
+
+    // Timestamp
+    const tsEl = el('intel-strip-ts');
+    if (tsEl) {
+        tsEl.textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
 }
 
 // --- Auto Refresh ---

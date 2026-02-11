@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260211a">
+    <link rel="stylesheet" href="css/styles.css?v=20260211b">
 </head>
 <body>
     <!-- Header -->
@@ -1054,6 +1054,44 @@
                 </div>
             </div>
 
+            <!-- Portfolio Intelligence Strip -->
+            <div class="portfolio-intel-strip" id="portfolio-intel-strip" style="margin-bottom: 16px;">
+                <div class="intel-strip-header">
+                    <span class="intel-strip-label">PORTFOLIO INTELLIGENCE</span>
+                    <span class="intel-strip-timestamp" id="intel-strip-ts"></span>
+                </div>
+                <div class="intel-strip-grid">
+                    <div class="intel-strip-metric" title="Total daily theta decay across all open positions">
+                        <div class="intel-strip-metric-label">DAILY THETA</div>
+                        <div class="intel-strip-metric-value" id="intel-daily-theta">--</div>
+                    </div>
+                    <div class="intel-strip-metric" title="Net portfolio delta exposure (directional risk)">
+                        <div class="intel-strip-metric-label">NET DELTA</div>
+                        <div class="intel-strip-metric-value" id="intel-net-delta">--</div>
+                    </div>
+                    <div class="intel-strip-metric" title="Net portfolio gamma (convexity exposure)">
+                        <div class="intel-strip-metric-label">NET GAMMA</div>
+                        <div class="intel-strip-metric-value" id="intel-net-gamma">--</div>
+                    </div>
+                    <div class="intel-strip-metric" title="Current GEX-based market regime from combined regime analysis">
+                        <div class="intel-strip-metric-label">REGIME</div>
+                        <div class="intel-strip-metric-value" id="intel-regime">--</div>
+                    </div>
+                    <div class="intel-strip-metric" title="Volatility Risk Premium: IV minus RV. Positive = premium sellers have edge">
+                        <div class="intel-strip-metric-label">VRP</div>
+                        <div class="intel-strip-metric-value" id="intel-vrp">--</div>
+                    </div>
+                    <div class="intel-strip-metric" title="Portfolio risk level based on current positions and regime">
+                        <div class="intel-strip-metric-label">RISK</div>
+                        <div class="intel-strip-metric-value" id="intel-risk">--</div>
+                    </div>
+                    <div class="intel-strip-metric" title="Average correlation across held positions (diversification measure)">
+                        <div class="intel-strip-metric-label">CORRELATION</div>
+                        <div class="intel-strip-metric-value" id="intel-correlation">--</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Signals & Risk Row -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
 
@@ -1222,6 +1260,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260211c"></script>
+    <script src="js/app.js?v=20260211d"></script>
 </body>
 </html>
