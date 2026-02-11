@@ -1,42 +1,195 @@
 /* Gamma Quantix - Dark Theme Styles */
+/* Design Token System v3.0 — Primitives → Semantic → Component */
 
 :root {
+    /* =========================================================================
+       TIER 1: PRIMITIVES — Raw values, never used directly in components
+       ========================================================================= */
+
+    /* Gray Scale */
+    --gray-50: #fafafa;
+    --gray-100: #f4f4f5;
+    --gray-200: #e4e4e7;
+    --gray-300: #d4d4d8;
+    --gray-400: #a1a1aa;
+    --gray-500: #71717a;
+    --gray-600: #52525b;
+    --gray-700: #3a3a4a;
+    --gray-800: #2a2a3a;
+    --gray-850: #22222e;
+    --gray-900: #1a1a24;
+    --gray-925: #13131a;
+    --gray-950: #09090b;
+
+    /* Named Colors */
+    --green-500: #22c55e;
+    --green-bg-raw: rgba(34, 197, 94, 0.1);
+    --red-500: #ef4444;
+    --red-bg-raw: rgba(239, 68, 68, 0.1);
+    --blue-500: #3b82f6;
+    --blue-bg-raw: rgba(59, 130, 246, 0.1);
+    --orange-500: #f97316;
+    --orange-bg-raw: rgba(249, 115, 22, 0.1);
+    --purple-500: #a855f7;
+    --purple-bg-raw: rgba(168, 85, 247, 0.1);
+    --cyan-500: #06b6d4;
+    --cyan-bg-raw: rgba(6, 182, 212, 0.1);
+    --magenta-500: #d946ef;
+    --magenta-bg-raw: rgba(217, 70, 239, 0.1);
+    --yellow-500: #eab308;
+    --yellow-bg-raw: rgba(234, 179, 8, 0.1);
+
+    /* Spacing Scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+
+    /* Typography Scale */
+    --text-xs: 0.65rem;
+    --text-sm: 0.75rem;
+    --text-base: 0.8rem;
+    --text-md: 0.875rem;
+    --text-lg: 1rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.75rem;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+    /* Border Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-2xl: 12px;
+    --radius-full: 9999px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+    /* Transitions */
+    --duration-fast: 0.15s;
+    --duration-normal: 0.2s;
+    --duration-slow: 0.3s;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* =========================================================================
+       TIER 2: SEMANTIC TOKENS — Purpose-driven, map to primitives
+       ========================================================================= */
+
+    /* Profit / Loss / Warning */
+    --color-profit: var(--green-500);
+    --color-loss: var(--red-500);
+    --color-warning: var(--orange-500);
+    --color-profit-bg: rgba(34, 197, 94, 0.12);
+    --color-loss-bg: rgba(239, 68, 68, 0.12);
+    --color-warning-bg: rgba(249, 115, 22, 0.12);
+
+    /* Surface Elevations */
+    --surface-0: var(--gray-950);
+    --surface-1: var(--gray-925);
+    --surface-2: var(--gray-900);
+    --surface-3: var(--gray-850);
+    --surface-hover: var(--gray-850);
+
+    /* Text Hierarchy */
+    --text-primary: var(--gray-100);
+    --text-secondary: var(--gray-500);
+    --text-tertiary: var(--gray-600);
+
+    /* Borders */
+    --border-default: var(--gray-800);
+    --border-subtle: var(--gray-700);
+
+    /* =========================================================================
+       TIER 3: COMPONENT TOKENS — Contextual overrides
+       ========================================================================= */
+    --card-bg: var(--surface-2);
+    --card-header-bg: var(--surface-1);
+
+    /* =========================================================================
+       LEGACY ALIASES — Map old names to new tokens for backward compatibility
+       ========================================================================= */
+
     /* Base Dark Theme */
-    --bg: #09090b;
-    --bg-elevated: #13131a;
-    --bg-card: #1a1a24;
-    --bg-hover: #22222e;
-    --border: #2a2a3a;
-    --border-light: #3a3a4a;
+    --bg: var(--surface-0);
+    --bg-elevated: var(--surface-1);
+    --bg-card: var(--surface-2);
+    --bg-hover: var(--surface-3);
+    --border: var(--border-default);
+    --border-light: var(--border-subtle);
 
     /* Text Colors */
-    --text: #f4f4f5;
-    --text-muted: #71717a;
-    --text-dim: #52525b;
+    --text: var(--text-primary);
+    --text-muted: var(--text-secondary);
+    --text-dim: var(--text-tertiary);
 
     /* Accent Colors */
-    --green: #22c55e;
-    --green-bg: rgba(34, 197, 94, 0.1);
-    --red: #ef4444;
-    --red-bg: rgba(239, 68, 68, 0.1);
-    --blue: #3b82f6;
-    --blue-bg: rgba(59, 130, 246, 0.1);
-    --orange: #f97316;
-    --orange-bg: rgba(249, 115, 22, 0.1);
-    --purple: #a855f7;
-    --purple-bg: rgba(168, 85, 247, 0.1);
-    --cyan: #06b6d4;
-    --cyan-bg: rgba(6, 182, 212, 0.1);
-    --magenta: #d946ef;
-    --magenta-bg: rgba(217, 70, 239, 0.1);
-    --yellow: #eab308;
-    --yellow-bg: rgba(234, 179, 8, 0.1);
+    --green: var(--green-500);
+    --green-bg: var(--green-bg-raw);
+    --red: var(--red-500);
+    --red-bg: var(--red-bg-raw);
+    --blue: var(--blue-500);
+    --blue-bg: var(--blue-bg-raw);
+    --orange: var(--orange-500);
+    --orange-bg: var(--orange-bg-raw);
+    --purple: var(--purple-500);
+    --purple-bg: var(--purple-bg-raw);
+    --cyan: var(--cyan-500);
+    --cyan-bg: var(--cyan-bg-raw);
+    --magenta: var(--magenta-500);
+    --magenta-bg: var(--magenta-bg-raw);
+    --yellow: var(--yellow-500);
+    --yellow-bg: var(--yellow-bg-raw);
 }
 
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+/* Tabular numbers for all data-displaying elements */
+.metric-value, .metric-sub, .stat-value, .level-value, .level-sub,
+.trading-metric-value, .factor-value, .score-number, .info-value,
+.scanner-sscore-value, .scanner-price, .intel-strip-metric-value,
+.pos-calc-result-value, .gex-bt-metric-value, .swing-pnl-badge,
+.gex-table td, .xray-table td, .options-chain-table td,
+.trading-table td, .em-levels-row span {
+    font-variant-numeric: tabular-nums;
+}
+
+/* CSS Performance: content-visibility for off-screen tab sections */
+.tab-content > .card,
+.tab-content > .em-card,
+.tab-content > .iv-smile-container,
+.tab-content > .term-structure-container,
+.tab-content > .pos-calc-card,
+.tab-content > .watchlist-card,
+.tab-content > div[style*="grid-template-columns"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+}
+
+/* Layout containment for cards */
+.card, .trading-card, .em-card, .metric-card, .metric-box {
+    contain: layout style;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 body {
@@ -3779,5 +3932,399 @@ select:focus {
 @media (max-width: 768px) {
     .intel-strip-grid {
         grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* =============================================================================
+   SKELETON LOADING & SHIMMER
+   ============================================================================= */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius-md);
+    color: transparent !important;
+    pointer-events: none;
+    user-select: none;
+}
+
+.skeleton-text {
+    height: 14px;
+    width: 80%;
+    margin: var(--space-1) 0;
+}
+
+.skeleton-value {
+    height: 24px;
+    width: 55%;
+    margin: var(--space-1) auto;
+}
+
+.skeleton-label {
+    height: 10px;
+    width: 60%;
+    margin: var(--space-1) auto;
+}
+
+.skeleton-chart {
+    height: 200px;
+    width: 100%;
+    border-radius: var(--radius-lg);
+}
+
+.skeleton-row {
+    height: 36px;
+    width: 100%;
+    margin: 2px 0;
+}
+
+.skeleton-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+}
+
+.skeleton-metric-card {
+    padding: 14px;
+    border-radius: var(--radius-xl);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.skeleton-table {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Skeleton wrapper for hiding real content during load */
+.skeleton-active > *:not(.skeleton-wrapper) {
+    display: none !important;
+}
+
+.skeleton-wrapper {
+    padding: var(--space-3);
+}
+
+/* =============================================================================
+   ERROR STATES & RETRY
+   ============================================================================= */
+.error-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-6);
+}
+
+.error-state-icon {
+    font-size: 32px;
+    color: var(--text-tertiary);
+    line-height: 1;
+}
+
+.error-state-message {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-align: center;
+}
+
+.error-state-detail {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    text-align: center;
+    max-width: 300px;
+}
+
+.error-state-retry {
+    margin-top: var(--space-2);
+    padding: 6px 16px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--duration-fast);
+}
+
+.error-state-retry:hover {
+    background: var(--surface-3);
+    border-color: var(--blue-500);
+    color: var(--blue-500);
+}
+
+/* =============================================================================
+   FLASH-ON-CHANGE ANIMATIONS
+   ============================================================================= */
+@keyframes flash-up {
+    0% { background-color: var(--color-profit-bg); }
+    100% { background-color: transparent; }
+}
+
+@keyframes flash-down {
+    0% { background-color: var(--color-loss-bg); }
+    100% { background-color: transparent; }
+}
+
+.flash-up {
+    animation: flash-up 0.8s ease-out;
+}
+
+.flash-down {
+    animation: flash-down 0.8s ease-out;
+}
+
+/* =============================================================================
+   LIVE SPARKLINES
+   ============================================================================= */
+.sparkline-container {
+    display: inline-block;
+    width: 60px;
+    height: 24px;
+    vertical-align: middle;
+    margin-left: var(--space-2);
+}
+
+.sparkline-container svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* =============================================================================
+   GREEK FLOWS HEATMAP
+   ============================================================================= */
+.greek-flows-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.greek-flow-section {
+    background: var(--surface-3);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+}
+
+.greek-flow-title {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: var(--space-3);
+}
+
+.greek-flow-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+    font-size: 0.7rem;
+}
+
+.greek-flow-bar-label {
+    min-width: 55px;
+    text-align: right;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+}
+
+.greek-flow-bar-track {
+    flex: 1;
+    height: 14px;
+    background: var(--surface-0);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+}
+
+.greek-flow-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width var(--duration-slow);
+}
+
+.greek-flow-bar-fill.positive {
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.5), rgba(34, 197, 94, 0.8));
+}
+
+.greek-flow-bar-fill.negative {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.8), rgba(239, 68, 68, 0.5));
+    float: right;
+}
+
+.greek-flow-arrow {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    padding: var(--space-4) 0;
+}
+
+.greek-flow-magnitude {
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+    .greek-flows-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =============================================================================
+   STRATEGY × REGIME MATRIX
+   ============================================================================= */
+.strategy-matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.strategy-matrix-table th {
+    padding: 8px 10px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border-default);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.strategy-matrix-table th:first-child {
+    text-align: left;
+}
+
+.strategy-matrix-table td {
+    padding: 8px 10px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.strategy-matrix-table td:first-child {
+    text-align: left;
+    font-weight: 600;
+}
+
+.strategy-matrix-table tr:hover {
+    background: var(--surface-3);
+}
+
+.matrix-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.matrix-cell-wr {
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.matrix-cell-count {
+    font-size: 0.6rem;
+    color: var(--text-tertiary);
+}
+
+.matrix-cell-best {
+    border: 1px solid var(--cyan-500);
+    border-radius: var(--radius-sm);
+    background: rgba(6, 182, 212, 0.06);
+}
+
+/* =============================================================================
+   STALENESS INDICATOR
+   ============================================================================= */
+.staleness-badge {
+    font-size: 0.6rem;
+    color: var(--text-tertiary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.staleness-badge.stale {
+    color: var(--orange-500);
+}
+
+/* =============================================================================
+   CONNECTION STATUS PULSE
+   ============================================================================= */
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.status-dot.live-pulse {
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* =============================================================================
+   RESPONSIVE: Mobile Improvements (Phase 9)
+   ============================================================================= */
+@media (max-width: 480px) {
+    .intel-strip-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .options-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Tab bar horizontal scroll on mobile */
+@media (max-width: 768px) {
+    .tab-bar {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .tab-bar::-webkit-scrollbar {
+        display: none;
+    }
+    .tab-btn {
+        flex: 0 0 auto;
+        min-width: 80px;
+    }
+}
+
+/* Touch-friendly button sizing */
+@media (max-width: 768px) {
+    .btn, .tab-btn, .ticker-btn, .scanner-filter-btn,
+    .interval-btn, .dte-buttons .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* Chart aspect ratio on mobile */
+@media (max-width: 768px) {
+    #oa-chart, #iv-smile-chart, .chart-container {
+        aspect-ratio: 16 / 9;
+        min-height: unset;
+    }
+}
+
+/* Auto-fit metric grids on small screens */
+@media (max-width: 900px) {
+    .options-metrics-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 }

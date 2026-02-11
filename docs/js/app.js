@@ -446,6 +446,7 @@ async function loadOptionsAnalysis() {
 
     // Always load chart visualization regardless of analysis errors
     loadOptionsViz(optionsAnalysisTicker);
+    loadGreekFlows(optionsAnalysisTicker);
     // F3: Check earnings calendar
     checkTickerEarnings(optionsAnalysisTicker);
 }
@@ -2805,10 +2806,12 @@ function updateConnectionStatus(mode) {
     statusEl.style.display = 'inline';
     if (mode === 'live') {
         dotEl.style.background = '#10b981';
+        dotEl.classList.add('pulse-dot');
         textEl.textContent = 'Live';
         textEl.style.color = '#10b981';
     } else {
         dotEl.style.background = '#f59e0b';
+        dotEl.classList.remove('pulse-dot');
         textEl.textContent = 'Delayed';
         textEl.style.color = '#f59e0b';
     }
@@ -2887,13 +2890,26 @@ function updateLivePrice(price) {
     optionsVizData.currentPrice = price;
     optionsChartData.currentPrice = price;
 
-    // Update ALL price displays across the page
+    // Update ALL price displays across the page (with flash animation)
     const priceEl = document.getElementById('viz-current-price');
-    if (priceEl) priceEl.textContent = `$${price.toFixed(2)}`;
+    if (priceEl) {
+        const oldPrice = priceEl.textContent;
+        priceEl.textContent = `$${price.toFixed(2)}`;
+        flashValue(priceEl, price, oldPrice);
+    }
 
     // Analysis tab current price
     const oaPriceEl = document.getElementById('oa-current-price');
-    if (oaPriceEl) oaPriceEl.textContent = `$${price.toFixed(2)}`;
+    if (oaPriceEl) {
+        const oldOaPrice = oaPriceEl.textContent;
+        oaPriceEl.textContent = `$${price.toFixed(2)}`;
+        flashValue(oaPriceEl, price, oldOaPrice);
+    }
+
+    // Push sparkline data for price
+    pushSparklineValue('price', price);
+    const priceSpark = document.getElementById('sparkline-price');
+    if (priceSpark && _sparklineData.price) renderSparkline(priceSpark, _sparklineData.price);
 
     // GEX dashboard distance percentages
     const callWall = optionsVizData.callWall;
@@ -3783,8 +3799,13 @@ async function loadMarketSentiment() {
             const sentiment = data.data;
             const vix = sentiment.vix || 0;
             const vixEl = document.getElementById('vix-level');
+            const oldVix = vixEl.textContent;
             vixEl.textContent = vix.toFixed(1);
             vixEl.style.color = vix > 25 ? 'var(--red)' : vix < 15 ? 'var(--green)' : 'var(--text)';
+            flashValue(vixEl, vix, oldVix);
+            pushSparklineValue('vix', vix);
+            const vixSpark = document.getElementById('sparkline-vix');
+            if (vixSpark && _sparklineData.vix) renderSparkline(vixSpark, _sparklineData.vix);
             document.getElementById('vix-label').textContent = vix > 25 ? 'High Fear' : vix < 15 ? 'Low Fear' : 'Normal';
         }
 
@@ -3838,8 +3859,13 @@ async function loadMarketSentimentForExpiry() {
         const putOI = mp.total_put_oi || gex.total_put_oi || 0;
         const pcRatio = callOI > 0 ? (putOI / callOI) : 0;
         const pcEl = document.getElementById('spy-pc-ratio');
+        const oldPc = pcEl.textContent;
         pcEl.textContent = pcRatio.toFixed(2);
         pcEl.style.color = pcRatio > 1.0 ? 'var(--red)' : pcRatio < 0.7 ? 'var(--green)' : 'var(--text)';
+        flashValue(pcEl, pcRatio, oldPc);
+        pushSparklineValue('pc-ratio', pcRatio);
+        const pcSpark = document.getElementById('sparkline-pc-ratio');
+        if (pcSpark && _sparklineData['pc-ratio']) renderSparkline(pcSpark, _sparklineData['pc-ratio']);
         document.getElementById('spy-pc-label').textContent = pcRatio > 1.0 ? 'Bearish' : pcRatio < 0.7 ? 'Bullish' : 'Neutral';
 
         const oiEl = document.getElementById('spy-call-put-oi');
@@ -3858,6 +3884,9 @@ async function loadMarketSentimentForExpiry() {
             gexEl.textContent = '$' + (gexValue / 1e3).toFixed(0) + 'K';
         }
         gexEl.style.color = gexValue > 0 ? 'var(--green)' : 'var(--red)';
+        pushSparklineValue('gex', gexValue);
+        const gexSpark = document.getElementById('sparkline-gex');
+        if (gexSpark && _sparklineData.gex) renderSparkline(gexSpark, _sparklineData.gex);
         document.getElementById('gex-label').textContent = gexValue > 0 ? 'Stabilizing' : 'Volatile';
 
         // Max Pain
@@ -4045,6 +4074,191 @@ async function loadUnusualActivity() {
 // =============================================================================
 function toggleAccordion(element) {
     element.classList.toggle('open');
+}
+
+// =============================================================================
+// GREEK FLOWS HEATMAP
+// =============================================================================
+async function loadGreekFlows(ticker) {
+    if (!ticker) ticker = optionsAnalysisTicker;
+    if (!ticker) return;
+
+    const card = document.getElementById('greek-flows-card');
+    const body = document.getElementById('greek-flows-body');
+    if (!card || !body) return;
+
+    card.style.display = 'block';
+    document.getElementById('gf-ticker').textContent = ticker;
+    body.innerHTML = '<div class="chart-loading"><span class="loading-spinner"></span> Loading Greek flows...</div>';
+
+    const isFutures = ticker.startsWith('/');
+    const tickerParam = encodeURIComponent(ticker);
+    const url = isFutures
+        ? `${API_BASE}/options/vanna-charm?ticker=${tickerParam}`
+        : `${API_BASE}/options/vanna-charm/${ticker}`;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+
+        if (!json.ok || !json.data) {
+            throw new Error(json.error || 'No data returned');
+        }
+
+        renderGreekFlows(json.data, body);
+    } catch (e) {
+        console.error('loadGreekFlows error:', e);
+        body.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--text-muted);">' +
+            '<div style="font-size: 1.2rem; margin-bottom: 8px;">Failed to load Greek flows</div>' +
+            '<div style="font-size: 0.75rem; margin-bottom: 12px;">' + e.message + '</div>' +
+            '<button class="btn btn-primary" onclick="loadGreekFlows(\'' + ticker + '\')">Retry</button>' +
+            '</div>';
+    }
+}
+
+function renderGreekFlows(d, body) {
+    var totalVanna = d.total_vanna || 0;
+    var totalCharm = d.total_charm || 0;
+    var netDelta = d.net_dealer_delta || 0;
+    var flowDir = d.flow_direction || 'neutral';
+    var interpretation = d.interpretation || '';
+    var vannaByStrike = d.vanna_by_strike || [];
+    var charmByStrike = d.charm_by_strike || [];
+
+    var vannaColor = totalVanna >= 0 ? 'var(--green)' : 'var(--red)';
+    var charmColor = totalCharm >= 0 ? 'var(--green)' : 'var(--red)';
+    var deltaColor = netDelta >= 0 ? 'var(--green)' : 'var(--red)';
+    var flowColor = flowDir === 'bullish' ? 'var(--green)'
+        : flowDir === 'bearish' ? 'var(--red)' : 'var(--orange)';
+    var flowLabel = flowDir.charAt(0).toUpperCase() + flowDir.slice(1);
+
+    var sortedVanna = vannaByStrike.slice()
+        .sort(function(a, b) { return Math.abs(b.vanna) - Math.abs(a.vanna); })
+        .slice(0, 10);
+    var maxAbsVanna = sortedVanna.length > 0
+        ? Math.max.apply(null, sortedVanna.map(function(v) { return Math.abs(v.vanna); }))
+        : 1;
+
+    var sortedCharm = charmByStrike.slice()
+        .sort(function(a, b) { return Math.abs(b.charm) - Math.abs(a.charm); })
+        .slice(0, 5);
+    var netCharmSign = totalCharm >= 0 ? '+' : '';
+    var charmDecayDirection = totalCharm > 0
+        ? 'Positive charm decay pushes dealers to buy delta (supportive)'
+        : totalCharm < 0
+        ? 'Negative charm decay pushes dealers to sell delta (pressuring)'
+        : 'Neutral charm \u2014 minimal time-decay hedging pressure';
+
+    var arrowChar = flowDir === 'bullish' ? '\u2191'
+        : flowDir === 'bearish' ? '\u2193' : '\u2194';
+
+    var html = '';
+
+    // 4-metric row
+    html += '<div class="metrics-grid-4">';
+    html += gfMetricBox('TOTAL VANNA', fmtGreekFlowNum(totalVanna),
+        totalVanna >= 0 ? 'Supportive' : 'Pressuring', vannaColor,
+        'Vanna: how delta changes with volatility. Positive = stabilizing. Negative = destabilizing.');
+    html += gfMetricBox('TOTAL CHARM', fmtGreekFlowNum(totalCharm),
+        totalCharm >= 0 ? 'Decaying long' : 'Decaying short', charmColor,
+        'Charm: how delta changes with time. Shows directional pressure from time-decay hedging.');
+    html += gfMetricBox('NET DEALER \u0394', fmtGreekFlowNum(netDelta),
+        netDelta >= 0 ? 'Net long delta' : 'Net short delta', deltaColor,
+        'Combined dealer delta from vanna + charm. Net directional hedging flow.');
+    html += gfMetricBox('FLOW DIRECTION', flowLabel,
+        flowDir === 'bullish' ? 'Dealers buying' : flowDir === 'bearish' ? 'Dealers selling' : 'Mixed signals', flowColor,
+        'Overall dealer hedging direction based on vanna and charm combined.');
+    html += '</div>';
+
+    // 3-column grid
+    html += '<div class="greek-flows-grid">';
+
+    // Col 1: Vanna Exposure bars
+    html += '<div class="greek-flow-section">';
+    html += '<div class="greek-flow-title">VANNA EXPOSURE BY STRIKE</div>';
+    if (sortedVanna.length === 0) {
+        html += '<div style="text-align:center;color:var(--text-muted);font-size:0.75rem;padding:20px 0;">No vanna data</div>';
+    } else {
+        sortedVanna.forEach(function(v) {
+            var pct = (Math.abs(v.vanna) / maxAbsVanna) * 100;
+            var cls = v.vanna >= 0 ? 'positive' : 'negative';
+            var strikeLabel = typeof v.strike === 'number' ? v.strike.toFixed(0) : v.strike;
+            var valColor = v.vanna >= 0 ? 'var(--green)' : 'var(--red)';
+            html += '<div class="greek-flow-bar">'
+                + '<span class="greek-flow-bar-label">' + strikeLabel + '</span>'
+                + '<div class="greek-flow-bar-track">'
+                + '<div class="greek-flow-bar-fill ' + cls + '" style="width:' + pct.toFixed(1) + '%;"></div>'
+                + '</div>'
+                + '<span style="min-width:50px;font-family:var(--font-mono);font-size:0.65rem;color:' + valColor + '">' + fmtGreekFlowNum(v.vanna) + '</span>'
+                + '</div>';
+        });
+    }
+    html += '</div>';
+
+    // Col 2: Charm Decay
+    html += '<div class="greek-flow-section">';
+    html += '<div class="greek-flow-title">CHARM DECAY ANALYSIS</div>';
+    html += '<div style="text-align:center;padding:12px 0;">'
+        + '<div style="font-size:1.6rem;font-weight:700;color:' + charmColor + ';margin-bottom:4px;">' + netCharmSign + fmtGreekFlowNum(totalCharm) + '</div>'
+        + '<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:12px;">Net Charm Flow</div>'
+        + '</div>';
+    html += '<div style="font-size:0.72rem;color:var(--text-muted);padding:0 4px;line-height:1.5;margin-bottom:12px;">' + charmDecayDirection + '</div>';
+    if (sortedCharm.length > 0) {
+        html += '<div style="font-size:0.65rem;color:var(--text-muted);margin-bottom:6px;font-weight:600;">TOP STRIKES BY CHARM</div>';
+        sortedCharm.forEach(function(c) {
+            var strikeLabel = typeof c.strike === 'number' ? c.strike.toFixed(0) : c.strike;
+            var cColor = c.charm >= 0 ? 'var(--green)' : 'var(--red)';
+            html += '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.7rem;border-bottom:1px solid var(--border);">'
+                + '<span style="color:var(--text-muted);font-family:var(--font-mono);">' + strikeLabel + '</span>'
+                + '<span style="color:' + cColor + ';font-family:var(--font-mono);">' + fmtGreekFlowNum(c.charm) + '</span>'
+                + '</div>';
+        });
+    }
+    html += '</div>';
+
+    // Col 3: Dealer Flow Forecast
+    html += '<div class="greek-flow-section" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">';
+    html += '<div class="greek-flow-title" style="align-self:flex-start;">DEALER FLOW FORECAST</div>';
+    html += '<div class="greek-flow-arrow" style="color:' + flowColor + ';font-size:3.5rem;line-height:1;">' + arrowChar + '</div>';
+    html += '<div class="greek-flow-magnitude" style="font-size:1.1rem;font-weight:700;color:' + flowColor + ';margin-bottom:4px;">' + fmtGreekFlowNum(netDelta) + '</div>';
+    html += '<div style="font-size:0.75rem;font-weight:600;color:' + flowColor + ';margin-bottom:8px;">' + flowLabel.toUpperCase() + '</div>';
+    html += '<div style="font-size:0.68rem;color:var(--text-muted);text-align:center;line-height:1.4;padding:0 8px;">'
+        + (flowDir === 'bullish' ? 'Dealers must buy to hedge \u2014 supportive of prices'
+           : flowDir === 'bearish' ? 'Dealers must sell to hedge \u2014 pressure on prices'
+           : 'Mixed hedging signals \u2014 no dominant directional pressure')
+        + '</div>';
+    html += '</div>';
+
+    html += '</div>'; // close greek-flows-grid
+
+    if (interpretation) {
+        html += '<div class="interpretation-box" style="margin-top:4px;border-left:3px solid var(--cyan);background:linear-gradient(135deg, rgba(0,188,212,0.06) 0%, var(--bg-hover) 100%);">'
+            + '<div style="font-size:0.65rem;font-weight:700;color:var(--cyan);text-transform:uppercase;margin-bottom:6px;letter-spacing:0.05em;">Interpretation</div>'
+            + '<div style="font-size:0.78rem;line-height:1.5;color:var(--text);">' + interpretation + '</div>'
+            + '</div>';
+    }
+
+    body.innerHTML = html;
+}
+
+function gfMetricBox(label, value, sub, color, tooltip) {
+    return '<div class="metric-box" title="' + (tooltip || '').replace(/"/g, '&quot;') + '">'
+        + '<div class="metric-label">' + label + '</div>'
+        + '<div class="metric-value" style="color:' + color + ';font-size:1.4rem;">' + value + '</div>'
+        + '<div class="metric-sub">' + sub + '</div>'
+        + '</div>';
+}
+
+function fmtGreekFlowNum(n) {
+    if (n == null || isNaN(n)) return '--';
+    var abs = Math.abs(n);
+    if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (abs >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    if (abs >= 1) return n.toFixed(1);
+    if (abs >= 0.01) return n.toFixed(3);
+    return n.toExponential(1);
 }
 
 // =============================================================================
@@ -6486,15 +6700,152 @@ let tradingRefreshInterval = null;
 let tradingEquityChart = null;
 let journalFilter = 'all';
 
-// Safe fetch helper: returns parsed JSON or null on network/parse errors
-async function safeFetchJson(url, opts) {
-    try {
-        const res = await fetch(url, opts);
-        if (!res.ok) return null;
-        const text = await res.text();
-        return JSON.parse(text);
-    } catch { return null; }
+// =============================================================================
+// SKELETON MANAGER
+// =============================================================================
+const _skeletonOriginals = {};
+
+function showSkeleton(containerId, type) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!_skeletonOriginals[containerId]) _skeletonOriginals[containerId] = el.innerHTML;
+    let html = '<div class="skeleton-wrapper">';
+    if (type === 'metrics-grid') {
+        html += '<div class="skeleton-metric-grid">';
+        for (let i = 0; i < 4; i++) html += '<div class="skeleton-metric-card"><div class="skeleton skeleton-label" style="width:60%;height:12px;margin-bottom:8px"></div><div class="skeleton skeleton-value" style="width:80%;height:24px;margin-bottom:6px"></div><div class="skeleton skeleton-text" style="width:40%;height:10px"></div></div>';
+        html += '</div>';
+    } else if (type === 'chart') {
+        html += '<div class="skeleton skeleton-chart"></div>';
+    } else if (type === 'table') {
+        html += '<div class="skeleton-table">';
+        for (let i = 0; i < 5; i++) html += '<div class="skeleton skeleton-row"></div>';
+        html += '</div>';
+    } else if (type === 'card') {
+        html += '<div class="skeleton-metric-card"><div class="skeleton skeleton-label" style="width:50%;height:12px;margin-bottom:8px"></div><div class="skeleton skeleton-value" style="width:70%;height:20px"></div></div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
 }
+
+function hideSkeleton(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const wrapper = el.querySelector('.skeleton-wrapper');
+    if (wrapper) wrapper.remove();
+    if (_skeletonOriginals[containerId] && !el.children.length) el.innerHTML = _skeletonOriginals[containerId];
+    delete _skeletonOriginals[containerId];
+}
+
+// =============================================================================
+// ERROR STATE MANAGER
+// =============================================================================
+const _errorOriginals = {};
+
+function showErrorState(containerId, message, retryFn, detail) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!_errorOriginals[containerId]) _errorOriginals[containerId] = el.innerHTML;
+    el.innerHTML = '<div class="error-state"><div class="error-state-icon">\u26A0</div>' +
+        '<div class="error-state-message">' + (message || 'Something went wrong') + '</div>' +
+        (detail ? '<div class="error-state-detail">' + detail + '</div>' : '') +
+        (retryFn ? '<button class="error-state-retry">Retry</button>' : '') + '</div>';
+    if (retryFn) {
+        const btn = el.querySelector('.error-state-retry');
+        if (btn) btn.addEventListener('click', retryFn);
+    }
+}
+
+function hideErrorState(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (_errorOriginals[containerId]) { el.innerHTML = _errorOriginals[containerId]; delete _errorOriginals[containerId]; }
+}
+
+// =============================================================================
+// FLASH-ON-CHANGE ANIMATION
+// =============================================================================
+function flashElement(el, direction) {
+    const cls = direction === 'up' ? 'flash-up' : 'flash-down';
+    el.classList.remove('flash-up', 'flash-down');
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 800);
+}
+
+function flashValue(element, newValue, oldValue) {
+    if (!element) return;
+    const nv = typeof newValue === 'string' ? parseFloat(newValue.replace(/[$,+%]/g, '')) : newValue;
+    const ov = typeof oldValue === 'string' ? parseFloat(oldValue.replace(/[$,+%]/g, '')) : oldValue;
+    if (isNaN(nv) || isNaN(ov) || nv === ov) return;
+    flashElement(element, nv > ov ? 'up' : 'down');
+}
+
+// =============================================================================
+// SPARKLINE RENDERER
+// =============================================================================
+const _sparklineData = {};
+
+function pushSparklineValue(key, value) {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return;
+    if (!_sparklineData[key]) _sparklineData[key] = [];
+    _sparklineData[key].push(num);
+    if (_sparklineData[key].length > 30) _sparklineData[key].shift();
+}
+
+function renderSparkline(container, data, color) {
+    if (!container || !data || data.length < 2) return;
+    const w = 60, h = 24, pad = 1;
+    const min = Math.min(...data), max = Math.max(...data), range = max - min || 1, eh = h - pad * 2;
+    const pts = data.map((v, i) => ((i / (data.length - 1)) * w).toFixed(1) + ',' + (pad + eh - ((v - min) / range) * eh).toFixed(1));
+    const lineColor = color || (data[data.length - 1] >= data[0] ? 'var(--color-profit)' : 'var(--color-loss)');
+    const pStr = pts.join(' ');
+    container.innerHTML = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><polygon points="0,' + h + ' ' + pStr + ' ' + w + ',' + h + '" fill="' + lineColor + '" opacity="0.1"/><polyline points="' + pStr + '" fill="none" stroke="' + lineColor + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+// =============================================================================
+// ENHANCED SAFE FETCH (backward-compatible: returns parsed JSON or null)
+// =============================================================================
+const _inflightGets = {};
+
+async function safeFetchJson(url, opts) {
+    const method = (opts && opts.method) ? opts.method.toUpperCase() : 'GET';
+    if (method === 'GET' && _inflightGets[url]) return _inflightGets[url];
+    const execute = async () => {
+        const delays = [1000, 2000];
+        for (let attempt = 0; attempt <= 2; attempt++) {
+            try {
+                const fetchOpts = Object.assign({}, opts || {});
+                if (!fetchOpts.signal) fetchOpts.signal = AbortSignal.timeout(10000);
+                const res = await fetch(url, fetchOpts);
+                if (!res.ok) { if (res.status >= 400 && res.status < 500) return null; throw new Error('server'); }
+                return await res.json();
+            } catch (err) { if (attempt < 2) await new Promise(r => setTimeout(r, delays[attempt])); }
+        }
+        return null;
+    };
+    if (method === 'GET') {
+        const promise = execute().finally(() => delete _inflightGets[url]);
+        _inflightGets[url] = promise;
+        return promise;
+    }
+    return execute();
+}
+
+// =============================================================================
+// VISIBILITY API — Pause/resume polling when tab hidden
+// =============================================================================
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        if (livePriceInterval) { clearInterval(livePriceInterval); livePriceInterval = null; }
+        if (tradingRefreshInterval) { clearInterval(tradingRefreshInterval); tradingRefreshInterval = null; }
+        if (typeof _swingRefreshTimer !== 'undefined' && _swingRefreshTimer) { clearInterval(_swingRefreshTimer); _swingRefreshTimer = null; }
+    } else {
+        if (typeof startLivePricePolling === 'function' && optionsAnalysisTicker) startLivePricePolling();
+        if (activeTab === 'tab-trading' && typeof startTradingRefresh === 'function') startTradingRefresh();
+        if (typeof startSwingAutoRefresh === 'function') startSwingAutoRefresh();
+    }
+});
 
 async function loadTradingDashboard() {
     await Promise.all([
@@ -6506,6 +6857,7 @@ async function loadTradingDashboard() {
         loadPaperJournal(),
         loadPaperConfig(),
         loadAdaptiveIntelligence(),
+        loadStrategyMatrix(),
     ]);
 }
 
@@ -6521,18 +6873,34 @@ async function loadPaperAccount() {
             const d = data.data;
             const el = (id) => document.getElementById(id);
 
-            el('trading-equity').textContent = '$' + d.equity.toLocaleString(undefined, {maximumFractionDigits: 0});
+            const eqEl = el('trading-equity');
+            const oldEq = eqEl.textContent;
+            eqEl.textContent = '$' + d.equity.toLocaleString(undefined, {maximumFractionDigits: 0});
+            flashValue(eqEl, d.equity, oldEq);
+
             el('trading-cash').textContent = '$' + d.cash.toLocaleString(undefined, {maximumFractionDigits: 0});
             el('trading-buying-power').textContent = '$' + d.buying_power.toLocaleString(undefined, {maximumFractionDigits: 0});
 
             const pnlEl = el('trading-total-pnl');
+            const oldPnl = pnlEl.textContent;
             pnlEl.textContent = (d.total_pnl >= 0 ? '+' : '') + '$' + d.total_pnl.toLocaleString(undefined, {maximumFractionDigits: 0});
             pnlEl.className = 'trading-metric-value ' + (d.total_pnl >= 0 ? 'positive' : 'negative');
+            flashValue(pnlEl, d.total_pnl, oldPnl);
 
             const dailyEl = el('trading-daily-pnl');
+            const oldDaily = dailyEl.textContent;
             const daily = d.daily_pnl || 0;
             dailyEl.textContent = (daily >= 0 ? '+' : '') + '$' + daily.toLocaleString(undefined, {maximumFractionDigits: 0});
             dailyEl.className = 'trading-metric-value ' + (daily >= 0 ? 'positive' : 'negative');
+            flashValue(dailyEl, daily, oldDaily);
+            pushSparklineValue('daily-pnl', daily);
+            const dailySpark = document.getElementById('sparkline-daily-pnl');
+            if (dailySpark && _sparklineData['daily-pnl']) renderSparkline(dailySpark, _sparklineData['daily-pnl']);
+
+            // Sparkline for equity
+            pushSparklineValue('equity', d.equity);
+            const eqSpark = document.getElementById('sparkline-equity');
+            if (eqSpark && _sparklineData.equity) renderSparkline(eqSpark, _sparklineData.equity);
 
             // Status badge
             const statusEl = el('trading-status');
@@ -6889,6 +7257,140 @@ function renderSignalAttribution(attribution) {
         </div>`;
     }
     container.innerHTML = html;
+}
+
+// --- Strategy x Regime Matrix ---
+async function loadStrategyMatrix() {
+    const container = document.getElementById('strategy-matrix-body');
+    if (!container) return;
+
+    container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">Loading matrix...</div>';
+
+    try {
+        const [analyticsRes, journalRes] = await Promise.all([
+            safeFetchJson(`${API_BASE}/paper/analytics`),
+            safeFetchJson(`${API_BASE}/paper/journal?limit=500`)
+        ]);
+
+        if (!journalRes || !journalRes.ok || !journalRes.data) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No journal data available</div>';
+            return;
+        }
+
+        const entries = journalRes.data.entries || journalRes.data || [];
+        if (!Array.isArray(entries) || entries.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades to analyze</div>';
+            return;
+        }
+
+        const REGIMES = ['opportunity', 'neutral', 'pinned', 'volatile', 'danger'];
+        const REGIME_LABELS = {
+            opportunity: 'Opportunity',
+            neutral: 'Neutral',
+            pinned: 'Pinned',
+            volatile: 'Volatile',
+            danger: 'Danger'
+        };
+
+        // Accumulate stats per (strategy, regime) pair
+        const matrix = {}; // { strategy: { regime: { wins, losses, total_pnl } } }
+        const strategies = new Set();
+
+        for (const entry of entries) {
+            const strategy = entry.strategy;
+            const regime = entry.signal_data && entry.signal_data.regime;
+            if (!strategy || !regime || !REGIMES.includes(regime)) continue;
+            if (entry.pnl === undefined || entry.pnl === null) continue;
+
+            strategies.add(strategy);
+            if (!matrix[strategy]) matrix[strategy] = {};
+            if (!matrix[strategy][regime]) matrix[strategy][regime] = { wins: 0, losses: 0, total_pnl: 0 };
+
+            const cell = matrix[strategy][regime];
+            if (entry.pnl >= 0) cell.wins++;
+            else cell.losses++;
+            cell.total_pnl += entry.pnl;
+        }
+
+        if (strategies.size === 0) {
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No trades with regime data found</div>';
+            return;
+        }
+
+        // Compute win rates and find best per regime
+        const bestPerRegime = {};
+        for (const regime of REGIMES) {
+            let bestWr = -1;
+            let bestStrategy = null;
+            for (const strategy of strategies) {
+                const cell = matrix[strategy] && matrix[strategy][regime];
+                if (!cell) continue;
+                const total = cell.wins + cell.losses;
+                if (total === 0) continue;
+                const wr = (cell.wins / total) * 100;
+                if (wr > bestWr || (wr === bestWr && total > ((matrix[bestStrategy] && matrix[bestStrategy][regime]) ? matrix[bestStrategy][regime].wins + matrix[bestStrategy][regime].losses : 0))) {
+                    bestWr = wr;
+                    bestStrategy = strategy;
+                }
+            }
+            if (bestStrategy) bestPerRegime[regime] = bestStrategy;
+        }
+
+        // Sort strategies by total trades descending
+        const sortedStrategies = [...strategies].sort((a, b) => {
+            const totalA = REGIMES.reduce((sum, r) => {
+                const c = matrix[a] && matrix[a][r];
+                return sum + (c ? c.wins + c.losses : 0);
+            }, 0);
+            const totalB = REGIMES.reduce((sum, r) => {
+                const c = matrix[b] && matrix[b][r];
+                return sum + (c ? c.wins + c.losses : 0);
+            }, 0);
+            return totalB - totalA;
+        });
+
+        // Build HTML table
+        let html = '<table class="strategy-matrix-table"><thead><tr>';
+        html += '<th>Strategy</th>';
+        for (const regime of REGIMES) {
+            html += `<th>${REGIME_LABELS[regime]}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+
+        for (const strategy of sortedStrategies) {
+            html += '<tr>';
+            html += `<td>${strategy}</td>`;
+            for (const regime of REGIMES) {
+                const cell = matrix[strategy] && matrix[strategy][regime];
+                if (!cell || (cell.wins + cell.losses) === 0) {
+                    html += '<td style="color: var(--text-dim);">&mdash;</td>';
+                    continue;
+                }
+                const total = cell.wins + cell.losses;
+                const wr = ((cell.wins / total) * 100).toFixed(0);
+                const isBest = bestPerRegime[regime] === strategy;
+
+                let wrColor = 'var(--text)';
+                if (wr > 60) wrColor = 'var(--green)';
+                else if (wr < 40) wrColor = 'var(--red)';
+
+                html += `<td><div class="matrix-cell${isBest ? ' matrix-cell-best' : ''}">`;
+                html += `<span class="matrix-cell-wr" style="color: ${wrColor};">${wr}%</span>`;
+                html += `<span class="matrix-cell-count">${total} trade${total !== 1 ? 's' : ''}</span>`;
+                html += '</div></td>';
+            }
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+    } catch (e) {
+        console.error('Strategy matrix error:', e);
+        container.innerHTML = `<div style="text-align: center; color: var(--red); padding: 20px; font-size: 0.8rem;">
+            Failed to load matrix. <button class="btn btn-ghost" onclick="loadStrategyMatrix()" style="padding: 2px 8px; font-size: 0.7rem; margin-left: 8px;">Retry</button>
+        </div>`;
+    }
 }
 
 // --- Equity Curve ---

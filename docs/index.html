@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260211b">
+    <link rel="stylesheet" href="css/styles.css?v=20260211c">
 </head>
 <body>
     <!-- Header -->
@@ -92,12 +92,12 @@
                     <div class="options-metrics-grid">
                         <div class="metric-card" title="CBOE Volatility Index - measures expected 30-day S&P 500 volatility. Below 15 = low fear, 15-25 = normal, above 25 = elevated fear.">
                             <div class="metric-label">VIX</div>
-                            <div class="metric-value" id="vix-level">--</div>
+                            <div style="display:flex;align-items:center;gap:4px;"><div class="metric-value" id="vix-level">--</div><span class="sparkline-container" id="sparkline-vix"></span></div>
                             <div class="metric-sub" id="vix-label">--</div>
                         </div>
                         <div class="metric-card" title="Put/Call Ratio - total put OI divided by call OI. Below 0.7 = bullish, 0.7-1.0 = neutral, above 1.0 = bearish/hedging heavy.">
                             <div class="metric-label">P/C RATIO</div>
-                            <div class="metric-value" id="spy-pc-ratio">--</div>
+                            <div style="display:flex;align-items:center;gap:4px;"><div class="metric-value" id="spy-pc-ratio">--</div><span class="sparkline-container" id="sparkline-pc-ratio"></span></div>
                             <div class="metric-sub" id="spy-pc-label">--</div>
                         </div>
                         <div class="metric-card" style="border: 1px solid var(--purple);" title="Max Pain - the strike price where option holders (buyers) lose the most money. Price tends to gravitate toward this level near expiration.">
@@ -107,7 +107,7 @@
                         </div>
                         <div class="metric-card" title="Gamma Exposure (GEX) - net dealer gamma. Positive GEX = dealers sell rallies/buy dips (stabilizing). Negative GEX = dealers amplify moves (volatile).">
                             <div class="metric-label">GEX</div>
-                            <div class="metric-value" id="market-gex">--</div>
+                            <div style="display:flex;align-items:center;gap:4px;"><div class="metric-value" id="market-gex">--</div><span class="sparkline-container" id="sparkline-gex"></span></div>
                             <div class="metric-sub" id="gex-label">--</div>
                         </div>
                     </div>
@@ -504,6 +504,15 @@
                         <div id="gex-levels-table-body" style="display: none;"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Greek Flows Heatmap -->
+            <div id="greek-flows-card" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--cyan);">
+                <div class="card-header" onclick="toggleAccordion(this)" style="cursor: pointer;">
+                    <div class="card-title">GREEK FLOWS — Dealer Hedging Dynamics <span id="gf-ticker" style="color: var(--cyan); margin-left: 8px;"></span></div>
+                    <span id="gf-accordion-icon" style="font-size: 0.7rem; color: var(--text-muted); transition: transform 0.2s;">&#9660;</span>
+                </div>
+                <div class="card-body" id="greek-flows-body"></div>
             </div>
 
             <!-- GEX by Strike Table -->
@@ -1032,7 +1041,7 @@
                     <div class="trading-metrics-grid">
                         <div class="trading-metric">
                             <div class="trading-metric-label">EQUITY</div>
-                            <div class="trading-metric-value" id="trading-equity">$50,000</div>
+                            <div style="display:flex;align-items:center;gap:4px;justify-content:center;"><div class="trading-metric-value" id="trading-equity">$50,000</div><span class="sparkline-container" id="sparkline-equity"></span></div>
                         </div>
                         <div class="trading-metric">
                             <div class="trading-metric-label">CASH</div>
@@ -1048,7 +1057,7 @@
                         </div>
                         <div class="trading-metric">
                             <div class="trading-metric-label">TODAY P&L</div>
-                            <div class="trading-metric-value" id="trading-daily-pnl">$0</div>
+                            <div style="display:flex;align-items:center;gap:4px;justify-content:center;"><div class="trading-metric-value" id="trading-daily-pnl">$0</div><span class="sparkline-container" id="sparkline-daily-pnl"></span></div>
                         </div>
                     </div>
                 </div>
@@ -1181,6 +1190,16 @@
                 </div>
             </div>
 
+            <!-- Strategy x Regime Matrix -->
+            <div id="strategy-matrix-card" class="card trading-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
+                <div class="card-header">
+                    <div class="card-title" style="color: var(--cyan);">STRATEGY &times; REGIME MATRIX</div>
+                </div>
+                <div class="card-body" id="strategy-matrix-body">
+                    <div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.8rem;">No matrix data yet</div>
+                </div>
+            </div>
+
             <!-- Adaptive Intelligence (Phase 1-4) -->
             <div class="card trading-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1260,6 +1279,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260211d"></script>
+    <script src="js/app.js?v=20260211e"></script>
 </body>
 </html>
