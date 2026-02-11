@@ -3785,6 +3785,9 @@ function updateGexTable() {
 // =============================================================================
 // MARKET SENTIMENT
 // =============================================================================
+// Cache for backend sentiment data (shared between loadMarketSentiment and updateSentimentGauge)
+let _lastSentimentData = null;
+
 async function loadMarketSentiment() {
     try {
         const [sentimentRes, expirationsRes] = await Promise.all([
@@ -3797,6 +3800,9 @@ async function loadMarketSentiment() {
 
         if (data.ok && data.data) {
             const sentiment = data.data;
+            _lastSentimentData = sentiment;
+
+            // VIX
             const vix = sentiment.vix || 0;
             const vixEl = document.getElementById('vix-level');
             const oldVix = vixEl.textContent;
@@ -3807,6 +3813,12 @@ async function loadMarketSentiment() {
             const vixSpark = document.getElementById('sparkline-vix');
             if (vixSpark && _sparklineData.vix) renderSparkline(vixSpark, _sparklineData.vix);
             document.getElementById('vix-label').textContent = vix > 25 ? 'High Fear' : vix < 15 ? 'Low Fear' : 'Normal';
+
+            // SPX Institutional Strip
+            _renderSpxStrip(sentiment);
+
+            // Update gauge with backend composite score
+            updateSentimentGauge(sentiment);
         }
 
         const expirySelect = document.getElementById('market-sentiment-expiry');
@@ -3819,6 +3831,45 @@ async function loadMarketSentiment() {
         }
     } catch (e) {
         console.error('Failed to load market sentiment:', e);
+    }
+}
+
+function _renderSpxStrip(sentiment) {
+    const spx = sentiment.spx || {};
+    const spxGex = spx.total_gex || 0;
+    const ivRank = sentiment.spy_iv_rank;
+    const skew = sentiment.spy_skew_ratio;
+    const zeroDte = sentiment.zero_dte_volume || 0;
+
+    // SPX GEX
+    const gexEl = document.getElementById('spx-gex-value');
+    if (gexEl) {
+        if (Math.abs(spxGex) >= 1e9) gexEl.textContent = '$' + (spxGex / 1e9).toFixed(1) + 'B';
+        else if (Math.abs(spxGex) >= 1e6) gexEl.textContent = '$' + (spxGex / 1e6).toFixed(0) + 'M';
+        else gexEl.textContent = spxGex === 0 ? '--' : '$' + (spxGex / 1e3).toFixed(0) + 'K';
+        gexEl.style.color = spxGex > 0 ? 'var(--green)' : spxGex < 0 ? 'var(--red)' : '';
+    }
+
+    // IV Rank
+    const ivEl = document.getElementById('spx-iv-rank');
+    if (ivEl && ivRank != null) {
+        ivEl.textContent = ivRank.toFixed(0) + '%';
+        ivEl.style.color = ivRank > 80 ? 'var(--red)' : ivRank < 20 ? 'var(--green)' : 'var(--text)';
+    }
+
+    // Skew
+    const skewEl = document.getElementById('spx-skew-ratio');
+    if (skewEl && skew != null) {
+        skewEl.textContent = skew.toFixed(2) + 'x';
+        skewEl.style.color = skew > 1.5 ? 'var(--yellow)' : 'var(--text)';
+    }
+
+    // 0DTE Volume
+    const dteEl = document.getElementById('spx-0dte-vol');
+    if (dteEl) {
+        if (zeroDte >= 1e6) dteEl.textContent = (zeroDte / 1e6).toFixed(1) + 'M';
+        else if (zeroDte >= 1e3) dteEl.textContent = (zeroDte / 1e3).toFixed(0) + 'K';
+        else dteEl.textContent = zeroDte > 0 ? zeroDte.toString() : '--';
     }
 }
 
@@ -3901,9 +3952,13 @@ async function loadMarketSentimentForExpiry() {
         distEl.textContent = (dist > 0 ? '+' : '') + dist.toFixed(1) + '% ' + arrow;
         distEl.style.color = Math.abs(dist) < 2 ? 'var(--green)' : Math.abs(dist) < 5 ? 'var(--yellow)' : 'var(--text-muted)';
 
-        const vixText = document.getElementById('vix-level').textContent;
-        const vix = parseFloat(vixText) || 0;
-        updateSentimentGauge(pcRatio, vix, gexValue);
+        // Update gauge: merge expiry-specific data into cached sentiment
+        if (_lastSentimentData) {
+            // Update SPY GEX in the cached data for accurate display
+            _lastSentimentData._spyGex = gexValue;
+            _lastSentimentData._spyPcRatio = pcRatio;
+            updateSentimentGauge(_lastSentimentData);
+        }
 
     } catch (e) {
         console.error('Failed to load sentiment for expiry:', e);
@@ -3913,29 +3968,16 @@ async function loadMarketSentimentForExpiry() {
 }
 
 // =============================================================================
-// SENTIMENT GAUGE
+// SENTIMENT GAUGE (uses backend composite score + factor breakdown)
 // =============================================================================
-function updateSentimentGauge(pcRatio, vix, gexValue) {
-    // --- Factor contributions ---
-    let pcScore = 0;
-    if (pcRatio < 0.6) pcScore = 30;
-    else if (pcRatio < 0.8) pcScore = 15;
-    else if (pcRatio > 1.2) pcScore = -30;
-    else if (pcRatio > 1.0) pcScore = -15;
+function updateSentimentGauge(sentiment) {
+    // Use backend composite score as source of truth
+    const score = sentiment.market_sentiment_score || 50;
+    const label_text = sentiment.market_label || 'Neutral';
+    const confidence = sentiment.confidence || 0;
+    const factors = sentiment.factors || {};
+    const vix = sentiment.vix || 20;
 
-    let vixScore = 0;
-    if (vix < 15) vixScore = 10;
-    else if (vix > 30) vixScore = -15;
-    else if (vix > 25) vixScore = -10;
-
-    let gexScore = 0;
-    if (typeof gexValue === 'number' && gexValue !== 0) {
-        if (gexValue > 0) gexScore = 10;
-        else if (gexValue < -5e8) gexScore = -10;
-        else if (gexValue < 0) gexScore = -5;
-    }
-
-    const score = Math.max(0, Math.min(100, 50 + pcScore + vixScore + gexScore));
     const angle = -90 + (score / 100) * 180;
 
     // Needle
@@ -3944,7 +3986,14 @@ function updateSentimentGauge(pcRatio, vix, gexValue) {
 
     // Score text in SVG
     const scoreText = document.getElementById('sentiment-score-text');
-    if (scoreText) scoreText.textContent = score;
+    if (scoreText) scoreText.textContent = Math.round(score);
+
+    // Confidence badge
+    const confEl = document.getElementById('sentiment-confidence');
+    if (confEl) {
+        confEl.textContent = Math.round(confidence) + '% conf';
+        confEl.style.color = confidence >= 60 ? 'var(--green)' : confidence >= 30 ? 'var(--text-muted)' : 'var(--text-dim)';
+    }
 
     // Glow
     const glow = document.getElementById('sentiment-glow');
@@ -3954,38 +4003,60 @@ function updateSentimentGauge(pcRatio, vix, gexValue) {
     }
 
     // Label + description
-    const label = document.getElementById('sentiment-label');
+    const labelEl = document.getElementById('sentiment-label');
     const description = document.getElementById('sentiment-description');
-    const pcDesc = pcRatio > 1.2 ? 'High P/C' : pcRatio < 0.7 ? 'Low P/C' : 'Neutral P/C';
-    const vixDesc = vix > 25 ? 'High VIX' : vix < 15 ? 'Low VIX' : 'Normal VIX';
+    const labelColor = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--text)' : 'var(--red)';
+    if (labelEl) { labelEl.textContent = label_text.toUpperCase(); labelEl.style.color = labelColor; }
 
-    if (score >= 75) { label.textContent = 'BULLISH'; label.style.color = 'var(--green)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk On'; }
-    else if (score >= 60) { label.textContent = 'LEAN BULLISH'; label.style.color = 'var(--green)'; description.textContent = pcDesc + ' + ' + vixDesc; }
-    else if (score >= 40) { label.textContent = 'NEUTRAL'; label.style.color = 'var(--text)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Mixed signals'; }
-    else if (score >= 25) { label.textContent = 'LEAN BEARISH'; label.style.color = 'var(--red)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Elevated caution'; }
-    else { label.textContent = 'BEARISH'; label.style.color = 'var(--red)'; description.textContent = pcDesc + ' + ' + vixDesc + ' = Risk Off'; }
+    // Description: summarize dominant factor
+    if (description) {
+        const sortedFactors = Object.values(factors).sort((a, b) => Math.abs(b.signal * b.weight) - Math.abs(a.signal * a.weight));
+        const dominant = sortedFactors[0];
+        if (dominant) {
+            const dir = dominant.signal > 0 ? 'bullish' : dominant.signal < 0 ? 'bearish' : 'neutral';
+            description.textContent = dominant.label + ' is ' + dir + ' (strongest signal)';
+        } else {
+            description.textContent = 'Weighted composite of 5 factors';
+        }
+    }
 
-    // Factor breakdown
+    // Weighted factor bars
     const factorsEl = document.getElementById('sentiment-factors');
     if (factorsEl) {
-        const factors = [
-            { name: 'P/C', value: pcScore, max: 30 },
-            { name: 'VIX', value: vixScore, max: 15 },
-            { name: 'GEX', value: gexScore, max: 10 },
-        ];
-        factorsEl.innerHTML = factors.map(f => {
-            const pct = Math.abs(f.value) / f.max * 50;
-            const cls = f.value >= 0 ? 'positive' : 'negative';
-            const color = f.value > 0 ? 'var(--green)' : f.value < 0 ? 'var(--red)' : 'var(--text-dim)';
-            return `<div class="sentiment-factor">
-                <span class="sentiment-factor-name">${f.name}</span>
-                <div class="sentiment-factor-bar"><div class="sentiment-factor-fill ${cls}" style="width:${pct}%;"></div></div>
-                <span class="sentiment-factor-value" style="color:${color}">${f.value > 0 ? '+' : ''}${f.value}</span>
-            </div>`;
+        // Render in weight order (highest weight first)
+        const ordered = Object.entries(factors).sort((a, b) => b[1].weight - a[1].weight);
+        factorsEl.innerHTML = ordered.map(([key, f]) => {
+            const signal = f.signal || 0;
+            const weightPct = Math.round(f.weight * 100);
+            const barWidth = Math.abs(signal) * 50; // signal -1..+1 maps to 0..50% of half-bar
+            const cls = signal >= 0 ? 'bullish' : 'bearish';
+            const color = signal > 0 ? 'var(--green)' : signal < 0 ? 'var(--red)' : 'var(--text-dim)';
+            // Format raw value
+            let rawFmt = '';
+            const raw = f.raw;
+            if (key === 'spx_gex') {
+                if (Math.abs(raw) >= 1e9) rawFmt = '$' + (raw / 1e9).toFixed(1) + 'B';
+                else if (Math.abs(raw) >= 1e6) rawFmt = '$' + (raw / 1e6).toFixed(0) + 'M';
+                else rawFmt = raw === 0 ? '--' : '$' + (raw / 1e3).toFixed(0) + 'K';
+            } else if (key === 'vix') {
+                rawFmt = raw.toFixed(1);
+            } else if (key === 'spy_pc') {
+                rawFmt = raw.toFixed(2);
+            } else {
+                rawFmt = typeof raw === 'number' ? raw.toFixed(0) : String(raw);
+            }
+            return '<div class="sf2-row">' +
+                '<span class="sf2-label" title="' + f.label + ' (' + weightPct + '% weight)">' + f.label + ' <span class="sf2-weight">' + weightPct + '%</span></span>' +
+                '<div class="sf2-bar-track"><div class="sf2-bar-fill ' + cls + '" style="width:' + barWidth + '%;"></div></div>' +
+                '<span class="sf2-signal" style="color:' + color + '">' + (signal > 0 ? '+' : '') + signal.toFixed(1) + '</span>' +
+            '</div>';
         }).join('');
     }
 
     // Metric card accents
+    const pcRatio = sentiment._spyPcRatio || sentiment.spy_put_call_ratio || sentiment.put_call_ratio || 1.0;
+    const gexValue = sentiment._spyGex != null ? sentiment._spyGex : sentiment.total_gex || 0;
+
     const vixCard = document.getElementById('metric-card-vix');
     if (vixCard) vixCard.className = 'metric-card hero-metric accent-' + (vix > 25 ? 'red' : vix < 15 ? 'green' : 'yellow');
     const pcCard = document.getElementById('metric-card-pc');

@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    <link rel="stylesheet" href="css/styles.css?v=20260211f">
+    <link rel="stylesheet" href="css/styles.css?v=20260211g">
 </head>
 <body>
     <!-- Header -->
@@ -35,8 +35,8 @@
         <div class="hero-zone">
             <div class="options-hero-grid">
                 <!-- Left: Visual Sentiment Gauge -->
-                <div class="sentiment-gauge-wrapper" title="Overall market sentiment derived from options flow, GEX regime, and P/C ratio">
-                    <div class="sentiment-gauge-title">MARKET SENTIMENT</div>
+                <div class="sentiment-gauge-wrapper" title="Weighted composite: SPX GEX (35%), SPY P/C (25%), VIX (20%), QQQ (10%), IWM (10%)">
+                    <div class="sentiment-gauge-title">MARKET SENTIMENT <span class="sentiment-confidence-badge" id="sentiment-confidence">--% conf</span></div>
                     <div class="sentiment-gauge-container">
                         <div class="sentiment-gauge-glow" id="sentiment-glow"></div>
                         <svg viewBox="0 0 200 115" class="sentiment-gauge-svg">
@@ -87,10 +87,11 @@
                     </div>
                     <div class="sentiment-label" id="sentiment-label">--</div>
                     <div class="sentiment-description" id="sentiment-description">Loading...</div>
-                    <div class="sentiment-factors" id="sentiment-factors"></div>
+                    <!-- Weighted factor bars -->
+                    <div class="sentiment-factors-v2" id="sentiment-factors"></div>
                 </div>
 
-                <!-- Right: Key Metrics Grid -->
+                <!-- Center: Key Metrics Grid + SPX Panel -->
                 <div>
                     <div class="options-metrics-grid">
                         <div class="metric-card hero-metric" id="metric-card-vix" title="CBOE Volatility Index - measures expected 30-day S&P 500 volatility. Below 15 = low fear, 15-25 = normal, above 25 = elevated fear.">
@@ -98,20 +99,42 @@
                             <div class="metric-value" id="vix-level">--</div><span class="sparkline-container" id="sparkline-vix"></span>
                             <div class="metric-sub" id="vix-label">--</div>
                         </div>
-                        <div class="metric-card hero-metric" id="metric-card-pc" title="Put/Call Ratio - total put OI divided by call OI. Below 0.7 = bullish, 0.7-1.0 = neutral, above 1.0 = bearish/hedging heavy.">
+                        <div class="metric-card hero-metric" id="metric-card-pc" title="SPY Put/Call Ratio by OI. Below 0.7 = bullish, 0.7-1.0 = neutral, above 1.0 = bearish.">
                             <div class="metric-label">P/C RATIO</div>
                             <div class="metric-value" id="spy-pc-ratio">--</div><span class="sparkline-container" id="sparkline-pc-ratio"></span>
                             <div class="metric-sub" id="spy-pc-label">--</div>
                         </div>
-                        <div class="metric-card hero-metric" id="metric-card-mp" title="Max Pain - the strike price where option holders (buyers) lose the most money. Price tends to gravitate toward this level near expiration.">
+                        <div class="metric-card hero-metric" id="metric-card-mp" title="Max Pain - strike where option buyers lose most. Price gravitates here near expiry.">
                             <div class="metric-label">MAX PAIN</div>
                             <div class="metric-value" id="spy-max-pain">--</div>
                             <div class="metric-sub" id="spy-max-pain-dist">--</div>
                         </div>
-                        <div class="metric-card hero-metric" id="metric-card-gex" title="Gamma Exposure (GEX) - net dealer gamma. Positive GEX = dealers sell rallies/buy dips (stabilizing). Negative GEX = dealers amplify moves (volatile).">
-                            <div class="metric-label">GEX</div>
+                        <div class="metric-card hero-metric" id="metric-card-gex" title="SPY Gamma Exposure. Positive = stabilizing (dealers sell rallies/buy dips). Negative = volatile.">
+                            <div class="metric-label">SPY GEX</div>
                             <div class="metric-value" id="market-gex">--</div><span class="sparkline-container" id="sparkline-gex"></span>
                             <div class="metric-sub" id="gex-label">--</div>
+                        </div>
+                    </div>
+                    <!-- SPX Institutional Strip -->
+                    <div class="spx-strip" id="spx-strip">
+                        <div class="spx-strip-label">SPX INSTITUTIONAL</div>
+                        <div class="spx-strip-items">
+                            <div class="spx-strip-item">
+                                <span class="spx-strip-key">GEX</span>
+                                <span class="spx-strip-val" id="spx-gex-value">--</span>
+                            </div>
+                            <div class="spx-strip-item">
+                                <span class="spx-strip-key">IV Rank</span>
+                                <span class="spx-strip-val" id="spx-iv-rank">--</span>
+                            </div>
+                            <div class="spx-strip-item">
+                                <span class="spx-strip-key">Skew</span>
+                                <span class="spx-strip-val" id="spx-skew-ratio">--</span>
+                            </div>
+                            <div class="spx-strip-item">
+                                <span class="spx-strip-key">0DTE Vol</span>
+                                <span class="spx-strip-val" id="spx-0dte-vol">--</span>
+                            </div>
                         </div>
                     </div>
                     <!-- Expiry selector -->
@@ -130,7 +153,6 @@
                 </div>
             </div>
             <div class="macro-bar" id="macro-bar" style="display: none;">
-
                 <div class="macro-bar-left">
                     <span class="macro-bar-label">MACRO</span>
                     <div class="macro-score-badge">
@@ -1317,6 +1339,6 @@
         </div>
     </footer>
 
-    <script src="js/app.js?v=20260211h"></script>
+    <script src="js/app.js?v=20260211i"></script>
 </body>
 </html>

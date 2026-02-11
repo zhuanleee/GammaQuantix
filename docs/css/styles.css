@@ -368,48 +368,132 @@ body {
     margin-top: 2px;
 }
 
-/* Sentiment factor breakdown */
-.sentiment-factors {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 8px;
-    flex-wrap: wrap;
-}
-.sentiment-factor {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+/* Sentiment confidence badge */
+.sentiment-confidence-badge {
     font-size: 0.55rem;
-    color: var(--text-muted);
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+    margin-left: 6px;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
 }
-.sentiment-factor-name {
+
+/* Weighted factor bars (v2) */
+.sentiment-factors-v2 {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 10px;
+    max-width: 240px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.sf2-row {
+    display: grid;
+    grid-template-columns: 68px 1fr 32px;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.6rem;
+}
+.sf2-label {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-}
-.sentiment-factor-bar {
-    width: 28px;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+    text-align: right;
+    white-space: nowrap;
     overflow: hidden;
-    position: relative;
+    text-overflow: ellipsis;
 }
-.sentiment-factor-fill {
+.sf2-bar-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    position: relative;
+    overflow: hidden;
+}
+/* Center line marker */
+.sf2-bar-track::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255,255,255,0.12);
+}
+.sf2-bar-fill {
     position: absolute;
     top: 0;
     height: 100%;
-    border-radius: 2px;
-    transition: width 0.4s ease;
+    border-radius: 3px;
+    transition: width 0.5s ease, left 0.5s ease, right 0.5s ease;
 }
-.sentiment-factor-fill.positive { left: 50%; background: var(--green); }
-.sentiment-factor-fill.negative { right: 50%; background: var(--red); }
-.sentiment-factor-value {
+.sf2-bar-fill.bullish {
+    left: 50%;
+    background: linear-gradient(90deg, rgba(34,197,94,0.5), rgba(34,197,94,0.9));
+}
+.sf2-bar-fill.bearish {
+    right: 50%;
+    background: linear-gradient(270deg, rgba(239,68,68,0.5), rgba(239,68,68,0.9));
+}
+.sf2-signal {
     font-family: var(--font-mono, monospace);
-    font-weight: 600;
-    min-width: 22px;
+    font-weight: 700;
+    font-size: 0.6rem;
     text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.sf2-weight {
+    font-size: 0.45rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-left: 2px;
+}
+
+/* SPX Institutional Strip */
+.spx-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: rgba(168, 85, 247, 0.06);
+    border: 1px solid rgba(168, 85, 247, 0.15);
+    border-radius: 6px;
+}
+.spx-strip-label {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--purple);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.spx-strip-items {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+.spx-strip-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.spx-strip-key {
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+.spx-strip-val {
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    font-variant-numeric: tabular-nums;
 }
 
 .options-hero-grid {
