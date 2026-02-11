@@ -7554,6 +7554,14 @@ async function loadPaperConfig() {
         const mlToggle = document.getElementById('multi-leg-toggle');
         if (mlToggle) mlToggle.checked = c.multi_leg_enabled || false;
 
+        // Update risk mode toggle
+        const rmToggle = document.getElementById('risk-mode-toggle');
+        const rmLabel = document.getElementById('risk-mode-label');
+        if (rmToggle) {
+            rmToggle.checked = (c.risk_mode === 'all');
+            if (rmLabel) rmLabel.textContent = rmToggle.checked ? 'All Risk' : 'Limited Risk';
+        }
+
         // Render risk config
         const container = document.getElementById('trading-risk');
         container.innerHTML = `
@@ -7659,6 +7667,24 @@ async function toggleMultiLeg() {
     } catch (e) {
         console.error('Toggle multi-leg error:', e);
         toggle.checked = !enabled; // Revert
+    }
+}
+
+async function toggleRiskMode() {
+    const toggle = document.getElementById('risk-mode-toggle');
+    const label = document.getElementById('risk-mode-label');
+    const mode = toggle.checked ? 'all' : 'limited';
+    if (label) label.textContent = toggle.checked ? 'All Risk' : 'Limited Risk';
+    try {
+        await fetch(`${API_BASE}/paper/config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ risk_mode: mode }),
+        });
+    } catch (e) {
+        console.error('Toggle risk mode error:', e);
+        toggle.checked = !toggle.checked;
+        if (label) label.textContent = toggle.checked ? 'All Risk' : 'Limited Risk';
     }
 }
 
