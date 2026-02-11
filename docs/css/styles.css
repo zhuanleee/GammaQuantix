@@ -393,7 +393,7 @@ body {
 }
 .sf2-row {
     display: grid;
-    grid-template-columns: 68px 1fr 32px;
+    grid-template-columns: 84px 1fr 38px;
     align-items: center;
     gap: 6px;
     font-size: 0.6rem;
