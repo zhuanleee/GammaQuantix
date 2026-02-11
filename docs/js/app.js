@@ -3988,11 +3988,15 @@ function updateSentimentGauge(sentiment) {
     const scoreText = document.getElementById('sentiment-score-text');
     if (scoreText) scoreText.textContent = Math.round(score);
 
-    // Confidence badge
+    // Confidence badge with decomposition tooltip
     const confEl = document.getElementById('sentiment-confidence');
     if (confEl) {
         confEl.textContent = Math.round(confidence) + '% conf';
         confEl.style.color = confidence >= 60 ? 'var(--green)' : confidence >= 30 ? 'var(--text-muted)' : 'var(--text-dim)';
+        const ag = sentiment.confidence_agreement || 0;
+        const st = sentiment.confidence_strength || 0;
+        const di = sentiment.confidence_directionality || 0;
+        confEl.title = 'Agreement: ' + Math.round(ag) + '% | Strength: ' + Math.round(st) + '% | Direction: ' + Math.round(di) + '%';
     }
 
     // Glow
@@ -4016,7 +4020,7 @@ function updateSentimentGauge(sentiment) {
             const dir = dominant.signal > 0 ? 'bullish' : dominant.signal < 0 ? 'bearish' : 'neutral';
             description.textContent = dominant.label + ' is ' + dir + ' (strongest signal)';
         } else {
-            description.textContent = 'Weighted composite of 5 factors';
+            description.textContent = '8-factor z-score composite';
         }
     }
 
@@ -4044,8 +4048,12 @@ function updateSentimentGauge(sentiment) {
                 rawFmt = raw.toFixed(2);
             } else if (key === 'vix_ts') {
                 rawFmt = raw != null ? raw.toFixed(3) : '--';
-            } else if (key === 'gex_regime') {
-                rawFmt = raw > 0.3 ? 'Pin' : raw < -0.3 ? 'Vol' : 'Mix';
+            } else if (key === 'vrp') {
+                rawFmt = raw != null ? raw.toFixed(1) : '--';
+            } else if (key === 'skew_idx') {
+                rawFmt = raw != null ? raw.toFixed(0) : '--';
+            } else if (key === 'hy_oas') {
+                rawFmt = raw != null ? raw.toFixed(0) + 'bp' : '--';
             } else {
                 rawFmt = typeof raw === 'number' ? raw.toFixed(2) : String(raw);
             }
