@@ -3895,6 +3895,15 @@ function _populateHyCard(sentiment) {
     _updateZscorePip('zscore-pip-hy', sentiment.factors && sentiment.factors.hy_oas ? sentiment.factors.hy_oas.zscore : null);
 }
 
+function _toggleFactorCat(headerEl) {
+    const catId = headerEl.getAttribute('data-cat');
+    const rows = document.querySelector('.sf2-cat-rows[data-cat="' + catId + '"]');
+    if (!rows) return;
+    const isCollapsed = headerEl.classList.toggle('collapsed');
+    rows.classList.toggle('collapsed', isCollapsed);
+    localStorage.setItem('sf2_' + catId, isCollapsed ? '1' : '0');
+}
+
 function _updateZscorePip(id, zscore) {
     const pip = document.getElementById(id);
     if (!pip) return;
@@ -4166,8 +4175,34 @@ function updateSentimentGauge(sentiment) {
             const items = grouped[cat];
             if (!items || items.length === 0) continue;
             const pipCls = CAT_COLORS[cat] || '';
-            html += '<div class="sf2-cat-header"><span class="sf2-cat-pip ' + pipCls + '"></span><span class="sf2-cat-label">' + cat.toUpperCase() + '</span><span class="sf2-cat-line"></span></div>';
+            const catId = cat.toLowerCase();
 
+            // Compute category summary: weighted avg signal
+            let catSignalSum = 0, catWeightSum = 0;
+            for (const [, f] of items) {
+                catSignalSum += (f.signal || 0) * (f.weight || 0);
+                catWeightSum += (f.weight || 0);
+            }
+            const catAvgSignal = catWeightSum > 0 ? catSignalSum / catWeightSum : 0;
+            const catColor = catAvgSignal > 0 ? 'var(--green)' : catAvgSignal < 0 ? 'var(--red)' : 'var(--text-dim)';
+            const catBarW = Math.abs(catAvgSignal) * 50;
+            const catBarCls = catAvgSignal >= 0 ? 'bullish' : 'bearish';
+            const catLabel = catAvgSignal > 0.3 ? 'Bullish' : catAvgSignal > 0.1 ? 'Lean Bull' : catAvgSignal < -0.3 ? 'Bearish' : catAvgSignal < -0.1 ? 'Lean Bear' : 'Neutral';
+
+            // Check localStorage for collapsed state
+            const isCollapsed = localStorage.getItem('sf2_' + catId) === '1';
+            html += '<div class="sf2-cat-header' + (isCollapsed ? ' collapsed' : '') + '" data-cat="' + catId + '" onclick="_toggleFactorCat(this)">' +
+                '<span class="sf2-cat-arrow">&#9662;</span>' +
+                '<span class="sf2-cat-pip ' + pipCls + '"></span>' +
+                '<span class="sf2-cat-label">' + cat.toUpperCase() + '</span>' +
+                '<span class="sf2-cat-line"></span>' +
+                '<span class="sf2-cat-summary">' +
+                    '<span class="sf2-cat-signal" style="color:' + catColor + '">' + catLabel + ' ' + (catAvgSignal > 0 ? '+' : '') + catAvgSignal.toFixed(2) + '</span>' +
+                    '<span class="sf2-cat-mini-bar"><span class="sf2-cat-mini-fill ' + catBarCls + '" style="width:' + catBarW + '%"></span></span>' +
+                '</span>' +
+            '</div>';
+
+            html += '<div class="sf2-cat-rows' + (isCollapsed ? ' collapsed' : '') + '" data-cat="' + catId + '">';
             for (const [key, f] of items) {
                 const signal = f.signal || 0;
                 const weightPct = Math.round(f.weight * 100);
@@ -4195,6 +4230,7 @@ function updateSentimentGauge(sentiment) {
                     '<span class="sf2-signal" style="color:' + color + '">' + (signal > 0 ? '+' : '') + signal.toFixed(2) + '</span>' +
                 '</div>';
             }
+            html += '</div>';
         }
         factorsEl.innerHTML = html;
     }
