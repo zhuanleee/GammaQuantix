@@ -5041,3 +5041,60 @@ select:focus {
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     }
 }
+
+/* ==========================================================================
+   0DTE SPX Engine
+   ========================================================================== */
+
+.zero-dte-section {
+    position: relative;
+}
+
+.zero-dte-gex-strip {
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    padding: 8px;
+    background: rgba(239, 68, 68, 0.03);
+}
+
+.zero-dte-circuit-breaker {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 12px;
+    animation: cb-flash 1.5s ease-in-out infinite;
+}
+
+@keyframes cb-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.zero-dte-strategy-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    background: transparent;
+}
+
+.zero-dte-strategy-pill.active {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: var(--green);
+    color: var(--green);
+}
+
+.zero-dte-strategy-pill:hover {
+    opacity: 0.8;
+}

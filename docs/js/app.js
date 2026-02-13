@@ -7130,6 +7130,7 @@ async function loadTradingDashboard() {
         loadPaperConfig(),
         loadAdaptiveIntelligence(),
         loadStrategyMatrix(),
+        load0DTEDashboard(),
     ]);
 }
 
@@ -8339,6 +8340,210 @@ function stopTradingRefresh() {
         clearInterval(tradingRefreshInterval);
         tradingRefreshInterval = null;
     }
+}
+
+// =============================================================================
+// 0DTE SPX ENGINE
+// =============================================================================
+
+let _0dteRefreshInterval = null;
+
+async function load0DTEDashboard() {
+    await Promise.all([
+        load0DTEStatus(),
+        load0DTEConfig(),
+    ]);
+}
+
+async function load0DTEStatus() {
+    const data = await safeFetchJson(`${API_BASE}/paper/0dte/status`);
+    if (!data?.ok) return;
+    const d = data.data;
+
+    // Update status badge
+    const badge = document.getElementById('zero-dte-status-badge');
+    if (badge) {
+        if (d.enabled) {
+            badge.textContent = 'ACTIVE';
+            badge.style.background = 'rgba(34,197,94,0.15)';
+            badge.style.color = 'var(--green)';
+        } else {
+            badge.textContent = 'DISABLED';
+            badge.style.background = 'rgba(239,68,68,0.15)';
+            badge.style.color = 'var(--red)';
+        }
+    }
+
+    // Toggle checkbox
+    const toggle = document.getElementById('toggle-0dte');
+    if (toggle) toggle.checked = d.enabled;
+
+    // Circuit breaker
+    const cb = document.getElementById('zero-dte-circuit-breaker');
+    if (cb) cb.style.display = d.circuit_breaker_active ? 'block' : 'none';
+
+    // GEX levels
+    render0DTEGexLevels(d.gex_levels || {});
+
+    // Daily summary
+    render0DTEPnLSummary(d.daily_summary || {});
+
+    // Positions
+    render0DTEPositions(d.positions || []);
+
+    // Start/stop auto-refresh
+    if (d.enabled && !_0dteRefreshInterval) {
+        _0dteRefreshInterval = setInterval(() => load0DTEStatus(), 60000);
+    } else if (!d.enabled && _0dteRefreshInterval) {
+        clearInterval(_0dteRefreshInterval);
+        _0dteRefreshInterval = null;
+    }
+}
+
+async function load0DTEConfig() {
+    const data = await safeFetchJson(`${API_BASE}/paper/0dte/config`);
+    if (!data?.ok) return;
+    const cfg = data.data;
+
+    // Toggle checkbox
+    const toggle = document.getElementById('toggle-0dte');
+    if (toggle) toggle.checked = cfg.enabled;
+
+    // Strategy pills
+    const strategies = cfg.strategies || {};
+    for (const [name, enabled] of Object.entries(strategies)) {
+        const pill = document.getElementById(`pill-${name}`);
+        if (pill) {
+            pill.classList.toggle('active', enabled);
+        }
+    }
+}
+
+async function toggle0DTE() {
+    const toggle = document.getElementById('toggle-0dte');
+    const enabled = toggle?.checked ?? false;
+    await safeFetchJson(`${API_BASE}/paper/0dte/config`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled}),
+    });
+    await load0DTEStatus();
+}
+
+async function toggle0DTEStrategy(name) {
+    const pill = document.getElementById(`pill-${name}`);
+    if (!pill) return;
+    const nowActive = pill.classList.contains('active');
+    const newState = !nowActive;
+    pill.classList.toggle('active', newState);
+    await safeFetchJson(`${API_BASE}/paper/0dte/config`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({strategies: {[name]: newState}}),
+    });
+}
+
+async function trigger0DTESignalCheck(evt) {
+    const btn = evt?.target;
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+    try {
+        const data = await safeFetchJson(`${API_BASE}/paper/0dte/check-signals`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: '{}',
+        });
+        if (data?.ok) {
+            const d = data.data;
+            render0DTEGexLevels(d.gex_levels || {});
+            const sigCount = (d.signals || []).length;
+            const execCount = (d.executed || []).length;
+            if (btn) btn.textContent = `${sigCount} sig / ${execCount} exec`;
+        } else {
+            if (btn) btn.textContent = data?.error || 'Error';
+        }
+    } catch (e) {
+        if (btn) btn.textContent = 'Error';
+    }
+    setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = 'Check Now'; } }, 3000);
+}
+
+function render0DTEGexLevels(gex) {
+    const fmt = (v) => v ? v.toLocaleString(undefined, {maximumFractionDigits: 0}) : '--';
+    const el = (id) => document.getElementById(id);
+
+    const spxEl = el('zero-dte-spx');
+    if (spxEl) spxEl.textContent = fmt(gex.spx_price);
+    const cwEl = el('zero-dte-call-wall');
+    if (cwEl) cwEl.textContent = fmt(gex.call_wall);
+    const pwEl = el('zero-dte-put-wall');
+    if (pwEl) pwEl.textContent = fmt(gex.put_wall);
+    const gfEl = el('zero-dte-gamma-flip');
+    if (gfEl) gfEl.textContent = fmt(gex.gamma_flip);
+    const mpEl = el('zero-dte-max-pain');
+    if (mpEl) mpEl.textContent = fmt(gex.max_pain);
+
+    const signEl = el('zero-dte-gex-sign');
+    if (signEl) {
+        const sign = gex.gex_sign || '--';
+        signEl.textContent = sign.toUpperCase();
+        signEl.style.color = sign === 'positive' ? 'var(--green)' : sign === 'negative' ? 'var(--red)' : '';
+    }
+
+    const pinEl = el('zero-dte-pin-score');
+    if (pinEl) {
+        const score = gex.pin_score || 0;
+        pinEl.textContent = score;
+        pinEl.style.color = score >= 65 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--text-muted)';
+    }
+
+    const tsEl = el('zero-dte-gex-ts');
+    if (tsEl) tsEl.textContent = new Date().toLocaleTimeString();
+}
+
+function render0DTEPnLSummary(summary) {
+    const el = (id) => document.getElementById(id);
+
+    const trades = el('zero-dte-trades-today');
+    if (trades) trades.textContent = summary.trades_today ?? 0;
+
+    const pnl = el('zero-dte-pnl');
+    if (pnl) {
+        const val = summary.pnl ?? 0;
+        pnl.textContent = `$${val.toFixed(0)}`;
+        pnl.style.color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--red)' : '';
+    }
+
+    const wr = el('zero-dte-win-rate');
+    if (wr) wr.textContent = `${(summary.win_rate ?? 0).toFixed(0)}%`;
+
+    const open = el('zero-dte-open-pos');
+    if (open) open.textContent = summary.open_positions ?? 0;
+}
+
+function render0DTEPositions(positions) {
+    const container = document.getElementById('zero-dte-positions');
+    if (!container) return;
+
+    if (!positions.length) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 12px; font-size: 0.75rem;">No 0DTE positions</div>';
+        return;
+    }
+
+    let html = '<table class="trading-table" style="width: 100%; font-size: 0.7rem;">';
+    html += '<thead><tr><th>Strategy</th><th>Legs</th><th>Entry</th><th>P&L%</th><th>Time</th></tr></thead>';
+    html += '<tbody>';
+    for (const p of positions) {
+        const pnlColor = (p.pnl_pct || 0) > 0 ? 'var(--green)' : (p.pnl_pct || 0) < 0 ? 'var(--red)' : '';
+        html += `<tr>`;
+        html += `<td>${p.strategy || '--'}</td>`;
+        html += `<td style="font-family: monospace; font-size: 0.65rem;">${p.legs || '--'}</td>`;
+        html += `<td>$${(p.entry_premium || 0).toFixed(2)}</td>`;
+        html += `<td style="color: ${pnlColor}">${(p.pnl_pct || 0).toFixed(1)}%</td>`;
+        html += `<td>${p.minutes_open || 0}m</td>`;
+        html += `</tr>`;
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
 }
 
 // =============================================================================

@@ -1160,6 +1160,102 @@
                 </div>
             </div>
 
+            <!-- 0DTE SPX Engine -->
+            <div class="card trading-card zero-dte-section" style="border-left: 3px solid var(--red); margin-bottom: 16px;">
+                <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="card-title" style="color: var(--red);">0DTE SPX Engine</div>
+                        <label class="toggle-switch" title="Enable/disable 0DTE engine">
+                            <input type="checkbox" id="toggle-0dte" onchange="toggle0DTE()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span style="font-size: 0.7rem; color: var(--text-muted);">Enable</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span id="zero-dte-status-badge" style="font-size: 0.65rem; padding: 2px 8px; border-radius: 8px; background: rgba(239,68,68,0.15); color: var(--red);">DISABLED</span>
+                        <button class="btn btn-sm" style="font-size: 0.7rem; padding: 3px 10px; background: var(--red); color: #fff; border: none; border-radius: 4px; cursor: pointer;" onclick="trigger0DTESignalCheck(event)" title="Manual signal check">Check Now</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Circuit Breaker Alert -->
+                    <div id="zero-dte-circuit-breaker" class="zero-dte-circuit-breaker" style="display: none;">
+                        CIRCUIT BREAKER ACTIVE — No new 0DTE trades until tomorrow
+                    </div>
+
+                    <!-- GEX Levels Strip -->
+                    <div class="portfolio-intel-strip zero-dte-gex-strip" style="margin-bottom: 12px;">
+                        <div class="intel-strip-header">
+                            <span class="intel-strip-label">0DTE GEX Levels</span>
+                            <span class="intel-strip-timestamp" id="zero-dte-gex-ts"></span>
+                        </div>
+                        <div class="intel-strip-grid">
+                            <div class="intel-strip-metric" title="Current SPX price from 0DTE chain">
+                                <div class="intel-strip-metric-label">SPX</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-spx">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="Largest call GEX strike (resistance)">
+                                <div class="intel-strip-metric-label">CALL WALL</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-call-wall">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="Largest put GEX strike (support)">
+                                <div class="intel-strip-metric-label">PUT WALL</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-put-wall">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="Zero-gamma level">
+                                <div class="intel-strip-metric-label">GAMMA FLIP</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-gamma-flip">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="Max pain strike for 0DTE">
+                                <div class="intel-strip-metric-label">MAX PAIN</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-max-pain">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="Positive = suppressive, Negative = amplifying">
+                                <div class="intel-strip-metric-label">GEX SIGN</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-gex-sign">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="0-100 convergence to max pain">
+                                <div class="intel-strip-metric-label">PIN SCORE</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-pin-score">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Strategy Toggles -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+                        <span class="zero-dte-strategy-pill active" id="pill-iron_condor_walls" onclick="toggle0DTEStrategy('iron_condor_walls')" title="IC at GEX Walls">IC Walls</span>
+                        <span class="zero-dte-strategy-pill active" id="pill-credit_spread_fade" onclick="toggle0DTEStrategy('credit_spread_fade')" title="Credit Spread Fade">CS Fade</span>
+                        <span class="zero-dte-strategy-pill active" id="pill-pin_butterfly" onclick="toggle0DTEStrategy('pin_butterfly')" title="Pin Butterfly">Pin Fly</span>
+                        <span class="zero-dte-strategy-pill active" id="pill-directional_momentum" onclick="toggle0DTEStrategy('directional_momentum')" title="Directional Momentum">Momentum</span>
+                        <span class="zero-dte-strategy-pill active" id="pill-gamma_scalp_straddle" onclick="toggle0DTEStrategy('gamma_scalp_straddle')" title="Gamma Scalp Straddle">Gamma Scalp</span>
+                    </div>
+
+                    <!-- Daily Summary -->
+                    <div class="trading-metrics-grid" style="margin-bottom: 12px;">
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">TRADES TODAY</div>
+                            <div class="trading-metric-value" id="zero-dte-trades-today">0</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">0DTE P&L</div>
+                            <div class="trading-metric-value" id="zero-dte-pnl">$0</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">WIN RATE</div>
+                            <div class="trading-metric-value" id="zero-dte-win-rate">0%</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">OPEN POS</div>
+                            <div class="trading-metric-value" id="zero-dte-open-pos">0</div>
+                        </div>
+                    </div>
+
+                    <!-- 0DTE Positions Table -->
+                    <div id="zero-dte-positions" style="max-height: 200px; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--text-muted); padding: 12px; font-size: 0.75rem;">No 0DTE positions</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Signals & Risk Row -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
 
