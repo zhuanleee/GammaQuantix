@@ -8385,6 +8385,18 @@ async function load0DTEStatus() {
     // GEX levels
     render0DTEGexLevels(d.gex_levels || {});
 
+    // Market conditions
+    render0DTEMarketConditions(d.market_conditions || {});
+
+    // Opening range
+    render0DTEOpeningRange(d.opening_range || {});
+
+    // Condition gates
+    render0DTEConditionGates(d.conditions_evaluated || {});
+
+    // Kelly sizing
+    render0DTEKellySizing(d.kelly_sizing || {});
+
     // Daily summary
     render0DTEPnLSummary(d.daily_summary || {});
 
@@ -8455,6 +8467,8 @@ async function trigger0DTESignalCheck(evt) {
         if (data?.ok) {
             const d = data.data;
             render0DTEGexLevels(d.gex_levels || {});
+            render0DTEMarketConditions(d.market_conditions || {});
+            render0DTEConditionGates(d.conditions_evaluated || {});
             const sigCount = (d.signals || []).length;
             const execCount = (d.executed || []).length;
             if (btn) btn.textContent = `${sigCount} sig / ${execCount} exec`;
@@ -8496,6 +8510,35 @@ function render0DTEGexLevels(gex) {
         pinEl.style.color = score >= 65 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--text-muted)';
     }
 
+    // VIX
+    const vixEl = el('zero-dte-vix');
+    if (vixEl && gex.vix) {
+        vixEl.textContent = gex.vix.toFixed(1);
+        vixEl.style.color = gex.vix > 35 ? 'var(--red)' : gex.vix > 25 ? 'var(--yellow)' : 'var(--text-muted)';
+    }
+
+    // VIX1D
+    const vix1dEl = el('zero-dte-vix1d');
+    if (vix1dEl && gex.vix1d) {
+        vix1dEl.textContent = gex.vix1d.toFixed(1);
+    }
+
+    // Charm bias
+    const charmEl = el('zero-dte-charm');
+    if (charmEl) {
+        const charm = gex.charm_bias || 0;
+        if (charm > 0) {
+            charmEl.textContent = 'BULL';
+            charmEl.style.color = 'var(--green)';
+        } else if (charm < 0) {
+            charmEl.textContent = 'BEAR';
+            charmEl.style.color = 'var(--red)';
+        } else {
+            charmEl.textContent = 'FLAT';
+            charmEl.style.color = 'var(--text-muted)';
+        }
+    }
+
     const tsEl = el('zero-dte-gex-ts');
     if (tsEl) tsEl.textContent = new Date().toLocaleTimeString();
 }
@@ -8518,6 +8561,137 @@ function render0DTEPnLSummary(summary) {
 
     const open = el('zero-dte-open-pos');
     if (open) open.textContent = summary.open_positions ?? 0;
+
+    const weeklyEl = el('zero-dte-weekly-pnl');
+    if (weeklyEl) {
+        const val = summary.weekly_pnl ?? 0;
+        weeklyEl.textContent = `$${val.toFixed(0)}`;
+        weeklyEl.style.color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--red)' : '';
+    }
+
+    const monthlyEl = el('zero-dte-monthly-pnl');
+    if (monthlyEl) {
+        const val = summary.monthly_pnl ?? 0;
+        monthlyEl.textContent = `$${val.toFixed(0)}`;
+        monthlyEl.style.color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--red)' : '';
+    }
+}
+
+function render0DTEMarketConditions(mc) {
+    const container = document.getElementById('zero-dte-market-conditions');
+    if (!container || !mc.day_of_week) { if (container) container.innerHTML = ''; return; }
+
+    const pill = (label, value, color) =>
+        `<span style="font-size: 0.6rem; padding: 2px 8px; border-radius: 10px; background: ${color}15; color: ${color}; border: 1px solid ${color}30; white-space: nowrap;" title="${label}: ${value}">${label}: ${value}</span>`;
+
+    const vixColor = mc.vix_regime === 'extreme' ? 'var(--red)' : mc.vix_regime === 'elevated' ? 'var(--yellow)' : 'var(--green)';
+    const gexColor = mc.gex_sign === 'positive' ? 'var(--green)' : 'var(--red)';
+    const dayColor = ['Wed', 'Fri'].includes(mc.day_of_week) ? 'var(--red)' : 'var(--green)';
+    const macroColor = mc.macro_event !== 'none' ? 'var(--yellow)' : 'var(--text-muted)';
+    const maColor = mc.spx_above_20sma ? 'var(--green)' : 'var(--red)';
+
+    let html = '';
+    html += pill('DAY', mc.day_of_week, dayColor);
+    html += pill('VIX', `${mc.vix_regime} (${mc.vix?.toFixed(1)})`, vixColor);
+    html += pill('GEX', mc.gex_sign, gexColor);
+    html += pill('TIME', mc.time_period, 'var(--text-muted)');
+    if (mc.macro_event !== 'none') html += pill('MACRO', mc.macro_event, macroColor);
+    html += pill('MA', mc.spx_above_20sma ? 'Above 20-SMA' : 'Below 20-SMA', maColor);
+    if (mc.ema5_above_ema40 !== undefined) {
+        html += pill('TREND', mc.ema5_above_ema40 ? '5EMA > 40EMA' : '5EMA < 40EMA',
+            mc.ema5_above_ema40 ? 'var(--green)' : 'var(--red)');
+    }
+    html += pill('WALLS', mc.wall_strength || 'stable', mc.wall_strength === 'strengthening' ? 'var(--green)' : mc.wall_strength === 'weakening' ? 'var(--red)' : 'var(--text-muted)');
+    if (mc.volume_bias && mc.volume_bias !== 'balanced') {
+        html += pill('VOL', mc.volume_bias, mc.volume_bias === 'call_heavy' ? 'var(--green)' : 'var(--red)');
+    }
+    container.innerHTML = html;
+}
+
+function render0DTEOpeningRange(or_data) {
+    const container = document.getElementById('zero-dte-opening-range');
+    if (!container) return;
+    if (!or_data.complete || !or_data.high) {
+        container.style.display = 'none';
+        return;
+    }
+    container.style.display = 'block';
+    const range = or_data.range_size || (or_data.high - or_data.low);
+    const dirColor = or_data.breakout_direction === 'up' ? 'var(--green)' : or_data.breakout_direction === 'down' ? 'var(--red)' : 'var(--text-muted)';
+    const breakoutLabel = or_data.breakout_direction ? `BREAKOUT ${or_data.breakout_direction.toUpperCase()}` : 'IN RANGE';
+
+    container.innerHTML = `
+        <div style="font-size: 0.65rem; color: var(--text-muted); margin-bottom: 4px;">Opening Range (9:30-10:30)</div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7rem;">
+            <span style="color: var(--red);">${or_data.low?.toFixed(0)}</span>
+            <div style="flex: 1; height: 4px; background: var(--border); border-radius: 2px; position: relative;">
+                <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; background: linear-gradient(90deg, var(--red), var(--text-muted), var(--green)); border-radius: 2px; opacity: 0.3;"></div>
+            </div>
+            <span style="color: var(--green);">${or_data.high?.toFixed(0)}</span>
+            <span style="font-size: 0.6rem; color: var(--text-muted);">${range?.toFixed(0)}pts</span>
+            <span style="font-size: 0.6rem; font-weight: 600; color: ${dirColor};">${breakoutLabel}</span>
+        </div>`;
+}
+
+function render0DTEConditionGates(conditions) {
+    const container = document.getElementById('zero-dte-condition-gates');
+    if (!container) return;
+    if (!conditions || !Object.keys(conditions).length) {
+        container.innerHTML = '';
+        return;
+    }
+    const stratNames = {
+        iron_condor_walls: 'IC Walls', credit_spread_fade: 'CS Fade',
+        pin_butterfly: 'Pin Fly', directional_momentum: 'Momentum',
+        gamma_scalp_straddle: 'Gamma Scalp', opening_range_breakout: 'ORB',
+    };
+    let html = '<div style="font-size: 0.6rem; display: flex; flex-wrap: wrap; gap: 4px;">';
+    for (const [key, val] of Object.entries(conditions)) {
+        const name = stratNames[key] || key;
+        let bg, color, label;
+        if (val.status === 'signal_generated') {
+            bg = 'rgba(34,197,94,0.12)'; color = 'var(--green)';
+            label = `${name}: ${val.confidence} (+${val.boost || 0})`;
+        } else if (val.status === 'no_signal') {
+            bg = 'rgba(100,100,100,0.08)'; color = 'var(--text-muted)';
+            label = `${name}: active`;
+        } else {
+            bg = 'rgba(239,68,68,0.1)'; color = 'var(--red)';
+            const reason = val.reasons?.[0] || val.status?.replace(/_/g, ' ') || 'disabled';
+            label = `${name}: ${reason}`;
+        }
+        html += `<span style="padding: 1px 6px; border-radius: 6px; background: ${bg}; color: ${color}; border: 1px solid ${color}20;">${label}</span>`;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function render0DTEKellySizing(kelly) {
+    const container = document.getElementById('zero-dte-kelly-sizing');
+    if (!container) return;
+    if (!kelly || !Object.keys(kelly).length) { container.innerHTML = ''; return; }
+
+    const stratNames = {
+        iron_condor_walls: 'IC Walls', credit_spread_fade: 'CS Fade',
+        pin_butterfly: 'Pin Fly', directional_momentum: 'Momentum',
+        gamma_scalp_straddle: 'Gamma Scalp', opening_range_breakout: 'ORB',
+    };
+
+    let html = '<details style="font-size: 0.65rem;"><summary style="cursor: pointer; color: var(--text-muted); margin-bottom: 4px;">Kelly Sizing</summary>';
+    html += '<table style="width: 100%; font-size: 0.6rem; border-collapse: collapse;">';
+    html += '<thead><tr style="color: var(--text-muted);"><th style="text-align:left;padding:2px 4px;">Strategy</th><th>Kelly%</th><th>Contracts</th><th>EV</th></tr></thead><tbody>';
+    for (const [key, val] of Object.entries(kelly)) {
+        const name = stratNames[key] || key;
+        const evColor = val.ev > 0 ? 'var(--green)' : val.ev < 0 ? 'var(--red)' : '';
+        html += `<tr>`;
+        html += `<td style="padding:2px 4px;">${name}</td>`;
+        html += `<td style="text-align:center;">${(val.kelly_adjusted * 100).toFixed(1)}%</td>`;
+        html += `<td style="text-align:center;">${val.contracts}</td>`;
+        html += `<td style="text-align:center;color:${evColor}">${val.ev !== null ? `$${val.ev}` : '--'}</td>`;
+        html += `</tr>`;
+    }
+    html += '</tbody></table></details>';
+    container.innerHTML = html;
 }
 
 function render0DTEPositions(positions) {

@@ -1217,8 +1217,26 @@
                                 <div class="intel-strip-metric-label">PIN SCORE</div>
                                 <div class="intel-strip-metric-value" id="zero-dte-pin-score">--</div>
                             </div>
+                            <div class="intel-strip-metric" title="VIX index level">
+                                <div class="intel-strip-metric-label">VIX</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-vix">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="VIX1D / VIX ratio">
+                                <div class="intel-strip-metric-label">VIX1D</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-vix1d">--</div>
+                            </div>
+                            <div class="intel-strip-metric" title="Net charm exposure bias">
+                                <div class="intel-strip-metric-label">CHARM</div>
+                                <div class="intel-strip-metric-value" id="zero-dte-charm">--</div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Market Conditions Strip -->
+                    <div id="zero-dte-market-conditions" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;"></div>
+
+                    <!-- Opening Range Indicator -->
+                    <div id="zero-dte-opening-range" style="margin-bottom: 10px; display: none;"></div>
 
                     <!-- Strategy Toggles -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
@@ -1226,8 +1244,12 @@
                         <span class="zero-dte-strategy-pill active" id="pill-credit_spread_fade" onclick="toggle0DTEStrategy('credit_spread_fade')" title="Credit Spread Fade">CS Fade</span>
                         <span class="zero-dte-strategy-pill active" id="pill-pin_butterfly" onclick="toggle0DTEStrategy('pin_butterfly')" title="Pin Butterfly">Pin Fly</span>
                         <span class="zero-dte-strategy-pill active" id="pill-directional_momentum" onclick="toggle0DTEStrategy('directional_momentum')" title="Directional Momentum">Momentum</span>
-                        <span class="zero-dte-strategy-pill active" id="pill-gamma_scalp_straddle" onclick="toggle0DTEStrategy('gamma_scalp_straddle')" title="Gamma Scalp Straddle">Gamma Scalp</span>
+                        <span class="zero-dte-strategy-pill active" id="pill-gamma_scalp_straddle" onclick="toggle0DTEStrategy('gamma_scalp_straddle')" title="Gamma Scalp (ES Delta-Hedged)">Gamma Scalp</span>
+                        <span class="zero-dte-strategy-pill active" id="pill-opening_range_breakout" onclick="toggle0DTEStrategy('opening_range_breakout')" title="Opening Range Breakout">ORB</span>
                     </div>
+
+                    <!-- Condition Gates Display -->
+                    <div id="zero-dte-condition-gates" style="margin-bottom: 10px;"></div>
 
                     <!-- Daily Summary -->
                     <div class="trading-metrics-grid" style="margin-bottom: 12px;">
@@ -1247,7 +1269,18 @@
                             <div class="trading-metric-label">OPEN POS</div>
                             <div class="trading-metric-value" id="zero-dte-open-pos">0</div>
                         </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">WEEKLY P&L</div>
+                            <div class="trading-metric-value" id="zero-dte-weekly-pnl">$0</div>
+                        </div>
+                        <div class="trading-metric">
+                            <div class="trading-metric-label">MONTHLY P&L</div>
+                            <div class="trading-metric-value" id="zero-dte-monthly-pnl">$0</div>
+                        </div>
                     </div>
+
+                    <!-- Kelly Sizing Table -->
+                    <div id="zero-dte-kelly-sizing" style="margin-bottom: 10px;"></div>
 
                     <!-- 0DTE Positions Table -->
                     <div id="zero-dte-positions" style="max-height: 200px; overflow-y: auto;">
