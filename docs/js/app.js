@@ -136,6 +136,9 @@ let rsSmaSeries = null;
 let vpCanvas = null;
 let vpCtx = null;
 let vpProfileData = null;  // {bins, pocIndex, valIndex, vahIndex, maxVolume}
+let vpTooltip = null;
+let vpRedrawTimer = null;
+let vpLastRangeKey = null;  // cache key for visible range
 let selectedInterval = localStorage.getItem('gq_interval') || '1d';
 const INTERVAL_DAYS_MAP = {
     '1m': 1, '5m': 5, '15m': 10, '30m': 15,
@@ -2227,6 +2230,7 @@ function renderPriceChart() {
         priceLines = {};
     }
     vpProfileData = null;
+    vpLastRangeKey = null;
     removeVolumeProfileOverlay();
     // Remove floating overlay badges
     const oldRegime = container.querySelector('.chart-regime-badge');
@@ -2343,10 +2347,10 @@ function renderPriceChart() {
 
     priceChart.timeScale().fitContent();
 
-    // Redraw VP overlay on scroll/zoom
+    // Redraw VP overlay on scroll/zoom (debounced)
     priceChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
         if (document.getElementById('viz-toggle-vp')?.checked) {
-            requestAnimationFrame(renderVolumeProfileOverlay);
+            vpDebouncedRedraw();
         }
     });
 
@@ -2388,7 +2392,7 @@ function renderPriceChart() {
                 width: container.clientWidth,
                 height: container.clientHeight || 300
             });
-            requestAnimationFrame(renderVolumeProfileOverlay);
+            vpDebouncedRedraw();
         }
     });
     resizeObserver.observe(container);
@@ -3232,7 +3236,7 @@ function resizeChartsToFit() {
     if (priceChart) {
         priceChart.applyOptions({ width: pc.clientWidth, height: h });
         priceChart.timeScale().fitContent();
-        requestAnimationFrame(renderVolumeProfileOverlay);
+        vpDebouncedRedraw();
     }
     if (rsiChart) {
         var rc = document.getElementById('rsi-chart-container');
@@ -3367,7 +3371,7 @@ function toggleVolumeSeries() {
 // =============================================================================
 function computeVolumeProfile(candles) {
     if (!candles || candles.length < 2) return null;
-    const NUM_BINS = 80;
+    // Adaptive bin count: scale with price range granularity
     let minLow = Infinity, maxHigh = -Infinity;
     for (let i = 0; i < candles.length; i++) {
         if (candles[i].low < minLow) minLow = candles[i].low;
@@ -3375,23 +3379,31 @@ function computeVolumeProfile(candles) {
     }
     if (maxHigh <= minLow) return null;
     const range = maxHigh - minLow;
+    // Adaptive bins: more bins for wider ranges, min 40, max 120
+    const NUM_BINS = Math.max(40, Math.min(120, Math.round(candles.length * 0.6)));
     const binSize = range / NUM_BINS;
     const bins = [];
     for (let i = 0; i < NUM_BINS; i++) {
         const priceLow = minLow + i * binSize;
         const priceHigh = priceLow + binSize;
-        bins.push({ price: (priceLow + priceHigh) / 2, priceLow, priceHigh, volume: 0 });
+        bins.push({ price: (priceLow + priceHigh) / 2, priceLow, priceHigh, volume: 0, buyVol: 0, sellVol: 0 });
     }
     // Distribute each candle's volume across bins its [low,high] range covers
+    // Split into buy/sell based on candle direction (close vs open)
     for (let i = 0; i < candles.length; i++) {
         const c = candles[i];
         const vol = c.volume || 0;
         if (vol <= 0) continue;
+        const isBuy = c.close >= c.open;
         const lo = Math.max(0, Math.floor((c.low - minLow) / binSize));
         const hi = Math.min(NUM_BINS - 1, Math.floor((c.high - minLow) / binSize - 0.0001));
         const span = hi - lo + 1;
         const perBin = vol / span;
-        for (let b = lo; b <= hi; b++) bins[b].volume += perBin;
+        for (let b = lo; b <= hi; b++) {
+            bins[b].volume += perBin;
+            if (isBuy) bins[b].buyVol += perBin;
+            else bins[b].sellVol += perBin;
+        }
     }
     // Find POC (highest volume bin)
     let pocIndex = 0, maxVol = 0;
@@ -3413,6 +3425,37 @@ function computeVolumeProfile(candles) {
     return { bins, pocIndex, valIndex: lo, vahIndex: hi, maxVolume: maxVol };
 }
 
+// Get visible candles based on current chart viewport
+function getVisibleCandles() {
+    if (!priceChart || !optionsVizData.candles || optionsVizData.candles.length < 2) return null;
+    try {
+        const logicalRange = priceChart.timeScale().getVisibleLogicalRange();
+        if (!logicalRange) return null;
+        const candles = optionsVizData.candles;
+        const from = Math.max(0, Math.floor(logicalRange.from));
+        const to = Math.min(candles.length - 1, Math.ceil(logicalRange.to));
+        if (to - from < 2) return null;
+        return candles.slice(from, to + 1);
+    } catch (e) {
+        return null;
+    }
+}
+
+function vpDrawRoundedRect(ctx, x, y, w, h, r) {
+    r = Math.min(r, h / 2, w / 2);
+    if (r < 0.5) { ctx.rect(x, y, w, h); return; }
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+}
+
 function renderVolumeProfileOverlay() {
     if (!document.getElementById('viz-toggle-vp')?.checked || !priceSeries || !priceChart) {
         removeVolumeProfileOverlay();
@@ -3421,19 +3464,30 @@ function renderVolumeProfileOverlay() {
     const container = document.getElementById('price-chart-container');
     if (!container || container.clientWidth === 0) return;
 
-    // Compute VP data if needed
-    if (!vpProfileData && optionsVizData.candles && optionsVizData.candles.length > 2) {
-        vpProfileData = computeVolumeProfile(optionsVizData.candles);
+    // Compute VP from visible candles (recompute when range changes)
+    const visibleCandles = getVisibleCandles();
+    const candlesToUse = visibleCandles || optionsVizData.candles;
+    const rangeKey = candlesToUse ? (candlesToUse.length + '_' + (candlesToUse[0]?.time || '') + '_' + (candlesToUse[candlesToUse.length - 1]?.time || '')) : '';
+    if (rangeKey !== vpLastRangeKey || !vpProfileData) {
+        vpProfileData = computeVolumeProfile(candlesToUse);
+        vpLastRangeKey = rangeKey;
     }
     if (!vpProfileData) return;
 
     // Create or reuse canvas
     if (!vpCanvas) {
         vpCanvas = document.createElement('canvas');
-        vpCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+        vpCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;';
         container.style.position = 'relative';
         container.appendChild(vpCanvas);
         vpCtx = vpCanvas.getContext('2d');
+        // Tooltip setup
+        vpTooltip = document.createElement('div');
+        vpTooltip.style.cssText = 'position:absolute;display:none;z-index:15;pointer-events:none;background:rgba(20,20,30,0.92);border:1px solid rgba(100,149,237,0.5);border-radius:6px;padding:5px 9px;font-size:10.5px;color:#e2e8f0;white-space:nowrap;line-height:1.5;backdrop-filter:blur(4px);';
+        container.appendChild(vpTooltip);
+        // Mouse handlers for tooltip
+        vpCanvas.addEventListener('mousemove', vpHandleMouseMove);
+        vpCanvas.addEventListener('mouseleave', vpHandleMouseLeave);
     }
 
     const dpr = window.devicePixelRatio || 1;
@@ -3449,12 +3503,17 @@ function renderVolumeProfileOverlay() {
     try {
         chartAreaWidth = priceChart.timeScale().width();
     } catch (e) {
-        chartAreaWidth = cw - 60; // fallback
+        chartAreaWidth = cw - 60;
     }
 
     const { bins, pocIndex, valIndex, vahIndex, maxVolume } = vpProfileData;
     if (maxVolume <= 0) return;
     const maxBarWidth = chartAreaWidth * 0.18;
+    // Distance from POC for gradient fade
+    const maxDist = Math.max(pocIndex - 0, bins.length - 1 - pocIndex, 1);
+
+    // Store bar rects for hit-testing (tooltip)
+    vpCanvas._barRects = [];
 
     for (let i = 0; i < bins.length; i++) {
         const bin = bins[i];
@@ -3463,36 +3522,154 @@ function renderVolumeProfileOverlay() {
         if (y === null || y === undefined) continue;
         const yTop = priceSeries.priceToCoordinate(bin.priceHigh);
         const yBot = priceSeries.priceToCoordinate(bin.priceLow);
-        const barHeight = (yTop !== null && yBot !== null) ? Math.max(Math.abs(yBot - yTop), 1) : 2;
-        const barWidth = (bin.volume / maxVolume) * maxBarWidth;
+        const barHeight = (yTop !== null && yBot !== null) ? Math.max(Math.abs(yBot - yTop), 1.5) : 2;
+        const totalBarWidth = (bin.volume / maxVolume) * maxBarWidth;
+        const buyRatio = bin.volume > 0 ? bin.buyVol / bin.volume : 0.5;
+        const buyWidth = totalBarWidth * buyRatio;
+        const sellWidth = totalBarWidth - buyWidth;
 
-        // Color: POC = magenta, value area = brighter blue, normal = soft blue
-        let color;
-        if (i === pocIndex) {
-            color = 'rgba(217,70,239,0.50)';
-        } else if (i >= valIndex && i <= vahIndex) {
-            color = 'rgba(100,149,237,0.40)';
+        // Gradient opacity: fade out farther from value area
+        const dist = (i < valIndex) ? valIndex - i : (i > vahIndex) ? i - vahIndex : 0;
+        const fadeFactor = (i >= valIndex && i <= vahIndex) ? 1.0 : Math.max(0.3, 1.0 - (dist / maxDist) * 0.7);
+
+        const isPOC = i === pocIndex;
+        const isVA = i >= valIndex && i <= vahIndex;
+        const barX = chartAreaWidth - totalBarWidth;
+        const barY = y - barHeight / 2;
+        const radius = Math.min(2.5, barHeight / 2);
+
+        // Draw buy portion (green-tinted) then sell portion (red-tinted), or solid for POC
+        if (isPOC) {
+            const alpha = (0.55 * fadeFactor).toFixed(2);
+            vpCtx.beginPath();
+            vpDrawRoundedRect(vpCtx, barX, barY, totalBarWidth, barHeight, radius);
+            vpCtx.fillStyle = `rgba(217,70,239,${alpha})`;
+            vpCtx.fill();
+            // Thin bright border for POC
+            vpCtx.strokeStyle = 'rgba(217,70,239,0.7)';
+            vpCtx.lineWidth = 0.8;
+            vpCtx.stroke();
         } else {
-            color = 'rgba(100,149,237,0.25)';
+            // Sell portion (left, red-tinted)
+            if (sellWidth > 0.5) {
+                const sAlpha = (isVA ? 0.40 : 0.25) * fadeFactor;
+                vpCtx.beginPath();
+                vpDrawRoundedRect(vpCtx, barX, barY, sellWidth, barHeight, Math.min(radius, sellWidth / 2));
+                vpCtx.fillStyle = `rgba(239,100,100,${sAlpha.toFixed(2)})`;
+                vpCtx.fill();
+            }
+            // Buy portion (right, blue/green-tinted)
+            if (buyWidth > 0.5) {
+                const bAlpha = (isVA ? 0.40 : 0.25) * fadeFactor;
+                vpCtx.beginPath();
+                vpDrawRoundedRect(vpCtx, barX + sellWidth, barY, buyWidth, barHeight, Math.min(radius, buyWidth / 2));
+                vpCtx.fillStyle = `rgba(100,149,237,${bAlpha.toFixed(2)})`;
+                vpCtx.fill();
+            }
+            // Thin border for value area bars
+            if (isVA) {
+                vpCtx.beginPath();
+                vpDrawRoundedRect(vpCtx, barX, barY, totalBarWidth, barHeight, radius);
+                vpCtx.strokeStyle = 'rgba(100,149,237,0.3)';
+                vpCtx.lineWidth = 0.5;
+                vpCtx.stroke();
+            }
         }
 
-        vpCtx.fillStyle = color;
-        vpCtx.fillRect(chartAreaWidth - barWidth, y - barHeight / 2, barWidth, barHeight);
+        // Store rect for hit-testing
+        vpCanvas._barRects.push({ x: barX, y: barY, w: totalBarWidth, h: barHeight, bin, index: i, isPOC, isVA });
     }
+
+    // POC label
+    const pocBin = bins[pocIndex];
+    const pocY = priceSeries.priceToCoordinate(pocBin.price);
+    if (pocY !== null && pocY !== undefined) {
+        const pocBarW = (pocBin.volume / maxVolume) * maxBarWidth;
+        const labelX = chartAreaWidth - pocBarW - 4;
+        vpCtx.font = '600 9px -apple-system, BlinkMacSystemFont, sans-serif';
+        vpCtx.textAlign = 'right';
+        vpCtx.textBaseline = 'middle';
+        vpCtx.fillStyle = 'rgba(217,70,239,0.85)';
+        vpCtx.fillText('POC', labelX, pocY);
+    }
+}
+
+function vpHandleMouseMove(e) {
+    if (!vpCanvas || !vpCanvas._barRects || !vpTooltip) return;
+    const rect = vpCanvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let hit = null;
+    for (let i = vpCanvas._barRects.length - 1; i >= 0; i--) {
+        const r = vpCanvas._barRects[i];
+        if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+            hit = r; break;
+        }
+    }
+    if (!hit) {
+        // Also check within 4px vertically for near-misses
+        for (let i = vpCanvas._barRects.length - 1; i >= 0; i--) {
+            const r = vpCanvas._barRects[i];
+            if (mx >= r.x && mx <= r.x + r.w && my >= r.y - 4 && my <= r.y + r.h + 4) {
+                hit = r; break;
+            }
+        }
+    }
+    if (hit) {
+        vpCanvas.style.cursor = 'crosshair';
+        const b = hit.bin;
+        const fmtVol = (v) => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : Math.round(v).toLocaleString();
+        const fmtPrc = (v) => v.toFixed(2);
+        const buyPct = b.volume > 0 ? (b.buyVol / b.volume * 100).toFixed(0) : '50';
+        const sellPct = b.volume > 0 ? (b.sellVol / b.volume * 100).toFixed(0) : '50';
+        const tag = hit.isPOC ? ' <span style="color:#d946ef;font-weight:700;">POC</span>' : (hit.isVA ? ' <span style="color:#6495ed;">VA</span>' : '');
+        vpTooltip.innerHTML =
+            `<div style="font-weight:600;margin-bottom:2px;">${fmtPrc(b.priceLow)} - ${fmtPrc(b.priceHigh)}${tag}</div>` +
+            `<div>Vol: <b>${fmtVol(b.volume)}</b></div>` +
+            `<div><span style="color:#6495ed;">Buy ${buyPct}%</span> / <span style="color:#ef6464;">Sell ${sellPct}%</span></div>`;
+        // Position tooltip
+        const ttX = Math.min(e.clientX - rect.left + 12, rect.width - 160);
+        const ttY = Math.max(e.clientY - rect.top - 50, 4);
+        vpTooltip.style.left = ttX + 'px';
+        vpTooltip.style.top = ttY + 'px';
+        vpTooltip.style.display = 'block';
+    } else {
+        vpCanvas.style.cursor = 'default';
+        vpTooltip.style.display = 'none';
+    }
+}
+
+function vpHandleMouseLeave() {
+    if (vpTooltip) vpTooltip.style.display = 'none';
+    if (vpCanvas) vpCanvas.style.cursor = 'default';
 }
 
 function removeVolumeProfileOverlay() {
     if (vpCanvas) {
+        vpCanvas.removeEventListener('mousemove', vpHandleMouseMove);
+        vpCanvas.removeEventListener('mouseleave', vpHandleMouseLeave);
         vpCanvas.remove();
         vpCanvas = null;
         vpCtx = null;
     }
+    if (vpTooltip) {
+        vpTooltip.remove();
+        vpTooltip = null;
+    }
+    vpLastRangeKey = null;
+}
+
+// Debounced VP redraw for scroll/zoom events
+function vpDebouncedRedraw() {
+    if (vpRedrawTimer) cancelAnimationFrame(vpRedrawTimer);
+    vpRedrawTimer = requestAnimationFrame(renderVolumeProfileOverlay);
 }
 
 function toggleVolumeProfile() {
     saveToggles();
     if (document.getElementById('viz-toggle-vp')?.checked) {
-        vpProfileData = null; // recompute fresh
+        vpProfileData = null;
+        vpLastRangeKey = null;
         renderVolumeProfileOverlay();
     } else {
         removeVolumeProfileOverlay();
