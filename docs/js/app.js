@@ -2218,6 +2218,8 @@ function renderPriceChart() {
     if (oldRegime) oldRegime.remove();
     const oldDealer = container.querySelector('.chart-dealer-badge');
     if (oldDealer) oldDealer.remove();
+    const oldOhlc = document.getElementById('ohlc-legend');
+    if (oldOhlc) oldOhlc.remove();
 
     if (!optionsVizData.candles || optionsVizData.candles.length === 0) {
         // Create a synthetic candle from current price so chart can render and live updates work
@@ -2239,6 +2241,13 @@ function renderPriceChart() {
     }
 
     container.innerHTML = '';
+
+    // OHLC crosshair legend overlay
+    const ohlcLegend = document.createElement('div');
+    ohlcLegend.id = 'ohlc-legend';
+    ohlcLegend.style.cssText = 'position:absolute;top:8px;right:12px;z-index:10;font-family:monospace;font-size:12px;color:#9ca3af;pointer-events:none;text-align:right;line-height:1.5;';
+    container.style.position = 'relative';
+    container.appendChild(ohlcLegend);
 
     priceChart = LightweightCharts.createChart(container, {
         layout: {
@@ -2309,6 +2318,32 @@ function renderPriceChart() {
     }
 
     priceChart.timeScale().fitContent();
+
+    // OHLC crosshair legend: show O H L C + % on hover
+    priceChart.subscribeCrosshairMove(param => {
+        if (!ohlcLegend) return;
+        if (!param || !param.time || !param.seriesPrices) {
+            ohlcLegend.innerHTML = '';
+            return;
+        }
+        const candle = param.seriesPrices.get(priceSeries);
+        if (!candle || candle.close === undefined) {
+            ohlcLegend.innerHTML = '';
+            return;
+        }
+        const o = candle.open, h = candle.high, l = candle.low, c = candle.close;
+        const chg = o !== 0 ? ((c - o) / o * 100) : 0;
+        const up = c >= o;
+        const clr = up ? '#22c55e' : '#ef4444';
+        const sign = chg >= 0 ? '+' : '';
+        const fmt = v => v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        ohlcLegend.innerHTML =
+            `<span style="color:${clr};font-weight:600;">${sign}${chg.toFixed(2)}%</span>` +
+            `<br><span style="color:#6b7280;">O</span> <span style="color:${clr}">${fmt(o)}</span>` +
+            `  <span style="color:#6b7280;">H</span> <span style="color:${clr}">${fmt(h)}</span>` +
+            `  <span style="color:#6b7280;">L</span> <span style="color:${clr}">${fmt(l)}</span>` +
+            `  <span style="color:#6b7280;">C</span> <span style="color:${clr}">${fmt(c)}</span>`;
+    });
 
     const resizeObserver = new ResizeObserver(entries => {
         if (priceChart && container.clientWidth > 0) {
