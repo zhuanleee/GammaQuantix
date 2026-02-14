@@ -2242,12 +2242,16 @@ function renderPriceChart() {
 
     container.innerHTML = '';
 
-    // OHLC crosshair legend overlay
+    // TradingView-style OHLC crosshair legend (upper-left)
     const ohlcLegend = document.createElement('div');
     ohlcLegend.id = 'ohlc-legend';
-    ohlcLegend.style.cssText = 'position:absolute;top:8px;right:12px;z-index:10;font-family:monospace;font-size:12px;color:#9ca3af;pointer-events:none;text-align:right;line-height:1.5;';
+    ohlcLegend.style.cssText = 'position:absolute;top:6px;left:6px;z-index:10;font-size:11px;color:#9ca3af;pointer-events:none;line-height:1.6;letter-spacing:0.01em;';
     container.style.position = 'relative';
     container.appendChild(ohlcLegend);
+    // Show ticker + interval as static first line
+    const tkLabel = (optionsAnalysisTicker || '').toUpperCase();
+    const intLabel = (selectedInterval || '1d').toUpperCase();
+    ohlcLegend.innerHTML = `<span style="color:#d1d5db;font-weight:700;font-size:13px;">${tkLabel}</span> <span style="color:#6b7280;font-size:10px;">${intLabel}</span>`;
 
     priceChart = LightweightCharts.createChart(container, {
         layout: {
@@ -2319,30 +2323,36 @@ function renderPriceChart() {
 
     priceChart.timeScale().fitContent();
 
-    // OHLC crosshair legend: show O H L C + % on hover
+    // TradingView-style OHLC crosshair: ticker line + OHLC line
+    const _ohlcTkLine = `<span style="color:#d1d5db;font-weight:700;font-size:13px;">${tkLabel}</span> <span style="color:#6b7280;font-size:10px;">${intLabel}</span>`;
     priceChart.subscribeCrosshairMove(param => {
         if (!ohlcLegend) return;
         if (!param || !param.time || !param.seriesPrices) {
-            ohlcLegend.innerHTML = '';
+            ohlcLegend.innerHTML = _ohlcTkLine;
             return;
         }
         const candle = param.seriesPrices.get(priceSeries);
         if (!candle || candle.close === undefined) {
-            ohlcLegend.innerHTML = '';
+            ohlcLegend.innerHTML = _ohlcTkLine;
             return;
         }
         const o = candle.open, h = candle.high, l = candle.low, c = candle.close;
         const chg = o !== 0 ? ((c - o) / o * 100) : 0;
         const up = c >= o;
-        const clr = up ? '#22c55e' : '#ef4444';
+        const clr = up ? '#26a69a' : '#ef5350';
         const sign = chg >= 0 ? '+' : '';
         const fmt = v => v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        ohlcLegend.innerHTML =
-            `<span style="color:${clr};font-weight:600;">${sign}${chg.toFixed(2)}%</span>` +
-            `<br><span style="color:#6b7280;">O</span> <span style="color:${clr}">${fmt(o)}</span>` +
-            `  <span style="color:#6b7280;">H</span> <span style="color:${clr}">${fmt(h)}</span>` +
-            `  <span style="color:#6b7280;">L</span> <span style="color:${clr}">${fmt(l)}</span>` +
-            `  <span style="color:#6b7280;">C</span> <span style="color:${clr}">${fmt(c)}</span>`;
+        const vol = param.seriesPrices.get(volumeSeries);
+        const volStr = vol !== undefined && vol !== null
+            ? ` <span style="color:#6b7280;">V</span> <span style="color:#9ca3af;">${Number(typeof vol === 'object' ? vol.value || 0 : vol).toLocaleString()}</span>`
+            : '';
+        ohlcLegend.innerHTML = _ohlcTkLine +
+            `<br><span style="color:#6b7280;">O</span> <span style="color:${clr};">${fmt(o)}</span>` +
+            ` <span style="color:#6b7280;">H</span> <span style="color:${clr};">${fmt(h)}</span>` +
+            ` <span style="color:#6b7280;">L</span> <span style="color:${clr};">${fmt(l)}</span>` +
+            ` <span style="color:#6b7280;">C</span> <span style="color:${clr};">${fmt(c)}</span>` +
+            ` <span style="color:${clr};font-weight:600;">${sign}${chg.toFixed(2)}%</span>` +
+            volStr;
     });
 
     const resizeObserver = new ResizeObserver(entries => {
