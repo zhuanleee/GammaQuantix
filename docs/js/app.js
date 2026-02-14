@@ -133,6 +133,9 @@ let rsiSeries = null;
 let rsChart = null;
 let rsSeries = null;
 let rsSmaSeries = null;
+let vpCanvas = null;
+let vpCtx = null;
+let vpProfileData = null;  // {bins, pocIndex, valIndex, vahIndex, maxVolume}
 let selectedInterval = localStorage.getItem('gq_interval') || '1d';
 const INTERVAL_DAYS_MAP = {
     '1m': 1, '5m': 5, '15m': 10, '30m': 15,
@@ -142,7 +145,7 @@ const INTERVAL_DAYS_MAP = {
 // Toggle persistence
 const TOGGLE_IDS = [
     'viz-toggle-callwall','viz-toggle-putwall','viz-toggle-gammaflip','viz-toggle-maxpain',
-    'viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-gex',
+    'viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-vp','viz-toggle-gex',
     'viz-toggle-sma20','viz-toggle-sma50','viz-toggle-sma200','viz-toggle-vwap','viz-toggle-bb',
     'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume','viz-toggle-flow',
     'viz-toggle-em','viz-toggle-regime','viz-toggle-vrp','viz-toggle-gexheat','viz-toggle-toxicity','viz-toggle-dealer'
@@ -2061,7 +2064,7 @@ async function loadOptionsViz(ticker) {
             }
         }
 
-        // Parse volume profile (skip for futures - no relevant VP data)
+        // Parse volume profile (skip for futures - no relevant VP data from backend)
         if (vpRes && vpRes.ok) {
             try {
                 const vpData = await vpRes.json();
@@ -2074,9 +2077,19 @@ async function loadOptionsViz(ticker) {
                 console.warn('Error parsing volume profile:', e);
             }
         } else {
-            optionsVizData.val = 0;
-            optionsVizData.poc = 0;
-            optionsVizData.vah = 0;
+            // For futures (or when backend VP fails), compute from candle data
+            if (optionsVizData.candles && optionsVizData.candles.length > 5) {
+                const vpComputed = computeVolumeProfile(optionsVizData.candles);
+                if (vpComputed) {
+                    optionsVizData.poc = vpComputed.bins[vpComputed.pocIndex]?.price || 0;
+                    optionsVizData.val = vpComputed.bins[vpComputed.valIndex]?.price || 0;
+                    optionsVizData.vah = vpComputed.bins[vpComputed.vahIndex]?.price || 0;
+                }
+            } else {
+                optionsVizData.val = 0;
+                optionsVizData.poc = 0;
+                optionsVizData.vah = 0;
+            }
         }
 
         // Extract levels
@@ -2213,6 +2226,8 @@ function renderPriceChart() {
         indicatorSeries = {};
         priceLines = {};
     }
+    vpProfileData = null;
+    removeVolumeProfileOverlay();
     // Remove floating overlay badges
     const oldRegime = container.querySelector('.chart-regime-badge');
     if (oldRegime) oldRegime.remove();
@@ -2288,6 +2303,11 @@ function renderPriceChart() {
     updatePriceChartLevels();
     updateIndicators();
 
+    // Volume Profile overlay — render after LW charts layout settles
+    if (document.getElementById('viz-toggle-vp')?.checked) {
+        setTimeout(renderVolumeProfileOverlay, 50);
+    }
+
     // RSI chart if enabled
     if (document.getElementById('viz-toggle-rsi')?.checked) {
         renderRsiChart();
@@ -2322,6 +2342,13 @@ function renderPriceChart() {
     }
 
     priceChart.timeScale().fitContent();
+
+    // Redraw VP overlay on scroll/zoom
+    priceChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (document.getElementById('viz-toggle-vp')?.checked) {
+            requestAnimationFrame(renderVolumeProfileOverlay);
+        }
+    });
 
     // TradingView-style OHLC crosshair: ticker line + OHLC line
     const _ohlcTkLine = `<span style="color:#d1d5db;font-weight:700;font-size:13px;">${tkLabel}</span> <span style="color:#6b7280;font-size:10px;">${intLabel}</span>`;
@@ -2361,6 +2388,7 @@ function renderPriceChart() {
                 width: container.clientWidth,
                 height: container.clientHeight || 300
             });
+            requestAnimationFrame(renderVolumeProfileOverlay);
         }
     });
     resizeObserver.observe(container);
@@ -3204,6 +3232,7 @@ function resizeChartsToFit() {
     if (priceChart) {
         priceChart.applyOptions({ width: pc.clientWidth, height: h });
         priceChart.timeScale().fitContent();
+        requestAnimationFrame(renderVolumeProfileOverlay);
     }
     if (rsiChart) {
         var rc = document.getElementById('rsi-chart-container');
@@ -3330,6 +3359,143 @@ function toggleVolumeSeries() {
             try { priceChart.removeSeries(volumeSeries); } catch(e) {}
             volumeSeries = null;
         }
+    }
+}
+
+// =============================================================================
+// VOLUME PROFILE HISTOGRAM OVERLAY
+// =============================================================================
+function computeVolumeProfile(candles) {
+    if (!candles || candles.length < 2) return null;
+    const NUM_BINS = 80;
+    let minLow = Infinity, maxHigh = -Infinity;
+    for (let i = 0; i < candles.length; i++) {
+        if (candles[i].low < minLow) minLow = candles[i].low;
+        if (candles[i].high > maxHigh) maxHigh = candles[i].high;
+    }
+    if (maxHigh <= minLow) return null;
+    const range = maxHigh - minLow;
+    const binSize = range / NUM_BINS;
+    const bins = [];
+    for (let i = 0; i < NUM_BINS; i++) {
+        const priceLow = minLow + i * binSize;
+        const priceHigh = priceLow + binSize;
+        bins.push({ price: (priceLow + priceHigh) / 2, priceLow, priceHigh, volume: 0 });
+    }
+    // Distribute each candle's volume across bins its [low,high] range covers
+    for (let i = 0; i < candles.length; i++) {
+        const c = candles[i];
+        const vol = c.volume || 0;
+        if (vol <= 0) continue;
+        const lo = Math.max(0, Math.floor((c.low - minLow) / binSize));
+        const hi = Math.min(NUM_BINS - 1, Math.floor((c.high - minLow) / binSize - 0.0001));
+        const span = hi - lo + 1;
+        const perBin = vol / span;
+        for (let b = lo; b <= hi; b++) bins[b].volume += perBin;
+    }
+    // Find POC (highest volume bin)
+    let pocIndex = 0, maxVol = 0;
+    for (let i = 0; i < bins.length; i++) {
+        if (bins[i].volume > maxVol) { maxVol = bins[i].volume; pocIndex = i; }
+    }
+    // Compute 70% value area expanding outward from POC
+    const totalVol = bins.reduce((s, b) => s + b.volume, 0);
+    const targetVol = totalVol * 0.70;
+    let vaVol = bins[pocIndex].volume;
+    let lo = pocIndex, hi = pocIndex;
+    while (vaVol < targetVol && (lo > 0 || hi < bins.length - 1)) {
+        const loVol = lo > 0 ? bins[lo - 1].volume : -1;
+        const hiVol = hi < bins.length - 1 ? bins[hi + 1].volume : -1;
+        if (loVol >= hiVol && lo > 0) { lo--; vaVol += bins[lo].volume; }
+        else if (hi < bins.length - 1) { hi++; vaVol += bins[hi].volume; }
+        else break;
+    }
+    return { bins, pocIndex, valIndex: lo, vahIndex: hi, maxVolume: maxVol };
+}
+
+function renderVolumeProfileOverlay() {
+    if (!document.getElementById('viz-toggle-vp')?.checked || !priceSeries || !priceChart) {
+        removeVolumeProfileOverlay();
+        return;
+    }
+    const container = document.getElementById('price-chart-container');
+    if (!container || container.clientWidth === 0) return;
+
+    // Compute VP data if needed
+    if (!vpProfileData && optionsVizData.candles && optionsVizData.candles.length > 2) {
+        vpProfileData = computeVolumeProfile(optionsVizData.candles);
+    }
+    if (!vpProfileData) return;
+
+    // Create or reuse canvas
+    if (!vpCanvas) {
+        vpCanvas = document.createElement('canvas');
+        vpCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+        container.style.position = 'relative';
+        container.appendChild(vpCanvas);
+        vpCtx = vpCanvas.getContext('2d');
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    vpCanvas.width = cw * dpr;
+    vpCanvas.height = ch * dpr;
+    vpCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    vpCtx.clearRect(0, 0, cw, ch);
+
+    // Get chart area width (where price axis starts)
+    let chartAreaWidth;
+    try {
+        chartAreaWidth = priceChart.timeScale().width();
+    } catch (e) {
+        chartAreaWidth = cw - 60; // fallback
+    }
+
+    const { bins, pocIndex, valIndex, vahIndex, maxVolume } = vpProfileData;
+    if (maxVolume <= 0) return;
+    const maxBarWidth = chartAreaWidth * 0.18;
+
+    for (let i = 0; i < bins.length; i++) {
+        const bin = bins[i];
+        if (bin.volume <= 0) continue;
+        const y = priceSeries.priceToCoordinate(bin.price);
+        if (y === null || y === undefined) continue;
+        const yTop = priceSeries.priceToCoordinate(bin.priceHigh);
+        const yBot = priceSeries.priceToCoordinate(bin.priceLow);
+        const barHeight = (yTop !== null && yBot !== null) ? Math.max(Math.abs(yBot - yTop), 1) : 2;
+        const barWidth = (bin.volume / maxVolume) * maxBarWidth;
+
+        // Color: POC = magenta, value area = brighter blue, normal = soft blue
+        let color;
+        if (i === pocIndex) {
+            color = 'rgba(217,70,239,0.50)';
+        } else if (i >= valIndex && i <= vahIndex) {
+            color = 'rgba(100,149,237,0.40)';
+        } else {
+            color = 'rgba(100,149,237,0.25)';
+        }
+
+        vpCtx.fillStyle = color;
+        vpCtx.fillRect(chartAreaWidth - barWidth, y - barHeight / 2, barWidth, barHeight);
+    }
+}
+
+function removeVolumeProfileOverlay() {
+    if (vpCanvas) {
+        vpCanvas.remove();
+        vpCanvas = null;
+        vpCtx = null;
+    }
+}
+
+function toggleVolumeProfile() {
+    saveToggles();
+    if (document.getElementById('viz-toggle-vp')?.checked) {
+        vpProfileData = null; // recompute fresh
+        renderVolumeProfileOverlay();
+    } else {
+        removeVolumeProfileOverlay();
     }
 }
 

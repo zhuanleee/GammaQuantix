@@ -1143,6 +1143,7 @@ body {
 .toggle-label.val { color: var(--cyan); }
 .toggle-label.poc { color: var(--magenta); }
 .toggle-label.vah { color: var(--cyan); }
+.toggle-label.vp { color: #6495ed; }
 
 .toggle-divider {
     color: var(--border);
