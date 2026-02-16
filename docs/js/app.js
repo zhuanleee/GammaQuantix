@@ -490,6 +490,7 @@ async function loadOptionsForExpiry() {
             ? `${API_BASE}/options/max-pain?ticker=${tickerParam}${expiry ? '&expiration=' + expiry : ''}`
             : `${API_BASE}/options/max-pain/${ticker}${expiry ? '?expiration=' + expiry : ''}`;
 
+        showSkeleton('oa-metrics-container', 'metrics-grid');
         const [sentimentRes, flowRes, gexRes, maxPainRes] = await Promise.all([
             fetch(sentimentUrl),
             fetch(flowUrl),
@@ -511,6 +512,7 @@ async function loadOptionsForExpiry() {
         const sentiment = sentimentData.data || {};
         const flow = flowData.data || {};
         const gex = gexData.data || {};
+        hideSkeleton('oa-metrics-container');
 
         // P/C Ratio
         const callOI = gex.total_call_oi || 0;
@@ -538,11 +540,21 @@ async function loadOptionsForExpiry() {
         document.getElementById('oa-gex').style.color = gexColor;
 
         // IV Rank
-        const ivRank = sentiment.iv_rank || 0;
-        document.getElementById('oa-iv-rank').textContent = `${ivRank.toFixed(0)}%`;
+        const ivRank = sentiment.iv_rank;
+        const ivRankEl = document.getElementById('oa-iv-rank');
+        if (ivRank != null && ivRank > 0) {
+            ivRankEl.textContent = `${ivRank.toFixed(0)}%`;
+            ivRankEl.title = '';
+            ivRankEl.style.opacity = '';
+        } else {
+            ivRankEl.textContent = 'N/A';
+            ivRankEl.title = 'IV Rank not available — requires historical IV data';
+            ivRankEl.style.opacity = '0.5';
+        }
         let ivLabel = 'Normal', ivColor = 'var(--text)';
-        if (ivRank > 50) { ivLabel = 'High (Sell)'; ivColor = 'var(--orange)'; }
-        else if (ivRank < 20) { ivLabel = 'Low (Buy)'; ivColor = 'var(--green)'; }
+        if (ivRank != null && ivRank > 50) { ivLabel = 'High (Sell)'; ivColor = 'var(--orange)'; }
+        else if (ivRank != null && ivRank < 20) { ivLabel = 'Low (Buy)'; ivColor = 'var(--green)'; }
+        else if (ivRank == null) { ivLabel = 'N/A'; ivColor = 'var(--text-dim)'; }
         document.getElementById('oa-iv-label').textContent = ivLabel;
         document.getElementById('oa-iv-label').style.color = ivColor;
 
@@ -550,12 +562,22 @@ async function loadOptionsForExpiry() {
         const maxPainPrice = mp.max_pain_price || mp.max_pain || 0;
         const maxPainEl = document.getElementById('oa-max-pain');
         if (maxPainEl) {
-            maxPainEl.textContent = maxPainPrice > 0 ? `$${maxPainPrice.toFixed(0)}` : '--';
+            if (maxPainPrice > 0) {
+                maxPainEl.textContent = `$${maxPainPrice.toFixed(0)}`;
+                maxPainEl.title = '';
+            } else {
+                maxPainEl.textContent = 'N/A';
+                maxPainEl.title = 'Max Pain unavailable for this expiration';
+                maxPainEl.style.opacity = '0.5';
+            }
         }
         const mpDistEl = document.getElementById('oa-mp-distance');
 
         // Current Price
-        const currentPrice = gex.current_price || flow.current_price || sentiment.current_price || 0;
+        let currentPrice = gex.current_price || flow.current_price || sentiment.current_price || 0;
+        if (currentPrice === 0 && optionsVizData.candles && optionsVizData.candles.length > 0) {
+            currentPrice = optionsVizData.candles[optionsVizData.candles.length - 1].close || 0;
+        }
         document.getElementById('oa-current-price').textContent = currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : '--';
 
         // Max Pain distance (needs currentPrice)
@@ -650,7 +672,12 @@ async function loadOptionsForExpiry() {
         loadTermStructure(ticker);
 
     } catch (e) {
-        console.error('Options analysis error:', e);
+        console.error('Failed to load options data:', e);
+        hideSkeleton('oa-metrics-container');
+        const detail = e.message && e.message.includes('404') ? 'Ticker not found' :
+                       e.message && e.message.includes('timeout') ? 'Request timed out — try again' :
+                       'API temporarily unavailable';
+        showErrorState('oa-metrics-container', detail, () => loadOptionsForExpiry());
         document.getElementById('oa-interpretation').textContent = 'Error: ' + e.message;
     }
 }
@@ -703,6 +730,8 @@ async function loadGexDashboard() {
     const expiry = document.getElementById('oa-expiry-select').value;
     const container = document.getElementById('gex-dashboard-container');
     container.style.display = 'block';
+    showSkeleton('gex-regime-container', 'card');
+    showSkeleton('gex-levels-container', 'card');
     document.getElementById('gex-ticker').textContent = ticker;
 
     // Reset retry flag and fields
@@ -737,6 +766,8 @@ async function loadGexDashboard() {
         const levelsData = await levelsRes.json();
         cacheApiResponse(gexLevelsUrl, levelsData);
         const combinedData = await combinedRes.json();
+        hideSkeleton('gex-regime-container');
+        hideSkeleton('gex-levels-container');
 
         // Update Volatility Regime
         if (regimeData.ok && regimeData.data) {
@@ -1317,7 +1348,7 @@ async function loadMarketXray() {
 
         if (isMultiDTE) {
             // Multi-DTE parallel scan
-            if (btn) btn.textContent = `Scanning 0/${scanExps.length}...`;
+            if (btn) btn.innerHTML = `Scanning <span style="font-variant-numeric:tabular-nums">0/${scanExps.length}</span> DTEs...`;
             const today = new Date(); today.setHours(0, 0, 0, 0);
 
             const promises = scanExps.map(async (expObj) => {
@@ -1326,9 +1357,9 @@ async function loadMarketXray() {
                     const resp = await fetch(url);
                     const json = await resp.json();
                     scannedCount++;
-                    if (btn) btn.textContent = `Scanning ${scannedCount}/${scanExps.length}...`;
+                    if (btn) btn.innerHTML = `Scanning <span style="font-variant-numeric:tabular-nums">${scannedCount}/${scanExps.length}</span> DTEs... ✓`;
                     if (json.ok && json.data) return { data: json.data, dte: expObj.dte, exp: expObj.date };
-                } catch (e) { scannedCount++; if (btn) btn.textContent = `Scanning ${scannedCount}/${scanExps.length}...`; }
+                } catch (e) { scannedCount++; if (btn) btn.innerHTML = `Scanning <span style="font-variant-numeric:tabular-nums">${scannedCount}/${scanExps.length}</span> DTEs...`; }
                 return null;
             });
 
@@ -2346,43 +2377,56 @@ function renderPriceChart() {
 
     // TradingView-style OHLC crosshair: ticker line + OHLC line
     const _ohlcTkLine = `<span style="color:#d1d5db;font-weight:700;font-size:13px;">${tkLabel}</span> <span style="color:#6b7280;font-size:10px;">${intLabel}</span>`;
+    let _ohlcRafPending = false;
+    let _ohlcLastTime = null;
     priceChart.subscribeCrosshairMove(param => {
         if (!ohlcLegend) return;
         if (!param || !param.time || !param.seriesPrices) {
             ohlcLegend.innerHTML = _ohlcTkLine;
+            _ohlcLastTime = null;
             return;
         }
-        const candle = param.seriesPrices.get(priceSeries);
-        if (!candle || candle.close === undefined) {
-            ohlcLegend.innerHTML = _ohlcTkLine;
-            return;
-        }
-        const o = candle.open, h = candle.high, l = candle.low, c = candle.close;
-        const chg = o !== 0 ? ((c - o) / o * 100) : 0;
-        const up = c >= o;
-        const clr = up ? '#26a69a' : '#ef5350';
-        const sign = chg >= 0 ? '+' : '';
-        const fmt = v => v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        const vol = param.seriesPrices.get(volumeSeries);
-        const volStr = vol !== undefined && vol !== null
-            ? ` <span style="color:#6b7280;">V</span> <span style="color:#9ca3af;">${Number(typeof vol === 'object' ? vol.value || 0 : vol).toLocaleString()}</span>`
-            : '';
-        ohlcLegend.innerHTML = _ohlcTkLine +
-            `<br><span style="color:#6b7280;">O</span> <span style="color:${clr};">${fmt(o)}</span>` +
-            ` <span style="color:#6b7280;">H</span> <span style="color:${clr};">${fmt(h)}</span>` +
-            ` <span style="color:#6b7280;">L</span> <span style="color:${clr};">${fmt(l)}</span>` +
-            ` <span style="color:#6b7280;">C</span> <span style="color:${clr};">${fmt(c)}</span>` +
-            ` <span style="color:${clr};font-weight:600;">${sign}${chg.toFixed(2)}%</span>` +
-            volStr;
+        if (param.time === _ohlcLastTime) return;
+        if (_ohlcRafPending) return;
+        _ohlcRafPending = true;
+        requestAnimationFrame(() => {
+            _ohlcRafPending = false;
+            _ohlcLastTime = param.time;
+            const candle = param.seriesPrices.get(priceSeries);
+            if (!candle || candle.close === undefined) {
+                ohlcLegend.innerHTML = _ohlcTkLine;
+                return;
+            }
+            const o = candle.open, h = candle.high, l = candle.low, c = candle.close;
+            const chg = o !== 0 ? ((c - o) / o * 100) : 0;
+            const up = c >= o;
+            const clr = up ? '#26a69a' : '#ef5350';
+            const sign = chg >= 0 ? '+' : '';
+            const fmt = v => v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            const vol = param.seriesPrices.get(volumeSeries);
+            const volStr = vol !== undefined && vol !== null
+                ? ` <span style="color:#6b7280;">V</span> <span style="color:#9ca3af;">${Number(typeof vol === 'object' ? vol.value || 0 : vol).toLocaleString()}</span>`
+                : '';
+            ohlcLegend.innerHTML = _ohlcTkLine +
+                `<br><span style="color:#6b7280;">O</span> <span style="color:${clr};">${fmt(o)}</span>` +
+                ` <span style="color:#6b7280;">H</span> <span style="color:${clr};">${fmt(h)}</span>` +
+                ` <span style="color:#6b7280;">L</span> <span style="color:${clr};">${fmt(l)}</span>` +
+                ` <span style="color:#6b7280;">C</span> <span style="color:${clr};">${fmt(c)}</span>` +
+                ` <span style="color:${clr};font-weight:600;">${sign}${chg.toFixed(2)}%</span>` +
+                volStr;
+        });
     });
 
+    let _chartLastW = container.clientWidth, _chartLastH = container.clientHeight;
     const resizeObserver = new ResizeObserver(entries => {
         if (priceChart && container.clientWidth > 0) {
-            priceChart.applyOptions({
-                width: container.clientWidth,
-                height: container.clientHeight || 300
-            });
-            vpDebouncedRedraw();
+            const newW = container.clientWidth, newH = container.clientHeight || 300;
+            if (Math.abs(newW - _chartLastW) > 5 || Math.abs(newH - _chartLastH) > 5) {
+                _chartLastW = newW;
+                _chartLastH = newH;
+                priceChart.applyOptions({ width: newW, height: newH });
+                vpDebouncedRedraw();
+            }
         }
     });
     resizeObserver.observe(container);
@@ -3653,9 +3697,11 @@ function vpHandleMouseMove(e) {
             `<div style="font-weight:600;margin-bottom:2px;">${fmtPrc(b.priceLow)} - ${fmtPrc(b.priceHigh)}${tag}</div>` +
             `<div>Vol: <b>${fmtVol(b.volume)}</b></div>` +
             `<div><span style="color:#6495ed;">Buy ${buyPct}%</span> / <span style="color:#ef6464;">Sell ${sellPct}%</span></div>`;
-        // Position tooltip
-        const ttX = Math.min(e.clientX - rect.left + 12, rect.width - 160);
-        const ttY = Math.max(e.clientY - rect.top - 50, 4);
+        // Position tooltip with viewport clamping
+        const ttW = vpTooltip.offsetWidth || 160;
+        const ttH = vpTooltip.offsetHeight || 60;
+        const ttX = Math.max(10, Math.min(e.clientX - rect.left + 12, rect.width - ttW - 10));
+        const ttY = Math.max(4, Math.min(e.clientY - rect.top - 50, rect.height - ttH - 10));
         vpTooltip.style.left = ttX + 'px';
         vpTooltip.style.top = ttY + 'px';
         vpTooltip.style.display = 'block';
@@ -3686,9 +3732,21 @@ function removeVolumeProfileOverlay() {
 }
 
 // Debounced VP redraw for scroll/zoom events
+let _vpLastDims = { w: 0, h: 0 };
 function vpDebouncedRedraw() {
-    if (vpRedrawTimer) cancelAnimationFrame(vpRedrawTimer);
-    vpRedrawTimer = requestAnimationFrame(renderVolumeProfileOverlay);
+    if (vpRedrawTimer) clearTimeout(vpRedrawTimer);
+    vpRedrawTimer = setTimeout(() => {
+        const container = document.getElementById('price-chart-container');
+        if (container) {
+            const w = container.clientWidth, h = container.clientHeight;
+            if (Math.abs(w - _vpLastDims.w) < 5 && Math.abs(h - _vpLastDims.h) < 5 && vpLastRangeKey) {
+                // Dimensions unchanged and range key exists — still redraw for scroll
+            }
+            _vpLastDims.w = w;
+            _vpLastDims.h = h;
+        }
+        renderVolumeProfileOverlay();
+    }, 200);
 }
 
 function toggleVolumeProfile() {
@@ -4204,6 +4262,7 @@ let _lastSentimentData = null;
 
 async function loadMarketSentiment() {
     try {
+        showSkeleton('market-sentiment-metrics', 'metrics-grid');
         const [sentimentRes, expirationsRes] = await Promise.all([
             fetch(`${API_BASE}/options/market-sentiment`),
             fetch(`${API_BASE}/options/expirations/SPY`)
@@ -4213,6 +4272,7 @@ async function loadMarketSentiment() {
         const expData = await expirationsRes.json();
 
         if (data.ok && data.data) {
+            hideSkeleton('market-sentiment-metrics');
             const sentiment = data.data;
             _lastSentimentData = sentiment;
 
@@ -5129,9 +5189,9 @@ function trackTradeIdea(idx) {
     const dup = trades.find(t => t.ticker === ticker && t.strike === strike &&
         t.opt_type === optType && t.expiration === expiration);
     if (dup) {
-        // Mark button as tracked
         const btn = document.querySelector(`.trade-idea-card[data-idx="${idx}"] .trade-idea-track-btn`);
         if (btn) { btn.textContent = 'Tracked'; btn.classList.add('tracked'); }
+        showToast('Already tracked: ' + ticker + ' $' + strike + ' ' + optType, 'warning');
         return;
     }
 
@@ -5179,6 +5239,7 @@ function trackTradeIdea(idx) {
     // Update button
     const btn = document.querySelector(`.trade-idea-card[data-idx="${idx}"] .trade-idea-track-btn`);
     if (btn) { btn.textContent = 'Tracked'; btn.classList.add('tracked'); }
+    showToast('Trade tracked: ' + ticker + ' $' + strike + ' ' + optType, 'success');
 
     // Trigger analysis
     refreshSwingTrades();
@@ -6283,6 +6344,27 @@ function hideSkeleton(containerId) {
 }
 
 // =============================================================================
+// TOAST NOTIFICATION SYSTEM
+// =============================================================================
+let _toastContainer = null;
+
+function showToast(message, type = 'info') {
+    if (!_toastContainer) {
+        _toastContainer = document.createElement('div');
+        _toastContainer.className = 'gq-toast-container';
+        document.body.appendChild(_toastContainer);
+    }
+    const toast = document.createElement('div');
+    toast.className = `gq-toast ${type}`;
+    toast.textContent = message;
+    _toastContainer.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('dismissing');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// =============================================================================
 // ERROR STATE MANAGER
 // =============================================================================
 const _errorOriginals = {};
@@ -6393,7 +6475,10 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-async function loadTradingDashboard() {
+let _tradingLastLoad = 0;
+async function loadTradingDashboard(force = false) {
+    if (!force && Date.now() - _tradingLastLoad < 30000) return;
+    _tradingLastLoad = Date.now();
     await Promise.all([
         loadPaperAccount(),
         loadPaperPositions(),
@@ -6408,7 +6493,7 @@ async function loadTradingDashboard() {
 }
 
 async function refreshTradingDashboard() {
-    await loadTradingDashboard();
+    await loadTradingDashboard(true);
 }
 
 // --- Account Summary ---
@@ -7205,6 +7290,7 @@ async function triggerSignalCheck(evt) {
             const exec = d.executed?.length || 0;
             const exits = d.exits?.length || 0;
             const failed = d.failed?.length || 0;
+            showToast(`Signals: ${sigs} found, ${exec} executed`, exec > 0 ? 'success' : 'info');
             // Show result as status badge
             const status = document.getElementById('trading-status');
             if (status) {
@@ -7213,7 +7299,7 @@ async function triggerSignalCheck(evt) {
                 status.style.color = exec > 0 ? 'var(--green)' : failed > 0 ? 'var(--orange)' : 'var(--text-muted)';
                 setTimeout(() => { status.textContent = oldText; status.style.color = ''; }, 5000);
             }
-            await loadTradingDashboard();
+            await loadTradingDashboard(true);
         } else {
             const status = document.getElementById('trading-status');
             if (status) {
@@ -7235,7 +7321,8 @@ async function closePaperPosition(tradeId) {
         const res = await fetch(`${API_BASE}/paper/close/${encodeURIComponent(tradeId)}`, { method: 'POST' });
         const data = await res.json();
         if (data.ok) {
-            await loadTradingDashboard();
+            showToast('Position closed', 'success');
+            await loadTradingDashboard(true);
         } else {
             const errMsg = data.error || 'Close position failed';
             console.error('Close position failed:', errMsg);
@@ -7304,7 +7391,7 @@ async function resetPaperAccount() {
         const res = await fetch(`${API_BASE}/paper/reset`, { method: 'POST' });
         const data = await res.json();
         if (data.ok) {
-            await loadTradingDashboard();
+            await loadTradingDashboard(true);
         }
     } catch (e) { console.error('Reset error:', e); }
 }
@@ -7375,16 +7462,21 @@ async function updatePortfolioIntelStrip(portfolioDelta, portfolioTheta, portfol
 
     // Regime
     const regimeEl = el('intel-regime');
-    if (regimeEl && _intelStripCache.regime) {
-        const r = _intelStripCache.regime.toUpperCase().replace('_', ' ');
-        regimeEl.textContent = r;
-        const regimeColors = {
-            'OPPORTUNITY': 'var(--green)', 'LOW VOL': 'var(--green)',
-            'NORMAL': 'var(--blue)', 'BALANCED': 'var(--blue)',
-            'CAUTION': 'var(--orange)', 'HIGH VOL': 'var(--orange)', 'TRANSITION': 'var(--orange)',
-            'DANGER': 'var(--red)', 'CRISIS': 'var(--red)',
-        };
-        regimeEl.style.color = regimeColors[r] || 'var(--text)';
+    if (regimeEl) {
+        if (_intelStripCache.regime) {
+            const r = _intelStripCache.regime.toUpperCase().replace('_', ' ');
+            regimeEl.textContent = r;
+            const regimeColors = {
+                'OPPORTUNITY': 'var(--green)', 'LOW VOL': 'var(--green)',
+                'NORMAL': 'var(--blue)', 'BALANCED': 'var(--blue)',
+                'CAUTION': 'var(--orange)', 'HIGH VOL': 'var(--orange)', 'TRANSITION': 'var(--orange)',
+                'DANGER': 'var(--red)', 'CRISIS': 'var(--red)',
+            };
+            regimeEl.style.color = regimeColors[r] || 'var(--text)';
+        } else if (_intelStripCache.ts > 0) {
+            regimeEl.textContent = 'Closed';
+            regimeEl.style.color = 'var(--text-dim)';
+        }
     }
 
     // VRP
@@ -7399,10 +7491,15 @@ async function updatePortfolioIntelStrip(portfolioDelta, portfolioTheta, portfol
 
     // Risk
     const riskEl = el('intel-risk');
-    if (riskEl && _intelStripCache.riskLevel) {
-        const rl = _intelStripCache.riskLevel.toUpperCase();
-        riskEl.textContent = rl;
-        riskEl.style.color = rl === 'LOW' ? 'var(--green)' : rl === 'MEDIUM' ? 'var(--orange)' : 'var(--red)';
+    if (riskEl) {
+        if (_intelStripCache.riskLevel) {
+            const rl = _intelStripCache.riskLevel.toUpperCase();
+            riskEl.textContent = rl;
+            riskEl.style.color = rl === 'LOW' ? 'var(--green)' : rl === 'MEDIUM' ? 'var(--orange)' : 'var(--red)';
+        } else if (_intelStripCache.ts > 0) {
+            riskEl.textContent = 'Closed';
+            riskEl.style.color = 'var(--text-dim)';
+        }
     }
 
     // Timestamp
