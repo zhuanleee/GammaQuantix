@@ -208,7 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load market sentiment
     loadMarketSentiment();
-    loadEconomicDashboard();
     updateMarketStatus();
 
     // Update market status every minute
@@ -224,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Restore toggle states and timeframe from localStorage
     restoreToggles();
+    restoreTogglePreset();
     var savedTimeframe = localStorage.getItem('gq_timeframe');
     var tfSelect = document.getElementById('viz-timeframe');
     if (savedTimeframe && tfSelect) tfSelect.value = savedTimeframe;
@@ -452,9 +452,6 @@ async function loadOptionsAnalysis() {
 
     // Always load chart visualization regardless of analysis errors
     loadOptionsViz(optionsAnalysisTicker);
-    loadGreekFlows(optionsAnalysisTicker);
-    // F3: Check earnings calendar
-    checkTickerEarnings(optionsAnalysisTicker);
 }
 
 // =============================================================================
@@ -639,8 +636,6 @@ async function loadOptionsForExpiry() {
 
         console.log('Options analysis loaded for', ticker);
 
-        // Load Options Chain
-        loadOptionsChain();
 
         // Load GEX Dashboard
         loadGexDashboard();
@@ -651,8 +646,6 @@ async function loadOptionsForExpiry() {
             renderExpectedMove(currentPrice, atmIV, Math.max(dte, 1));
         }
 
-        // Check for macro events within expiry range
-        checkMacroEvents(expiry);
         // F9: Load term structure
         loadTermStructure(ticker);
 
@@ -984,9 +977,6 @@ async function loadGexDashboard() {
             interpretation.length > 0 ? interpretation.join(' ') : 'GEX analysis loaded.';
 
         console.log('GEX Dashboard loaded for', ticker);
-        updateMacroGexSignal();
-        loadGexHistory(ticker);
-        loadGexBacktest(ticker);
 
     } catch (e) {
         console.error('GEX Dashboard error:', e);
@@ -3327,6 +3317,42 @@ function applyScaleButtons() {
     if (autoBtn) autoBtn.classList.toggle('active', isAutoScale);
 }
 
+// === Toggle Presets ===
+const TOGGLE_PRESETS = {
+    options: ['viz-toggle-callwall','viz-toggle-putwall','viz-toggle-gammaflip','viz-toggle-maxpain','viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-vp','viz-toggle-gex'],
+    technicals: ['viz-toggle-sma20','viz-toggle-sma50','viz-toggle-sma200','viz-toggle-vwap','viz-toggle-bb','viz-toggle-rsi','viz-toggle-volume'],
+    intel: ['viz-toggle-em','viz-toggle-regime','viz-toggle-vrp','viz-toggle-gexheat','viz-toggle-toxicity','viz-toggle-dealer','viz-toggle-flow']
+};
+const ALL_TOGGLE_IDS = [...new Set(Object.values(TOGGLE_PRESETS).flat())];
+
+function applyTogglePreset(preset) {
+    const ids = TOGGLE_PRESETS[preset];
+    if (!ids) return;
+    ALL_TOGGLE_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.checked) { el.checked = false; el.dispatchEvent(new Event('change')); }
+    });
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.checked) { el.checked = true; el.dispatchEvent(new Event('change')); }
+    });
+    document.querySelectorAll('.preset-btn[data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+    localStorage.setItem('gq_toggle_preset', preset);
+}
+
+function toggleCustomToggles() {
+    const w = document.getElementById('custom-toggles');
+    if (!w) return;
+    const open = w.style.display !== 'none';
+    w.style.display = open ? 'none' : '';
+    document.querySelector('.preset-custom-btn').innerHTML = open ? 'Custom &#9662;' : 'Custom &#9652;';
+}
+
+function restoreTogglePreset() {
+    const saved = localStorage.getItem('gq_toggle_preset');
+    if (saved && TOGGLE_PRESETS[saved]) applyTogglePreset(saved);
+}
+
 // =============================================================================
 // VOLUME SERIES
 // =============================================================================
@@ -4635,291 +4661,6 @@ function updateSentimentGauge(sentiment) {
     if (gexCard) gexCard.className = 'metric-card hero-metric accent-' + (typeof gexValue === 'number' && gexValue > 0 ? 'green' : 'red');
 }
 
-// =============================================================================
-// WHALE TRADES
-// =============================================================================
-async function loadWhaleTrades() {
-    showTab('tab-chain-flow');
-    const container = document.getElementById('whale-trades-container');
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Loading whale trades...</div>';
-
-    try {
-        const res = await fetch(`${API_BASE}/options/whales?min_premium=50000`);
-        const data = await res.json();
-
-        if (data.ok && (data.whales || data.data) && (data.whales || data.data).length > 0) {
-            const trades = data.whales || data.data;
-            let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">';
-            html += '<thead><tr style="background: var(--bg-hover); border-bottom: 1px solid var(--border);">';
-            html += '<th style="padding: 8px; text-align: left;">Ticker</th>';
-            html += '<th style="padding: 8px; text-align: left;">Type</th>';
-            html += '<th style="padding: 8px; text-align: right;">Strike</th>';
-            html += '<th style="padding: 8px; text-align: right;">Premium</th>';
-            html += '<th style="padding: 8px; text-align: center;">Side</th>';
-            html += '</tr></thead><tbody>';
-
-            trades.slice(0, 15).forEach(t => {
-                const sideColor = t.side?.toLowerCase() === 'buy' ? 'var(--green)' : 'var(--red)';
-                const premium = (t.premium || 0) / 1000;
-
-                html += `<tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 8px; font-weight: 600;">${t.ticker || '--'}</td>
-                    <td style="padding: 8px;">${(t.type || 'C').toUpperCase()}</td>
-                    <td style="padding: 8px; text-align: right;">$${(t.strike || 0).toLocaleString()}</td>
-                    <td style="padding: 8px; text-align: right; font-weight: 600;">$${premium.toLocaleString(undefined, {maximumFractionDigits: 0})}K</td>
-                    <td style="padding: 8px; text-align: center; color: ${sideColor}; font-weight: 600;">${(t.side || 'BUY').toUpperCase()}</td>
-                </tr>`;
-            });
-
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        } else {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No whale trades found</div>';
-        }
-    } catch (e) {
-        console.error('Failed to load whale trades:', e);
-        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--red);">Failed to load whale trades</div>';
-    }
-}
-
-// =============================================================================
-// UNUSUAL ACTIVITY
-// =============================================================================
-async function loadUnusualActivity() {
-    showTab('tab-chain-flow');
-    const container = document.getElementById('unusual-activity-container');
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Scanning unusual activity...</div>';
-
-    try {
-        const tickers = 'NVDA,AAPL,TSLA,META,AMZN,GOOGL,MSFT,AMD,SPY,QQQ';
-        const res = await fetch(`${API_BASE}/options/feed?tickers=${tickers}`);
-        const data = await res.json();
-
-        if (data.ok && (data.feed || data.data) && (data.feed || data.data).length > 0) {
-            const items = data.feed || data.data;
-            let html = '<div style="padding: 8px 0;">';
-
-            items.slice(0, 12).forEach(item => {
-                const volOi = item.vol_oi_ratio || item.volume_oi_ratio || 0;
-                const premium = (item.premium || 0) / 1000;
-                const unusualBadge = volOi > 3 ? '<span style="background: var(--yellow); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; margin-left: 8px;">HOT</span>' : '';
-
-                html += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border);">
-                    <div>
-                        <span style="font-weight: 600;">${item.ticker || '--'}</span>
-                        <span style="color: var(--text-muted); margin-left: 8px;">$${(item.strike || 0).toLocaleString()}</span>
-                        ${unusualBadge}
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-weight: 600;">$${premium.toLocaleString(undefined, {maximumFractionDigits: 0})}K</div>
-                        <div style="font-size: 0.7rem; color: var(--text-muted);">Vol/OI: ${volOi.toFixed(1)}x</div>
-                    </div>
-                </div>`;
-            });
-
-            html += '</div>';
-            container.innerHTML = html;
-        } else {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No unusual activity detected</div>';
-        }
-    } catch (e) {
-        console.error('Failed to load unusual activity:', e);
-        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--red);">Failed to scan</div>';
-    }
-}
-
-// =============================================================================
-// TOGGLE ACCORDION
-// =============================================================================
-function toggleAccordion(element) {
-    element.classList.toggle('open');
-}
-
-// =============================================================================
-// GREEK FLOWS HEATMAP
-// =============================================================================
-async function loadGreekFlows(ticker) {
-    if (!ticker) ticker = optionsAnalysisTicker;
-    if (!ticker) return;
-
-    const card = document.getElementById('greek-flows-card');
-    const body = document.getElementById('greek-flows-body');
-    if (!card || !body) return;
-
-    card.style.display = 'block';
-    document.getElementById('gf-ticker').textContent = ticker;
-    body.innerHTML = '<div class="chart-loading"><span class="loading-spinner"></span> Loading Greek flows...</div>';
-
-    const isFutures = ticker.startsWith('/');
-    const tickerParam = encodeURIComponent(ticker);
-    const url = isFutures
-        ? `${API_BASE}/options/vanna-charm?ticker=${tickerParam}`
-        : `${API_BASE}/options/vanna-charm/${ticker}`;
-
-    try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-
-        if (!json.ok || !json.data) {
-            throw new Error(json.error || 'No data returned');
-        }
-
-        renderGreekFlows(json.data, body);
-    } catch (e) {
-        console.error('loadGreekFlows error:', e);
-        body.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--text-muted);">' +
-            '<div style="font-size: 1.2rem; margin-bottom: 8px;">Failed to load Greek flows</div>' +
-            '<div style="font-size: 0.75rem; margin-bottom: 12px;">' + e.message + '</div>' +
-            '<button class="btn btn-primary" onclick="loadGreekFlows(\'' + ticker + '\')">Retry</button>' +
-            '</div>';
-    }
-}
-
-function renderGreekFlows(d, body) {
-    var totalVanna = d.total_vanna || 0;
-    var totalCharm = d.total_charm || 0;
-    var netDelta = d.net_dealer_delta || 0;
-    var flowDir = d.flow_direction || 'neutral';
-    var interpretation = d.interpretation || '';
-    var vannaByStrike = d.vanna_by_strike || [];
-    var charmByStrike = d.charm_by_strike || [];
-
-    var vannaColor = totalVanna >= 0 ? 'var(--green)' : 'var(--red)';
-    var charmColor = totalCharm >= 0 ? 'var(--green)' : 'var(--red)';
-    var deltaColor = netDelta >= 0 ? 'var(--green)' : 'var(--red)';
-    var flowColor = flowDir === 'bullish' ? 'var(--green)'
-        : flowDir === 'bearish' ? 'var(--red)' : 'var(--orange)';
-    var flowLabel = flowDir.charAt(0).toUpperCase() + flowDir.slice(1);
-
-    var sortedVanna = vannaByStrike.slice()
-        .sort(function(a, b) { return Math.abs(b.vanna) - Math.abs(a.vanna); })
-        .slice(0, 10);
-    var maxAbsVanna = sortedVanna.length > 0
-        ? Math.max.apply(null, sortedVanna.map(function(v) { return Math.abs(v.vanna); }))
-        : 1;
-
-    var sortedCharm = charmByStrike.slice()
-        .sort(function(a, b) { return Math.abs(b.charm) - Math.abs(a.charm); })
-        .slice(0, 5);
-    var netCharmSign = totalCharm >= 0 ? '+' : '';
-    var charmDecayDirection = totalCharm > 0
-        ? 'Positive charm decay pushes dealers to buy delta (supportive)'
-        : totalCharm < 0
-        ? 'Negative charm decay pushes dealers to sell delta (pressuring)'
-        : 'Neutral charm \u2014 minimal time-decay hedging pressure';
-
-    var arrowChar = flowDir === 'bullish' ? '\u2191'
-        : flowDir === 'bearish' ? '\u2193' : '\u2194';
-
-    var html = '';
-
-    // 4-metric row
-    html += '<div class="metrics-grid-4">';
-    html += gfMetricBox('TOTAL VANNA', fmtGreekFlowNum(totalVanna),
-        totalVanna >= 0 ? 'Supportive' : 'Pressuring', vannaColor,
-        'Vanna: how delta changes with volatility. Positive = stabilizing. Negative = destabilizing.');
-    html += gfMetricBox('TOTAL CHARM', fmtGreekFlowNum(totalCharm),
-        totalCharm >= 0 ? 'Decaying long' : 'Decaying short', charmColor,
-        'Charm: how delta changes with time. Shows directional pressure from time-decay hedging.');
-    html += gfMetricBox('NET DEALER \u0394', fmtGreekFlowNum(netDelta),
-        netDelta >= 0 ? 'Net long delta' : 'Net short delta', deltaColor,
-        'Combined dealer delta from vanna + charm. Net directional hedging flow.');
-    html += gfMetricBox('FLOW DIRECTION', flowLabel,
-        flowDir === 'bullish' ? 'Dealers buying' : flowDir === 'bearish' ? 'Dealers selling' : 'Mixed signals', flowColor,
-        'Overall dealer hedging direction based on vanna and charm combined.');
-    html += '</div>';
-
-    // 3-column grid
-    html += '<div class="greek-flows-grid">';
-
-    // Col 1: Vanna Exposure bars
-    html += '<div class="greek-flow-section">';
-    html += '<div class="greek-flow-title">VANNA EXPOSURE BY STRIKE</div>';
-    if (sortedVanna.length === 0) {
-        html += '<div style="text-align:center;color:var(--text-muted);font-size:0.75rem;padding:20px 0;">No vanna data</div>';
-    } else {
-        sortedVanna.forEach(function(v) {
-            var pct = (Math.abs(v.vanna) / maxAbsVanna) * 100;
-            var cls = v.vanna >= 0 ? 'positive' : 'negative';
-            var strikeLabel = typeof v.strike === 'number' ? v.strike.toFixed(0) : v.strike;
-            var valColor = v.vanna >= 0 ? 'var(--green)' : 'var(--red)';
-            html += '<div class="greek-flow-bar">'
-                + '<span class="greek-flow-bar-label">' + strikeLabel + '</span>'
-                + '<div class="greek-flow-bar-track">'
-                + '<div class="greek-flow-bar-fill ' + cls + '" style="width:' + pct.toFixed(1) + '%;"></div>'
-                + '</div>'
-                + '<span style="min-width:50px;font-family:var(--font-mono);font-size:0.65rem;color:' + valColor + '">' + fmtGreekFlowNum(v.vanna) + '</span>'
-                + '</div>';
-        });
-    }
-    html += '</div>';
-
-    // Col 2: Charm Decay
-    html += '<div class="greek-flow-section">';
-    html += '<div class="greek-flow-title">CHARM DECAY ANALYSIS</div>';
-    html += '<div style="text-align:center;padding:12px 0;">'
-        + '<div style="font-size:1.6rem;font-weight:700;color:' + charmColor + ';margin-bottom:4px;">' + netCharmSign + fmtGreekFlowNum(totalCharm) + '</div>'
-        + '<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:12px;">Net Charm Flow</div>'
-        + '</div>';
-    html += '<div style="font-size:0.72rem;color:var(--text-muted);padding:0 4px;line-height:1.5;margin-bottom:12px;">' + charmDecayDirection + '</div>';
-    if (sortedCharm.length > 0) {
-        html += '<div style="font-size:0.65rem;color:var(--text-muted);margin-bottom:6px;font-weight:600;">TOP STRIKES BY CHARM</div>';
-        sortedCharm.forEach(function(c) {
-            var strikeLabel = typeof c.strike === 'number' ? c.strike.toFixed(0) : c.strike;
-            var cColor = c.charm >= 0 ? 'var(--green)' : 'var(--red)';
-            html += '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.7rem;border-bottom:1px solid var(--border);">'
-                + '<span style="color:var(--text-muted);font-family:var(--font-mono);">' + strikeLabel + '</span>'
-                + '<span style="color:' + cColor + ';font-family:var(--font-mono);">' + fmtGreekFlowNum(c.charm) + '</span>'
-                + '</div>';
-        });
-    }
-    html += '</div>';
-
-    // Col 3: Dealer Flow Forecast
-    html += '<div class="greek-flow-section" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">';
-    html += '<div class="greek-flow-title" style="align-self:flex-start;">DEALER FLOW FORECAST</div>';
-    html += '<div class="greek-flow-arrow" style="color:' + flowColor + ';font-size:3.5rem;line-height:1;">' + arrowChar + '</div>';
-    html += '<div class="greek-flow-magnitude" style="font-size:1.1rem;font-weight:700;color:' + flowColor + ';margin-bottom:4px;">' + fmtGreekFlowNum(netDelta) + '</div>';
-    html += '<div style="font-size:0.75rem;font-weight:600;color:' + flowColor + ';margin-bottom:8px;">' + flowLabel.toUpperCase() + '</div>';
-    html += '<div style="font-size:0.68rem;color:var(--text-muted);text-align:center;line-height:1.4;padding:0 8px;">'
-        + (flowDir === 'bullish' ? 'Dealers must buy to hedge \u2014 supportive of prices'
-           : flowDir === 'bearish' ? 'Dealers must sell to hedge \u2014 pressure on prices'
-           : 'Mixed hedging signals \u2014 no dominant directional pressure')
-        + '</div>';
-    html += '</div>';
-
-    html += '</div>'; // close greek-flows-grid
-
-    if (interpretation) {
-        html += '<div class="interpretation-box" style="margin-top:4px;border-left:3px solid var(--cyan);background:linear-gradient(135deg, rgba(0,188,212,0.06) 0%, var(--bg-hover) 100%);">'
-            + '<div style="font-size:0.65rem;font-weight:700;color:var(--cyan);text-transform:uppercase;margin-bottom:6px;letter-spacing:0.05em;">Interpretation</div>'
-            + '<div style="font-size:0.78rem;line-height:1.5;color:var(--text);">' + interpretation + '</div>'
-            + '</div>';
-    }
-
-    body.innerHTML = html;
-}
-
-function gfMetricBox(label, value, sub, color, tooltip) {
-    return '<div class="metric-box" title="' + (tooltip || '').replace(/"/g, '&quot;') + '">'
-        + '<div class="metric-label">' + label + '</div>'
-        + '<div class="metric-value" style="color:' + color + ';font-size:1.4rem;">' + value + '</div>'
-        + '<div class="metric-sub">' + sub + '</div>'
-        + '</div>';
-}
-
-function fmtGreekFlowNum(n) {
-    if (n == null || isNaN(n)) return '--';
-    if (n === 0) return '0';
-    var abs = Math.abs(n);
-    if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-    if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (abs >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-    if (abs >= 1) return n.toFixed(1);
-    if (abs >= 0.01) return n.toFixed(3);
-    return n.toExponential(1);
-}
 
 // =============================================================================
 // SHOW OPTIONS CHART (MAX PAIN / GEX TOGGLE)
@@ -5103,230 +4844,19 @@ function renderGexChart(gexByStrike, currentPrice) {
     chartDiv.innerHTML = html;
 }
 
-// =============================================================================
-// LOAD OPTIONS CHAIN
-// =============================================================================
-async function loadOptionsChain() {
-    const ticker = optionsAnalysisTicker;
-    if (!ticker) return;
-
-    try {
-        document.getElementById('calls-table-body').innerHTML =
-            '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading...</td></tr>';
-        document.getElementById('puts-table-body').innerHTML =
-            '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading...</td></tr>';
-
-        const isFutures = ticker.startsWith('/');
-        const url = isFutures
-            ? `${API_BASE}/options/chain?ticker=${encodeURIComponent(ticker)}`
-            : `${API_BASE}/options/chain/${ticker}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (!data.ok || (data.data && data.data.error)) {
-            throw new Error(data.data?.error || 'Failed to load options chain');
-        }
-
-        const chain = data.data || {};
-
-        // Show tables and summary
-        document.getElementById('options-tables').style.display = 'grid';
-        document.getElementById('options-summary').style.display = 'grid';
-
-        // Populate summary stats from top-level chain fields
-        const totalCallVol = chain.total_call_volume || 0;
-        const totalPutVol = chain.total_put_volume || 0;
-        const pcRatio = totalCallVol > 0 ? totalPutVol / totalCallVol : 0;
-        const sentiment = pcRatio > 1.2 ? 'bearish' : pcRatio < 0.8 ? 'bullish' : 'neutral';
-        const sentimentColor = sentiment === 'bullish' ? 'var(--green)' :
-                              sentiment === 'bearish' ? 'var(--red)' :
-                              'var(--text-muted)';
-
-        document.getElementById('opt-sentiment').textContent = sentiment.toUpperCase();
-        document.getElementById('opt-sentiment').style.color = sentimentColor;
-        document.getElementById('opt-pc-ratio').textContent = pcRatio.toFixed(2);
-        document.getElementById('opt-call-vol').textContent = totalCallVol.toLocaleString();
-        document.getElementById('opt-put-vol').textContent = totalPutVol.toLocaleString();
-
-        // Filter chains to center around ATM (±20 strikes from current price)
-        const currentPrice = chain.underlying_price || optionsChartData.currentPrice || 0;
-        const filterNearATM = (contracts) => {
-            if (!contracts.length || !currentPrice) return contracts.slice(0, 50);
-            const sorted = [...contracts].sort((a, b) => a.strike - b.strike);
-            const atmIdx = sorted.findIndex(c => c.strike >= currentPrice);
-            const start = Math.max(0, atmIdx - 20);
-            const end = Math.min(sorted.length, atmIdx + 21);
-            return sorted.slice(start, end);
-        };
-
-        // Render calls table
-        const calls = filterNearATM(chain.calls || []);
-        if (calls.length === 0) {
-            document.getElementById('calls-table-body').innerHTML =
-                '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">No call contracts available</td></tr>';
-        } else {
-            document.getElementById('calls-table-body').innerHTML = calls.map(c => {
-                const deltaColor = (c.delta || 0) >= 0.5 ? 'var(--green)' : 'var(--text-muted)';
-                const bidVal = c.bid != null ? c.bid : c.last_price || 0;
-                const askVal = c.ask != null ? c.ask : c.last_price || 0;
-                const isATM = currentPrice && Math.abs(c.strike - currentPrice) < 2;
-                const rowBg = isATM ? 'background: rgba(99, 102, 241, 0.1);' : '';
-                return `<tr style="border-bottom: 1px solid var(--border); ${rowBg}">
-                    <td style="padding: 8px; font-weight: 600;">$${c.strike || '--'}</td>
-                    <td style="padding: 8px; text-align: right;">$${bidVal.toFixed(2)}</td>
-                    <td style="padding: 8px; text-align: right;">$${askVal.toFixed(2)}</td>
-                    <td style="padding: 8px; text-align: right;">${(c.volume || 0).toLocaleString()}</td>
-                    <td style="padding: 8px; text-align: right;">${(c.open_interest || 0).toLocaleString()}</td>
-                    <td style="padding: 8px; text-align: right;">${c.implied_volatility ? (c.implied_volatility * 100).toFixed(1) + '%' : '--'}</td>
-                    <td style="padding: 8px; text-align: right; color: ${deltaColor}; font-weight: 600;">${c.delta ? c.delta.toFixed(3) : '--'}</td>
-                </tr>`;
-            }).join('');
-        }
-
-        // Render puts table
-        const puts = filterNearATM(chain.puts || []);
-        if (puts.length === 0) {
-            document.getElementById('puts-table-body').innerHTML =
-                '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">No put contracts available</td></tr>';
-        } else {
-            document.getElementById('puts-table-body').innerHTML = puts.map(p => {
-                const deltaColor = Math.abs(p.delta || 0) >= 0.5 ? 'var(--red)' : 'var(--text-muted)';
-                const bidVal = p.bid != null ? p.bid : p.last_price || 0;
-                const askVal = p.ask != null ? p.ask : p.last_price || 0;
-                const isATM = currentPrice && Math.abs(p.strike - currentPrice) < 2;
-                const rowBg = isATM ? 'background: rgba(99, 102, 241, 0.1);' : '';
-                return `<tr style="border-bottom: 1px solid var(--border); ${rowBg}">
-                    <td style="padding: 8px; font-weight: 600;">$${p.strike || '--'}</td>
-                    <td style="padding: 8px; text-align: right;">$${bidVal.toFixed(2)}</td>
-                    <td style="padding: 8px; text-align: right;">$${askVal.toFixed(2)}</td>
-                    <td style="padding: 8px; text-align: right;">${(p.volume || 0).toLocaleString()}</td>
-                    <td style="padding: 8px; text-align: right;">${(p.open_interest || 0).toLocaleString()}</td>
-                    <td style="padding: 8px; text-align: right;">${p.implied_volatility ? (p.implied_volatility * 100).toFixed(1) + '%' : '--'}</td>
-                    <td style="padding: 8px; text-align: right; color: ${deltaColor}; font-weight: 600;">${p.delta ? p.delta.toFixed(3) : '--'}</td>
-                </tr>`;
-            }).join('');
-        }
-
-        console.log('Options chain loaded for', ticker);
-
-        // Render IV Smile chart from chain data
-        renderIVSmile(chain.calls || [], chain.puts || [], currentPrice);
-
-    } catch (e) {
-        console.error('Failed to load options chain:', e);
-        document.getElementById('calls-table-body').innerHTML =
-            '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--red);">Failed to load</td></tr>';
-        document.getElementById('puts-table-body').innerHTML =
-            '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--red);">Failed to load</td></tr>';
-    }
-}
-
-// =============================================================================
-// OPTIONS SCREENER
-// =============================================================================
-// =============================================================================
-// SMART MONEY FLOW
-// =============================================================================
-async function loadSmartMoneyFlow() {
-    // Use flow input, or fall back to options-ticker-input, or header ticker-input
-    let ticker = document.getElementById('flow-ticker-input')?.value.trim().toUpperCase();
-    if (!ticker) ticker = optionsAnalysisTicker;
-    if (!ticker) ticker = document.getElementById('ticker-input')?.value.trim().toUpperCase();
-    if (!ticker) {
-        const container = document.getElementById('smart-money-flow-container');
-        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--red);">Please enter a ticker symbol</div>';
-        return;
-    }
-
-    // Auto-fill the flow input for clarity
-    const flowInput = document.getElementById('flow-ticker-input');
-    if (flowInput) flowInput.value = ticker;
-
-    // Switch to Chain & Flow tab
-    showTab('tab-chain-flow');
-
-    const container = document.getElementById('smart-money-flow-container');
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Analyzing flow...</div>';
-
-    try {
-        const isFutures = ticker.startsWith('/');
-        const url = isFutures
-            ? `${API_BASE}/options/smart-money?ticker=${encodeURIComponent(ticker)}`
-            : `${API_BASE}/options/smart-money/${ticker}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.ok && data.data) {
-            const flow = data.data;
-            const netFlow = flow.net_flow || 0;
-            const callFlow = flow.call_flow || 0;
-            const putFlow = flow.put_flow || 0;
-            const instRatio = flow.institutional_ratio || 0;
-
-            const flowColor = netFlow > 0 ? 'var(--green)' : netFlow < 0 ? 'var(--red)' : 'var(--text-muted)';
-            const flowLabel = netFlow > 0 ? 'NET INFLOW' : netFlow < 0 ? 'NET OUTFLOW' : 'NEUTRAL';
-
-            let html = `
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
-                    <div style="text-align: center; padding: 12px; background: var(--bg-hover); border-radius: 8px;">
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">NET FLOW</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: ${flowColor};">$${Math.abs(netFlow / 1e6).toFixed(1)}M</div>
-                        <div style="font-size: 0.65rem; color: ${flowColor};">${flowLabel}</div>
-                    </div>
-                    <div style="text-align: center; padding: 12px; background: var(--bg-hover); border-radius: 8px;">
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">CALL FLOW</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: var(--green);">$${(callFlow / 1e6).toFixed(1)}M</div>
-                    </div>
-                    <div style="text-align: center; padding: 12px; background: var(--bg-hover); border-radius: 8px;">
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">PUT FLOW</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: var(--red);">$${(putFlow / 1e6).toFixed(1)}M</div>
-                    </div>
-                    <div style="text-align: center; padding: 12px; background: var(--bg-hover); border-radius: 8px;">
-                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">INSTITUTIONAL</div>
-                        <div style="font-size: 1.25rem; font-weight: 700;">${(instRatio * 100).toFixed(0)}%</div>
-                    </div>
-                </div>
-            `;
-
-            const notable = flow.notable_trades || [];
-            if (notable.length > 0) {
-                html += '<div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;">Notable Trades</div>';
-                html += '<div style="max-height: 200px; overflow-y: auto;">';
-                notable.slice(0, 8).forEach(t => {
-                    const premium = (t.premium || 0) / 1000;
-                    let expiry = '';
-                    if (t.expiration) {
-                        const d = new Date(t.expiration + 'T00:00:00');
-                        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                        expiry = months[d.getMonth()] + ' ' + d.getDate();
-                    }
-
-                    html += `<div style="display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border);">
-                        <span>$${(t.strike || 0).toLocaleString()} ${t.type || 'C'}${expiry ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${expiry})</span>` : ''}</span>
-                        <span style="font-weight: 600;">$${premium.toLocaleString(undefined, {maximumFractionDigits: 0})}K <span style="color: var(--text-muted); font-weight: normal; font-size: 0.75rem;">${t.signal || ''}</span></span>
-                    </div>`;
-                });
-                html += '</div>';
-            }
-
-            container.innerHTML = html;
-        } else {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No flow data for ' + ticker + '</div>';
-        }
-    } catch (e) {
-        console.error('Failed to load smart money flow:', e);
-        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--red);">Failed to analyze flow</div>';
-    }
-}
 
 // =============================================================================
 // TAB SWITCHING
 // =============================================================================
 function showTab(tabId) {
     // Migrate old tab IDs from removed tabs
-    const tabMigration = { 'tab-gex': 'tab-analysis', 'tab-strategy': 'tab-chain-flow' };
+    const tabMigration = {
+        'tab-gex': 'tab-analysis',
+        'tab-strategy': 'tab-trade',
+        'tab-chain-flow': 'tab-trade',
+        'tab-backtest': 'tab-trade',
+        'tab-trading': 'tab-trade'
+    };
     if (tabMigration[tabId]) tabId = tabMigration[tabId];
 
     activeTab = tabId;
@@ -5359,7 +4889,7 @@ function showTab(tabId) {
             try { ivSmileChart.updateOptions({ chart: { width: document.getElementById('iv-smile-chart')?.clientWidth } }); } catch(e) {}
         }, 50);
     }
-    if (tabId === 'tab-trading') {
+    if (tabId === 'tab-trade') {
         loadTradingDashboard();
         startTradingRefresh();
     } else {
@@ -6529,444 +6059,6 @@ function updateScannerDot(idx, status) {
     dot.classList.add(status);
 }
 
-// =============================================================================
-// MACRO REGIME BANNER (FRED Economic Dashboard)
-// =============================================================================
-const _MACRO_CACHE_TTL = 300000; // 5 minutes
-
-async function loadEconomicDashboard() {
-    const url = `${API_BASE}/economic/dashboard`;
-    const cached = _apiCache.get(url);
-    if (cached && (Date.now() - cached.ts) < _MACRO_CACHE_TTL) {
-        renderMacroBanner(cached.data);
-        return;
-    }
-
-    try {
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        _apiCache.set(url, { data, ts: Date.now() });
-        renderMacroBanner(data);
-    } catch (e) {
-        console.error('Economic dashboard fetch failed:', e);
-    }
-}
-
-function renderMacroBanner(data) {
-    const bar = document.getElementById('macro-bar');
-    if (!bar || !data) return;
-
-    const statusColorMap = {
-        good: 'var(--green)',
-        warning: 'var(--yellow)',
-        danger: 'var(--red)',
-        neutral: 'var(--text-muted)'
-    };
-
-    // Health score (API uses overall_score / overall_label / overall_color)
-    const score = data.overall_score;
-    const scoreColor = data.overall_color || statusColorMap.neutral;
-    let scoreStatus = 'neutral';
-    if (score !== undefined && score !== null) {
-        if (score >= 70) scoreStatus = 'good';
-        else if (score >= 40) scoreStatus = 'warning';
-        else scoreStatus = 'danger';
-    }
-
-    const scoreDot = document.getElementById('macro-score-dot');
-    const scoreValue = document.getElementById('macro-score-value');
-    const scoreLabel = document.getElementById('macro-score-label');
-
-    if (scoreDot) scoreDot.style.background = scoreColor;
-    if (scoreValue) scoreValue.textContent = score !== undefined && score !== null ? Math.round(score) : '--';
-    if (scoreLabel) scoreLabel.textContent = data.overall_label || '--';
-
-    // Pills — yield_curve is top-level; others are in data.indicators
-    const pillsContainer = document.getElementById('macro-pills');
-    if (!pillsContainer) return;
-    pillsContainer.innerHTML = '';
-
-    const indicators = data.indicators || {};
-
-    const pillDefs = [
-        { key: 'yield_curve', name: 'Yield Curve', topLevel: true },
-        { key: 'high_yield_spread', name: 'Credit' },
-        { key: 'fed_funds_rate', name: 'Fed Rate' },
-        { key: 'cpi_yoy', name: 'CPI' }
-    ];
-
-    pillDefs.forEach(def => {
-        const ind = def.topLevel ? data[def.key] : indicators[def.key];
-        if (!ind) return;
-
-        const status = ind.status || 'neutral';
-        const color = statusColorMap[status] || statusColorMap.neutral;
-        let displayValue = '--';
-
-        if (def.topLevel && ind.display) {
-            displayValue = ind.display;
-        } else if (ind.value !== undefined && ind.value !== null) {
-            const v = parseFloat(ind.value);
-            displayValue = isNaN(v) ? String(ind.value) : v.toFixed(2) + (def.key === 'cpi_yoy' ? '%' : def.key === 'fed_funds_rate' ? '%' : def.key === 'high_yield_spread' ? ' bps' : '');
-        }
-
-        const pill = document.createElement('div');
-        pill.className = 'macro-pill';
-        pill.innerHTML = `<span class="macro-pill-dot" style="background:${color}"></span><span class="macro-pill-name">${def.name}</span><span class="macro-pill-value">${displayValue}</span>`;
-        pillsContainer.appendChild(pill);
-    });
-
-    bar.style.display = 'flex';
-    updateMacroGexSignal();
-}
-
-// =============================================================================
-// ECONOMIC CALENDAR ALERTS
-// =============================================================================
-
-// FOMC meeting dates (published by the Fed in advance)
-const FOMC_DATES = [
-    // 2025
-    '2025-01-29','2025-03-19','2025-05-07','2025-06-18','2025-07-30','2025-09-17','2025-11-05','2025-12-17',
-    // 2026
-    '2026-01-28','2026-03-18','2026-05-06','2026-06-17','2026-07-29','2026-09-16','2026-10-28','2026-12-16'
-];
-
-function getNthWeekdayOfMonth(year, month, weekday, n) {
-    // weekday: 0=Sun..5=Fri, n: 1-based (1=first, -1=last)
-    if (n > 0) {
-        const first = new Date(year, month, 1);
-        let day = 1 + ((weekday - first.getDay() + 7) % 7);
-        day += (n - 1) * 7;
-        return new Date(year, month, day);
-    } else {
-        // Last occurrence
-        const last = new Date(year, month + 1, 0);
-        let day = last.getDate() - ((last.getDay() - weekday + 7) % 7);
-        return new Date(year, month, day);
-    }
-}
-
-function generateCPIDates(startYear, endYear) {
-    // CPI is typically released around the 13th of each month
-    const dates = [];
-    for (let y = startYear; y <= endYear; y++) {
-        for (let m = 0; m < 12; m++) {
-            // Approximate: 2nd Tuesday + 1 day, or roughly the 13th
-            let d = new Date(y, m, 13);
-            // If weekend, shift to next weekday
-            if (d.getDay() === 0) d.setDate(14);
-            if (d.getDay() === 6) d.setDate(15);
-            dates.push(d.toISOString().split('T')[0]);
-        }
-    }
-    return dates;
-}
-
-function generateNFPDates(startYear, endYear) {
-    // NFP = First Friday of each month
-    const dates = [];
-    for (let y = startYear; y <= endYear; y++) {
-        for (let m = 0; m < 12; m++) {
-            const d = getNthWeekdayOfMonth(y, m, 5, 1);
-            dates.push(d.toISOString().split('T')[0]);
-        }
-    }
-    return dates;
-}
-
-function generatePCEDates(startYear, endYear) {
-    // PCE = Last Friday of each month
-    const dates = [];
-    for (let y = startYear; y <= endYear; y++) {
-        for (let m = 0; m < 12; m++) {
-            const d = getNthWeekdayOfMonth(y, m, 5, -1);
-            dates.push(d.toISOString().split('T')[0]);
-        }
-    }
-    return dates;
-}
-
-function getMacroEventSchedule(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const startYear = start.getFullYear();
-    const endYear = end.getFullYear();
-
-    const events = [];
-
-    // FOMC
-    FOMC_DATES.forEach(d => {
-        const dt = new Date(d);
-        if (dt >= start && dt <= end) events.push({ date: d, name: 'FOMC Decision', type: 'fomc' });
-    });
-
-    // CPI
-    generateCPIDates(startYear, endYear).forEach(d => {
-        const dt = new Date(d);
-        if (dt >= start && dt <= end) events.push({ date: d, name: 'CPI Release', type: 'cpi' });
-    });
-
-    // NFP
-    generateNFPDates(startYear, endYear).forEach(d => {
-        const dt = new Date(d);
-        if (dt >= start && dt <= end) events.push({ date: d, name: 'NFP Report', type: 'nfp' });
-    });
-
-    // PCE
-    generatePCEDates(startYear, endYear).forEach(d => {
-        const dt = new Date(d);
-        if (dt >= start && dt <= end) events.push({ date: d, name: 'PCE Data', type: 'pce' });
-    });
-
-    // Sort by date, deduplicate
-    events.sort((a, b) => a.date.localeCompare(b.date));
-    const seen = new Set();
-    return events.filter(e => {
-        const key = e.date + e.name;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
-}
-
-function checkMacroEvents(expiryDateStr) {
-    const card = document.getElementById('macro-events-card');
-    const body = document.getElementById('macro-events-body');
-    if (!card || !body) return;
-
-    if (!expiryDateStr) {
-        card.style.display = 'none';
-        return;
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
-
-    const events = getMacroEventSchedule(todayStr, expiryDateStr);
-
-    if (events.length === 0) {
-        card.style.display = 'none';
-        return;
-    }
-
-    const expiryDate = new Date(expiryDateStr);
-    body.innerHTML = '';
-
-    events.forEach(ev => {
-        const evDate = new Date(ev.date);
-        const daysBeforeExpiry = Math.round((expiryDate - evDate) / (1000 * 60 * 60 * 24));
-        const dateLabel = evDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-        const row = document.createElement('div');
-        row.className = 'macro-event-row';
-        row.setAttribute('data-type', ev.type);
-        row.innerHTML = `
-            <div class="macro-event-left">
-                <span class="macro-event-date">${dateLabel}</span>
-                <span class="macro-event-name">${ev.name}</span>
-            </div>
-            <span class="macro-event-dte">${daysBeforeExpiry}d before expiry</span>
-        `;
-        body.appendChild(row);
-    });
-
-    card.style.display = 'block';
-    // Update DTE badges after macro events are computed
-    updateDteBadges();
-}
-
-// =============================================================================
-// F4: DTE EVENT BADGES
-// =============================================================================
-function updateDteBadges() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
-    const targets = [
-        { days: 7, id: 'dte-badge-7' },
-        { days: 30, id: 'dte-badge-30' },
-        { days: 90, id: 'dte-badge-90' }
-    ];
-    targets.forEach(t => {
-        const badge = document.getElementById(t.id);
-        if (!badge) return;
-        const endDate = new Date(today);
-        endDate.setDate(endDate.getDate() + t.days);
-        const endStr = endDate.toISOString().split('T')[0];
-        const events = getMacroEventSchedule(todayStr, endStr);
-        if (events.length > 0) {
-            badge.textContent = events.length;
-            badge.style.display = 'inline-block';
-        } else {
-            badge.style.display = 'none';
-        }
-    });
-}
-
-// =============================================================================
-// F2: MACRO-GEX CROSS-SIGNAL
-// =============================================================================
-function updateMacroGexSignal() {
-    const signalEl = document.getElementById('macro-gex-signal');
-    if (!signalEl) return;
-
-    // Check if macro data is loaded
-    const macroBar = document.getElementById('macro-bar');
-    const macroLoaded = macroBar && macroBar.style.display !== 'none';
-
-    // Check if GEX data is loaded
-    const gexRegimeBadge = document.getElementById('gex-regime-badge');
-    const gexLoaded = gexRegimeBadge && gexRegimeBadge.textContent !== '--' && gexRegimeBadge.textContent !== 'Loading...';
-
-    if (!macroLoaded || !gexLoaded) {
-        signalEl.style.display = 'none';
-        return;
-    }
-
-    // Get yield curve status
-    const yieldCurveEl = document.querySelector('.macro-pill');
-    let yieldCurveInverted = false;
-    if (yieldCurveEl) {
-        const yieldText = yieldCurveEl.textContent.toLowerCase();
-        yieldCurveInverted = yieldText.includes('inverted') || yieldText.includes('negative');
-    }
-
-    // Get macro score
-    const macroScoreEl = document.getElementById('macro-score-value');
-    const macroScore = macroScoreEl ? parseInt(macroScoreEl.textContent) : 50;
-    const macroWeak = macroScore < 50;
-
-    // Get GEX regime
-    const gexRegime = gexRegimeBadge.textContent.toLowerCase();
-    const negativeGex = gexRegime === 'volatile' || gexRegime.includes('negative');
-    const positiveGex = gexRegime === 'pinned' || gexRegime.includes('positive');
-
-    // Cross-signal logic
-    let signalText = '';
-    let signalColor = 'var(--text-muted)';
-    let signalBg = 'var(--bg-hover)';
-
-    if ((yieldCurveInverted || macroWeak) && negativeGex) {
-        signalText = 'HIGH VOLATILITY RISK';
-        signalColor = 'var(--red)';
-        signalBg = 'rgba(239, 68, 68, 0.12)';
-    } else if (macroWeak && positiveGex) {
-        signalText = 'MACRO CAUTION • GEX STABLE';
-        signalColor = 'var(--yellow)';
-        signalBg = 'rgba(234, 179, 8, 0.12)';
-    } else if (!macroWeak && negativeGex) {
-        signalText = 'MACRO OK • GEX VOLATILE';
-        signalColor = 'var(--orange)';
-        signalBg = 'rgba(249, 115, 22, 0.12)';
-    } else if (!macroWeak && positiveGex) {
-        signalText = 'LOW RISK ENVIRONMENT';
-        signalColor = 'var(--green)';
-        signalBg = 'rgba(34, 197, 94, 0.12)';
-    } else {
-        signalText = 'MIXED SIGNALS';
-        signalColor = 'var(--text-muted)';
-        signalBg = 'var(--bg-hover)';
-    }
-
-    signalEl.innerHTML = `
-        <span style="font-size: 0.65rem; color: var(--text-dim); font-weight: 600;">MACRO + GEX</span>
-        <span class="macro-gex-pill" style="background: ${signalBg}; color: ${signalColor};">${signalText}</span>
-    `;
-    signalEl.style.display = 'flex';
-}
-
-// =============================================================================
-// F7: POSITION SIZING CALCULATOR
-// =============================================================================
-function togglePosCalc() {
-    const body = document.getElementById('pos-calc-body');
-    const icon = document.getElementById('pos-calc-toggle-icon');
-    if (!body) return;
-    const open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-    if (icon) icon.innerHTML = open ? '&#9654;' : '&#9660;';
-}
-
-function calculatePositionSize() {
-    const accountSize = parseFloat(document.getElementById('pc-account-size')?.value);
-    const riskPct = parseFloat(document.getElementById('pc-risk-pct')?.value);
-    const entry = parseFloat(document.getElementById('pc-entry-price')?.value);
-    const stop = parseFloat(document.getElementById('pc-stop-loss')?.value);
-    const results = document.getElementById('pos-calc-results');
-
-    if (!accountSize || !riskPct || !entry || !stop || entry === stop) {
-        if (results) results.style.display = 'none';
-        return;
-    }
-
-    const riskPerShare = Math.abs(entry - stop);
-    const maxLoss = accountSize * (riskPct / 100);
-    const shares = Math.floor(maxLoss / riskPerShare);
-    const positionSize = shares * entry;
-
-    document.getElementById('pc-result-size').textContent = `$${positionSize.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-    document.getElementById('pc-result-shares').textContent = shares.toLocaleString();
-    document.getElementById('pc-result-loss').textContent = `-$${maxLoss.toFixed(0)}`;
-    document.getElementById('pc-result-riskshare').textContent = `$${riskPerShare.toFixed(2)}`;
-
-    if (results) results.style.display = 'grid';
-}
-
-// =============================================================================
-// F3: EARNINGS CALENDAR BADGE
-// =============================================================================
-let _earningsCache = { data: null, ts: 0 };
-
-async function checkTickerEarnings(ticker) {
-    const badge = document.getElementById('oa-earnings-badge');
-    if (!badge) return;
-    badge.style.display = 'none';
-
-    if (!ticker || ticker.startsWith('/')) return; // No earnings for futures
-
-    try {
-        // Use cached data if within 5 minutes
-        if (_earningsCache.data && (Date.now() - _earningsCache.ts) < 300000) {
-            showEarningsBadge(badge, ticker, _earningsCache.data);
-            return;
-        }
-
-        const res = await fetch(`${API_BASE}/earnings`);
-        const data = await res.json();
-        const earnings = data.data || data.earnings || [];
-        _earningsCache = { data: earnings, ts: Date.now() };
-        showEarningsBadge(badge, ticker, earnings);
-    } catch (e) {
-        console.error('Earnings check failed:', e);
-    }
-}
-
-function showEarningsBadge(badge, ticker, earnings) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const limit = new Date(today);
-    limit.setDate(limit.getDate() + 30);
-
-    const match = earnings.find(e => {
-        const sym = (e.ticker || e.symbol || '').toUpperCase();
-        if (sym !== ticker.toUpperCase()) return false;
-        const d = new Date(e.date || e.earnings_date || e.report_date);
-        return d >= today && d <= limit;
-    });
-
-    if (match) {
-        const earningsDate = new Date(match.date || match.earnings_date || match.report_date);
-        const daysAway = Math.round((earningsDate - today) / (1000 * 60 * 60 * 24));
-        const dateLabel = earningsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        badge.innerHTML = `&#128197; ${dateLabel} (${daysAway}d)`;
-        badge.style.display = 'inline-block';
-    } else {
-        badge.style.display = 'none';
-    }
-}
 
 // =============================================================================
 // F6: OPTIONS FLOW TIMELINE ON PRICE CHART
@@ -7147,212 +6239,6 @@ async function loadTermStructure(ticker) {
 }
 
 // =============================================================================
-// F8: WATCHLIST PANEL
-// =============================================================================
-function toggleWatchlist() {
-    const body = document.getElementById('watchlist-body');
-    const icon = document.getElementById('watchlist-toggle-icon');
-    if (!body) return;
-    const open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-    if (icon) icon.innerHTML = open ? '&#9654;' : '&#9660;';
-}
-
-async function loadWatchlist() {
-    try {
-        const res = await fetch(`${API_BASE}/watchlist`);
-        const data = await res.json();
-        const items = data.data || data.watchlist || [];
-        renderWatchlistItems(items);
-    } catch (e) {
-        console.error('Watchlist load failed:', e);
-    }
-}
-
-function renderWatchlistItems(items) {
-    const container = document.getElementById('watchlist-items');
-    const countEl = document.getElementById('watchlist-count');
-    if (!container) return;
-
-    if (countEl) countEl.textContent = items.length;
-
-    if (items.length === 0) {
-        container.innerHTML = '<div style="text-align: center; color: var(--text-dim); font-size: 0.75rem; padding: 12px;">No tickers in watchlist</div>';
-        return;
-    }
-
-    // Store in localStorage for change detection
-    localStorage.setItem('gq_watchlist', JSON.stringify(items.map(i => i.ticker || i)));
-
-    container.innerHTML = items.map(item => {
-        const ticker = typeof item === 'string' ? item : (item.ticker || '--');
-        const notes = typeof item === 'object' ? (item.notes || '') : '';
-        return `
-            <div class="watchlist-item">
-                <div class="watchlist-item-left">
-                    <span class="watchlist-item-ticker" onclick="quickAnalyzeTicker('${ticker}')">${ticker}</span>
-                    ${notes ? `<span style="font-size: 0.65rem; color: var(--text-dim);">${notes}</span>` : ''}
-                </div>
-                <button class="watchlist-item-remove" onclick="removeFromWatchlist('${ticker}')" title="Remove">&times;</button>
-            </div>
-        `;
-    }).join('');
-}
-
-async function addToWatchlist() {
-    const input = document.getElementById('watchlist-input');
-    const ticker = (input?.value || '').trim().toUpperCase();
-    if (!ticker) return;
-
-    try {
-        const res = await fetch(`${API_BASE}/watchlist/add?ticker=${encodeURIComponent(ticker)}`, {
-            method: 'POST'
-        });
-        const data = await res.json();
-        if (data.ok !== false) {
-            input.value = '';
-            loadWatchlist();
-        }
-    } catch (e) {
-        console.error('Add to watchlist failed:', e);
-    }
-}
-
-async function removeFromWatchlist(ticker) {
-    try {
-        await fetch(`${API_BASE}/watchlist/${encodeURIComponent(ticker)}`, { method: 'DELETE' });
-        loadWatchlist();
-    } catch (e) {
-        console.error('Remove from watchlist failed:', e);
-    }
-}
-
-// =============================================================================
-// F5: HISTORICAL GEX TRACKING
-// =============================================================================
-let gexHistoryChart = null;
-
-async function loadGexHistory(ticker) {
-    const container = document.getElementById('gex-history-container');
-    const chartEl = document.getElementById('gex-history-chart');
-    if (!container || !chartEl) return;
-
-    try {
-        const url = ticker.startsWith('/')
-            ? `${API_BASE}/options/gex-history?ticker=${encodeURIComponent(ticker)}`
-            : `${API_BASE}/options/gex-history/${ticker}`;
-        const res = await fetch(url);
-        if (!res.ok) { container.style.display = 'none'; return; }
-        const data = await res.json();
-
-        if (!data.ok || !data.data || data.data.length < 2) {
-            container.style.display = 'none';
-            return;
-        }
-
-        const history = data.data;
-        const dates = history.map(h => h.date);
-        const gexValues = history.map(h => h.gex || h.total_gex || 0);
-
-        const chartOptions = {
-            series: [{ name: 'Total GEX', data: gexValues }],
-            chart: {
-                type: 'area',
-                height: 180,
-                sparkline: { enabled: false },
-                background: 'transparent',
-                toolbar: { show: false },
-                zoom: { enabled: false }
-            },
-            colors: ['#f97316'],
-            fill: {
-                type: 'gradient',
-                gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] }
-            },
-            stroke: { curve: 'smooth', width: 2 },
-            xaxis: {
-                categories: dates,
-                labels: { style: { colors: '#71717a', fontSize: '0.6rem' }, rotate: -45, rotateAlways: true },
-                axisBorder: { show: false },
-                axisTicks: { show: false }
-            },
-            yaxis: {
-                labels: {
-                    style: { colors: '#71717a', fontSize: '0.6rem' },
-                    formatter: v => Math.abs(v) >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${(v / 1e3).toFixed(0)}K`
-                }
-            },
-            grid: { borderColor: '#2a2a3a', strokeDashArray: 3 },
-            tooltip: { theme: 'dark' },
-            dataLabels: { enabled: false },
-            annotations: {
-                yaxis: [{ y: 0, borderColor: '#71717a', strokeDashArray: 2 }]
-            }
-        };
-
-        if (gexHistoryChart) gexHistoryChart.destroy();
-        gexHistoryChart = new ApexCharts(chartEl, chartOptions);
-        gexHistoryChart.render();
-        container.style.display = 'block';
-    } catch (e) {
-        console.error('GEX history load failed:', e);
-        container.style.display = 'none';
-    }
-}
-
-// =============================================================================
-// F11: GEX SIGNAL BACKTESTING
-// =============================================================================
-async function loadGexBacktest(ticker) {
-    const card = document.getElementById('gex-backtest-card');
-    const metricsEl = document.getElementById('gex-backtest-metrics');
-    if (!card || !metricsEl) return;
-
-    try {
-        const url = ticker.startsWith('/')
-            ? `${API_BASE}/options/gex-backtest?ticker=${encodeURIComponent(ticker)}`
-            : `${API_BASE}/options/gex-backtest/${ticker}`;
-        const res = await fetch(url);
-        if (!res.ok) { card.style.display = 'none'; return; }
-        const data = await res.json();
-
-        if (!data.ok || !data.data) {
-            card.style.display = 'none';
-            return;
-        }
-
-        const bt = data.data;
-        const winRate = bt.win_rate !== undefined ? `${(bt.win_rate * 100).toFixed(0)}%` : '--';
-        const avgMove = bt.avg_move !== undefined ? `${bt.avg_move >= 0 ? '+' : ''}${bt.avg_move.toFixed(1)}%` : '--';
-        const signals = bt.signal_count !== undefined ? bt.signal_count : '--';
-        const avgDays = bt.avg_days !== undefined ? `${bt.avg_days.toFixed(0)}d` : '--';
-
-        metricsEl.innerHTML = `
-            <div class="gex-bt-metric">
-                <span class="gex-bt-metric-label">Win Rate</span>
-                <span class="gex-bt-metric-value">${winRate}</span>
-            </div>
-            <div class="gex-bt-metric">
-                <span class="gex-bt-metric-label">Avg Move</span>
-                <span class="gex-bt-metric-value">${avgMove}</span>
-            </div>
-            <div class="gex-bt-metric">
-                <span class="gex-bt-metric-label">Signals</span>
-                <span class="gex-bt-metric-value">${signals}</span>
-            </div>
-            <div class="gex-bt-metric">
-                <span class="gex-bt-metric-label">Avg Duration</span>
-                <span class="gex-bt-metric-value">${avgDays}</span>
-            </div>
-        `;
-        card.style.display = 'block';
-    } catch (e) {
-        console.error('GEX backtest load failed:', e);
-        card.style.display = 'none';
-    }
-}
-
-// =============================================================================
 // PAPER TRADING DASHBOARD
 // =============================================================================
 
@@ -7516,7 +6402,6 @@ async function loadTradingDashboard() {
         loadPaperEquityCurve(),
         loadPaperJournal(),
         loadPaperConfig(),
-        loadAdaptiveIntelligence(),
         loadStrategyMatrix(),
         load0DTEDashboard(),
     ]);
@@ -8424,187 +7309,6 @@ async function resetPaperAccount() {
     } catch (e) { console.error('Reset error:', e); }
 }
 
-// --- Adaptive Intelligence ---
-async function loadAdaptiveIntelligence() {
-    try {
-        const data = await safeFetchJson(`${API_BASE}/paper/adaptive/stats`);
-        if (!data || !data.ok || !data.data) return;
-        const d = data.data;
-        const meta = (d.learning_tiers && d.learning_tiers.meta_adjustments) || {};
-
-        // --- System Overview Metrics ---
-        const totalCycles = (d.learning_tiers && d.learning_tiers.total_feedback_loops) || 0;
-        const el = id => document.getElementById(id);
-
-        // Count active modules (have meaningful data)
-        let activeCount = 0, totalModules = 0;
-        if (d.learning_tiers && d.learning_tiers.tier_health) {
-            Object.values(d.learning_tiers.tier_health).forEach(t => {
-                totalModules++;
-                if (t.status !== 'cold' || t.updates > 0) activeCount++;
-            });
-        }
-        const moduleChecks = [
-            { key: 'ticker_clusters', active: d.ticker_clusters && d.ticker_clusters.tickers_tracked > 0 },
-            { key: 'regime_predictor', active: d.regime_predictor && d.regime_predictor.total_observations > 0 },
-            { key: 'param_tuner', active: d.param_tuner && d.param_tuner.total_observations > 0 },
-            { key: 'rl_policy', active: d.rl_policy && d.rl_policy.total_episodes > 0 },
-            { key: 'regime_aware_weights', active: d.regime_aware_weights && d.regime_aware_weights.global_updates > 0 },
-        ];
-        moduleChecks.forEach(c => { if (d[c.key]) { totalModules++; if (c.active) activeCount++; } });
-
-        if (el('ai-cycles')) el('ai-cycles').textContent = totalCycles;
-        if (el('ai-components')) el('ai-components').textContent = `${activeCount}/${totalModules}`;
-        if (el('ai-confidence')) el('ai-confidence').textContent = (meta.confidence_scale || 1).toFixed(2) + 'x';
-        if (el('ai-exploration')) el('ai-exploration').textContent = ((meta.exploration_rate || 0.2) * 100).toFixed(0) + '%';
-
-        // Health badge
-        const badge = el('adaptive-health-badge');
-        if (badge) {
-            const pct = activeCount / Math.max(totalModules, 1);
-            if (totalCycles >= 10) {
-                badge.textContent = `${activeCount}/${totalModules} ACTIVE`;
-                badge.className = 'ai-health-badge ' + (pct >= 0.5 ? 'active' : pct >= 0.2 ? 'partial' : 'cold');
-            } else if (totalCycles > 0) {
-                badge.textContent = 'WARMING UP';
-                badge.className = 'ai-health-badge partial';
-            } else {
-                badge.textContent = 'INITIALIZING';
-                badge.className = 'ai-health-badge cold';
-            }
-        }
-
-        // --- Learning Tiers ---
-        const tiersEl = el('adaptive-tiers');
-        if (tiersEl && d.learning_tiers && d.learning_tiers.tier_health) {
-            const th = d.learning_tiers.tier_health;
-            tiersEl.innerHTML = ['bandit', 'regime', 'exit', 'meta'].map(tier => {
-                const status = (th[tier] && th[tier].status) || 'cold';
-                const updates = (th[tier] && th[tier].updates) || 0;
-                return `<span class="tier-badge ${status}"><span class="tier-dot"></span>${tier}: ${status} (${updates})</span>`;
-            }).join('');
-        }
-
-        // --- Factor Weights (sorted bars) ---
-        const factorBarsEl = el('adaptive-factor-bars');
-        if (factorBarsEl && d.adaptive_weights && d.adaptive_weights.factors) {
-            const sorted = Object.entries(d.adaptive_weights.factors)
-                .sort((a, b) => b[1].current_weight - a[1].current_weight);
-            factorBarsEl.innerHTML = sorted.map(([name, f]) => {
-                const w = f.current_weight;
-                const wH = (f.wins_when_high || 0) + (f.wins_when_low || 0);
-                const lH = (f.losses_when_high || 0) + (f.losses_when_low || 0);
-                const barColor = w >= 70 ? 'var(--cyan)' : w >= 50 ? 'var(--green)' : w >= 30 ? 'var(--yellow)' : 'var(--text-dim)';
-                const label = name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                const wl = (wH + lH) > 0 ? `${wH}W/${lH}L` : '';
-                return `<div class="ai-factor-row">
-                    <span class="ai-factor-name" title="${label}">${label}</span>
-                    <div class="ai-factor-bar-track">
-                        <div class="ai-factor-bar-fill" style="width:${Math.min(w, 100)}%;background:${barColor};"></div>
-                    </div>
-                    <span class="ai-factor-value" style="color:${barColor};">${w.toFixed(0)}</span>
-                    <span class="ai-factor-wl">${wl}</span>
-                </div>`;
-            }).join('');
-        }
-
-        // --- Intelligence Modules ---
-        const modulesEl = el('adaptive-modules');
-        if (modulesEl) {
-            let html = '';
-
-            // Ticker Clusters
-            const tc = d.ticker_clusters || {};
-            const tcActive = tc.tickers_tracked > 0 ? 'active' : 'cold';
-            let tcStats = `<span class="ai-stat-value">${tc.tickers_tracked || 0}</span> tickers &middot; <span class="ai-stat-value">${tc.clusters_tracked || 0}</span> clusters`;
-            if (tc.cluster_summary) {
-                const best = Object.entries(tc.cluster_summary).sort((a, b) => b[1].total - a[1].total)[0];
-                if (best) tcStats += `<br>${best[0]}: <span class="ai-stat-value">${best[1].win_rate}%</span> WR (${best[1].total})`;
-            }
-            html += `<div class="ai-module-card ${tcActive}">
-                <div class="ai-module-header"><span class="ai-module-name">Ticker Clusters</span><span class="ai-module-status ${tcActive}">${tcActive}</span></div>
-                <div class="ai-module-stats">${tcStats}</div></div>`;
-
-            // Regime Predictor
-            const rp = d.regime_predictor || {};
-            const rpSt = rp.total_observations > 10 ? 'active' : rp.total_observations > 0 ? 'learning' : 'cold';
-            html += `<div class="ai-module-card ${rpSt}">
-                <div class="ai-module-header"><span class="ai-module-name">Regime Predictor</span><span class="ai-module-status ${rpSt}">${rpSt}</span></div>
-                <div class="ai-module-stats"><span class="ai-stat-value">${rp.total_observations || 0}</span> observations<br><span class="ai-stat-value">${rp.total_transitions || 0}</span> transitions</div></div>`;
-
-            // Param Tuner
-            const pt = d.param_tuner || {};
-            const ptSt = pt.params_learned > 0 ? 'active' : pt.total_observations > 0 ? 'learning' : 'cold';
-            html += `<div class="ai-module-card ${ptSt}">
-                <div class="ai-module-header"><span class="ai-module-name">Param Tuner</span><span class="ai-module-status ${ptSt}">${ptSt}</span></div>
-                <div class="ai-module-stats"><span class="ai-stat-value">${pt.total_observations || 0}</span> observations<br><span class="ai-stat-value">${pt.params_learned || 0}</span> params learned</div></div>`;
-
-            // RL Policy
-            const rl = d.rl_policy || {};
-            const rlSt = rl.total_episodes > 10 ? 'active' : rl.total_episodes > 0 ? 'learning' : 'cold';
-            html += `<div class="ai-module-card ${rlSt}">
-                <div class="ai-module-header"><span class="ai-module-name">RL Policy</span><span class="ai-module-status ${rlSt}">${rlSt}</span></div>
-                <div class="ai-module-stats"><span class="ai-stat-value">${rl.total_episodes || 0}</span> episodes<br>reward: <span class="ai-stat-value">${(rl.recent_avg_reward || 0).toFixed(2)}</span></div></div>`;
-
-            // Regime-Aware Weights (spans full width)
-            const raw = d.regime_aware_weights || {};
-            const rawSt = raw.global_updates > 0 ? 'active' : 'cold';
-            let rawStats = `<span class="ai-stat-value">${raw.global_updates || 0}</span> global updates`;
-            if (d.adaptive_weights && d.adaptive_weights.regime_weights) {
-                const rwCount = Object.keys(d.adaptive_weights.regime_weights).length;
-                rawStats += ` &middot; <span class="ai-stat-value">${rwCount}</span> regime profile${rwCount !== 1 ? 's' : ''}`;
-            }
-            html += `<div class="ai-module-card ${rawSt}" style="grid-column:1/-1;">
-                <div class="ai-module-header"><span class="ai-module-name">Regime-Aware Weights</span><span class="ai-module-status ${rawSt}">${rawSt}</span></div>
-                <div class="ai-module-stats">${rawStats}</div></div>`;
-
-            modulesEl.innerHTML = html;
-        }
-
-        // --- Exit Parameters ---
-        const exitsEl = el('adaptive-exits');
-        if (exitsEl && d.adaptive_exits) {
-            const rows = Object.entries(d.adaptive_exits).map(([sig, p]) => {
-                const isAdaptive = p.source && p.source.includes('adaptive');
-                return `<tr>
-                    <td>${sig.replace(/_/g, ' ')}</td>
-                    <td>${p.stop_loss_pct}%</td>
-                    <td>${p.take_profit_pct}%</td>
-                    <td>${p.time_exit_dte}d</td>
-                    <td>${p.sample_size || 0}</td>
-                    <td><span class="ai-source-dot ${isAdaptive ? 'adaptive' : 'default'}"></span>${isAdaptive ? p.source.replace('adaptive_by_', '') : 'default'}</td>
-                </tr>`;
-            }).join('');
-            exitsEl.innerHTML = `<table class="ai-exits-table">
-                <thead><tr><th>Signal</th><th>SL</th><th>TP</th><th>DTE</th><th>Trades</th><th>Source</th></tr></thead>
-                <tbody>${rows}</tbody></table>`;
-        }
-
-        // --- Meta Engine Footer ---
-        const metaEl = el('adaptive-meta');
-        if (metaEl) {
-            metaEl.innerHTML = `
-                <span class="ai-meta-label">Meta Engine</span>
-                <span>Confidence: <span class="ai-meta-val">${(meta.confidence_scale || 1).toFixed(2)}x</span></span>
-                <span>Learning Rate: <span class="ai-meta-val">${(meta.learning_rate || 0.1).toFixed(2)}</span></span>
-                <span>Exploration: <span class="ai-meta-val">${((meta.exploration_rate || 0.2) * 100).toFixed(0)}%</span></span>
-            `;
-        }
-    } catch (e) {
-        console.debug('Adaptive intelligence load skipped:', e.message);
-    }
-}
-
-async function rebuildAdaptiveSystems() {
-    try {
-        const res = await fetch(`${API_BASE}/paper/adaptive/rebuild`, { method: 'POST' });
-        const data = await res.json();
-        if (data.ok) {
-            await loadAdaptiveIntelligence();
-        }
-    } catch (e) { console.error('Rebuild error:', e); }
-}
-
 // --- Portfolio Intelligence Strip ---
 let _intelStripCache = { regime: null, vrp: null, ts: 0 };
 
@@ -9108,12 +7812,5 @@ function render0DTEPositions(positions) {
     container.innerHTML = html;
 }
 
-// =============================================================================
-// INIT: Load watchlist on page load
-// =============================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    loadWatchlist();
-    updateDteBadges();
-});
 
 console.log('Gamma Quantix initialized. API:', API_BASE);

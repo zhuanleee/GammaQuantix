@@ -181,19 +181,6 @@
                     <button class="btn btn-ghost" onclick="loadMarketSentiment()" style="font-size: 0.7rem; padding: 4px 10px;">Refresh</button>
                 </div>
             </div>
-            <div class="macro-bar" id="macro-bar" style="display: none;">
-                <div class="macro-bar-left">
-                    <span class="macro-bar-label">MACRO</span>
-                    <div class="macro-score-badge">
-                        <span class="macro-score-dot" id="macro-score-dot"></span>
-                        <span class="macro-score-value" id="macro-score-value">--</span>
-                        <span class="macro-score-label" id="macro-score-label">--</span>
-                    </div>
-                </div>
-                <div class="macro-bar-right" id="macro-pills"></div>
-            </div>
-            <!-- F2: Macro-GEX Cross-Signal -->
-            <div id="macro-gex-signal" class="macro-gex-signal" style="display: none;"></div>
         </div>
 
         <!-- Quick Ticker Shortcuts -->
@@ -221,31 +208,20 @@
                 oninput="document.getElementById('ticker-input').value=this.value"
                 onkeypress="if(event.key==='Enter') loadOptionsAnalysis()" />
             <button class="btn btn-primary" onclick="loadOptionsAnalysis()" style="padding: 8px 16px;">Analyze</button>
-            <button class="btn btn-ghost" onclick="loadSmartMoneyFlow()" style="padding: 8px 12px;" title="Analyze institutional and smart money options flow patterns">Smart Flow</button>
-            <button class="btn btn-ghost" onclick="loadWhaleTrades()" style="padding: 8px 12px;" title="Large options trades over $50K - likely institutional activity">Whale Trades</button>
-            <button class="btn btn-ghost" onclick="loadUnusualActivity()" style="padding: 8px 12px;" title="Options with abnormally high volume relative to open interest">Unusual Activity</button>
         </div>
 
         <!-- Tab Bar -->
         <div class="tab-bar">
+            <button class="tab-btn active" data-tab="tab-analysis" onclick="showTab('tab-analysis')" title="Options sentiment, expected move, IV smile, GEX dashboard, and regime analysis">
+                Dashboard
+                <span class="tab-accent"></span>
+            </button>
             <button class="tab-btn" data-tab="tab-chart" onclick="showTab('tab-chart')" title="Full-screen price chart with technical indicators, GEX overlays, and volume">
                 Chart
                 <span class="tab-accent"></span>
             </button>
-            <button class="tab-btn active" data-tab="tab-analysis" onclick="showTab('tab-analysis')" title="Options sentiment, expected move, IV smile, GEX dashboard, and regime analysis">
-                Analysis
-                <span class="tab-accent"></span>
-            </button>
-            <button class="tab-btn" data-tab="tab-chain-flow" onclick="showTab('tab-chain-flow')" title="Options chain, whale trades, unusual activity, smart money flow, X-Ray, and swing trades">
-                Flow
-                <span class="tab-accent"></span>
-            </button>
-            <button class="tab-btn" data-tab="tab-backtest" onclick="showTab('tab-backtest')" title="Scan MAG 7 + SPY/QQQ for highest-probability trade setup">
-                Scanner
-                <span class="tab-accent"></span>
-            </button>
-            <button class="tab-btn" data-tab="tab-trading" onclick="showTab('tab-trading')" title="Paper trading dashboard with automated signals, positions, and performance analytics">
-                Trading
+            <button class="tab-btn" data-tab="tab-trade" onclick="showTab('tab-trade')" title="Scanner, X-Ray analysis, swing trades, paper trading, and 0DTE engine">
+                Trade
                 <span class="tab-accent"></span>
             </button>
         </div>
@@ -256,16 +232,16 @@
             <!-- Options Analysis Container -->
             <div id="options-analysis-container" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--blue);">
                 <div class="card-header">
-                    <div class="card-title">Options Analysis <span id="oa-ticker" style="color: var(--blue); margin-left: 8px;"></span><span id="oa-earnings-badge" class="earnings-badge" style="display: none;"></span></div>
+                    <div class="card-title">Options Analysis <span id="oa-ticker" style="color: var(--blue); margin-left: 8px;"></span></div>
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <select id="oa-expiry-select" onchange="loadOptionsForExpiry()">
                             <option value="">Select expiration...</option>
                         </select>
                         <div class="dte-buttons">
                             <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(0)" title="0DTE">0D</button>
-                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(7)" title="~1 Week">1W<span class="dte-event-badge" id="dte-badge-7" style="display:none;"></span></button>
-                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(30)" title="~1 Month">1M<span class="dte-event-badge" id="dte-badge-30" style="display:none;"></span></button>
-                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(90)" title="~3 Months">3M<span class="dte-event-badge" id="dte-badge-90" style="display:none;"></span></button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(7)" title="~1 Week">1W</button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(30)" title="~1 Month">1M</button>
+                            <button class="btn btn-ghost dte-btn-wrap" onclick="selectExpiryByDays(90)" title="~3 Months">3M</button>
                         </div>
                         <div id="oa-sentiment" class="sentiment-badge">--</div>
                     </div>
@@ -380,61 +356,6 @@
                 </div>
             </div>
 
-            <!-- Macro Events Card -->
-            <div class="macro-events-card" id="macro-events-card" style="display: none;">
-                <div class="macro-events-header">
-                    <span style="color: var(--orange);">&#9888;</span>
-                    <span>MACRO EVENTS IN RANGE</span>
-                </div>
-                <div class="macro-events-body" id="macro-events-body"></div>
-            </div>
-
-            <!-- F7: Position Sizing Calculator -->
-            <div class="pos-calc-card" id="pos-calc-card">
-                <div class="pos-calc-header" onclick="togglePosCalc()">
-                    <span>POSITION SIZING CALCULATOR</span>
-                    <span id="pos-calc-toggle-icon" class="toggle-icon">&#9654;</span>
-                </div>
-                <div class="pos-calc-body" id="pos-calc-body" style="display: none;">
-                    <div class="pos-calc-grid">
-                        <div class="pos-calc-field">
-                            <label>Account Size ($)</label>
-                            <input type="number" id="pc-account-size" placeholder="25000" oninput="calculatePositionSize()">
-                        </div>
-                        <div class="pos-calc-field">
-                            <label>Risk Per Trade (%)</label>
-                            <input type="number" id="pc-risk-pct" placeholder="2" step="0.5" oninput="calculatePositionSize()">
-                        </div>
-                        <div class="pos-calc-field">
-                            <label>Entry Price ($)</label>
-                            <input type="number" id="pc-entry-price" placeholder="150.00" step="0.01" oninput="calculatePositionSize()">
-                        </div>
-                        <div class="pos-calc-field">
-                            <label>Stop Loss ($)</label>
-                            <input type="number" id="pc-stop-loss" placeholder="145.00" step="0.01" oninput="calculatePositionSize()">
-                        </div>
-                    </div>
-                    <div class="pos-calc-results" id="pos-calc-results" style="display: none;">
-                        <div class="pos-calc-result">
-                            <span class="pos-calc-result-label">Position Size</span>
-                            <span class="pos-calc-result-value" id="pc-result-size">--</span>
-                        </div>
-                        <div class="pos-calc-result">
-                            <span class="pos-calc-result-label">Shares</span>
-                            <span class="pos-calc-result-value" id="pc-result-shares">--</span>
-                        </div>
-                        <div class="pos-calc-result">
-                            <span class="pos-calc-result-label">Max Loss</span>
-                            <span class="pos-calc-result-value" id="pc-result-loss" style="color: var(--red);">--</span>
-                        </div>
-                        <div class="pos-calc-result">
-                            <span class="pos-calc-result-label">Risk/Share</span>
-                            <span class="pos-calc-result-value" id="pc-result-riskshare">--</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- IV Smile / Skew Chart -->
             <div class="iv-smile-container" id="iv-smile-container" style="display: none;">
                 <div class="iv-smile-header" title="Implied Volatility Smile - shows how IV varies by strike price. Steep left skew = fear of downside. Flat = balanced expectations.">IV SMILE / SKEW</div>
@@ -529,18 +450,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- F5: GEX History Chart -->
-                    <div id="gex-history-container" style="display: none; margin-top: 16px;">
-                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">GEX HISTORY (30 DAY)</div>
-                        <div id="gex-history-chart" style="min-height: 180px;"></div>
-                    </div>
-
-                    <!-- F11: GEX Backtest Results -->
-                    <div id="gex-backtest-card" class="gex-backtest-card" style="display: none; margin-top: 16px;">
-                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--magenta); margin-bottom: 10px;">GEX SIGNAL BACKTEST</div>
-                        <div class="gex-backtest-metrics" id="gex-backtest-metrics"></div>
-                    </div>
-
                     <!-- Interpretation -->
                     <div class="interpretation-box orange" id="gex-interpretation">
                         Load a ticker to see comprehensive GEX analysis with regime classification, support/resistance levels, and trading signals.
@@ -558,15 +467,6 @@
                         <div id="gex-levels-table-body" style="display: none;"></div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Greek Flows Heatmap -->
-            <div id="greek-flows-card" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--cyan);">
-                <div class="card-header" onclick="toggleAccordion(this)" style="cursor: pointer;">
-                    <div class="card-title">GREEK FLOWS — Dealer Hedging Dynamics <span id="gf-ticker" style="color: var(--cyan); margin-left: 8px;"></span></div>
-                    <span id="gf-accordion-icon" style="font-size: 0.7rem; color: var(--text-muted); transition: transform 0.2s;">&#9660;</span>
-                </div>
-                <div class="card-body" id="greek-flows-body"></div>
             </div>
 
             <!-- GEX by Strike Table -->
@@ -594,157 +494,47 @@
                 </div>
             </div>
 
-            <!-- F8: Watchlist Panel -->
-            <div class="watchlist-card" id="watchlist-card">
-                <div class="watchlist-header" onclick="toggleWatchlist()">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: var(--cyan);">&#9733;</span>
-                        <span>WATCHLIST</span>
-                        <span class="watchlist-count" id="watchlist-count">0</span>
-                    </div>
-                    <span id="watchlist-toggle-icon" class="toggle-icon">&#9654;</span>
-                </div>
-                <div class="watchlist-body" id="watchlist-body" style="display: none;">
-                    <div class="watchlist-add-row">
-                        <input type="text" id="watchlist-input" placeholder="Add ticker..." onkeypress="if(event.key==='Enter') addToWatchlist()">
-                        <button class="btn btn-primary" onclick="addToWatchlist()" style="padding: 6px 14px; font-size: 0.75rem;">Add</button>
-                    </div>
-                    <div id="watchlist-items"></div>
-                </div>
-            </div>
-
         </div><!-- end tab-analysis -->
 
-        <!-- ===== TAB: CHAIN & FLOW ===== -->
-        <div class="tab-content" id="tab-chain-flow">
+        <!-- ===== TAB: TRADE (Scanner + X-Ray + Trading) ===== -->
+        <div class="tab-content" id="tab-trade">
 
-            <!-- Ticker Summary Stats -->
-            <div class="stats-bar" id="options-summary" style="display: none; margin-bottom: 20px;">
-                <div class="stat-item">
-                    <span class="stat-label">Sentiment</span>
-                    <span class="stat-value" id="opt-sentiment">--</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">P/C Ratio</span>
-                    <span class="stat-value" id="opt-pc-ratio">--</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Call Volume</span>
-                    <span class="stat-value green" id="opt-call-vol">--</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Put Volume</span>
-                    <span class="stat-value red" id="opt-put-vol">--</span>
-                </div>
+            <!-- ── SECTION: SCANNER ── -->
+            <div class="tab-section-divider">
+                <span class="tab-section-label" style="color: var(--magenta);">BEST SETUP SCANNER</span>
             </div>
-
-            <!-- Options Chain Tables -->
-            <div class="grid-2" id="options-tables" style="display: none; margin-bottom: 20px;">
-                <!-- Calls Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title" style="color: var(--green);">Calls</div>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div style="max-height: 500px; overflow-y: auto;">
-                            <table class="options-chain-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 70px;" title="Option strike price">Strike</th>
-                                        <th style="width: 60px;" title="Best bid price - what buyers are willing to pay">Bid</th>
-                                        <th style="width: 60px;" title="Best ask price - what sellers are asking">Ask</th>
-                                        <th style="width: 60px;" title="Today's trading volume for this contract">Vol</th>
-                                        <th style="width: 70px;" title="Open Interest - total outstanding contracts">OI</th>
-                                        <th style="width: 50px;" title="Implied Volatility - market's expected annualized volatility">IV</th>
-                                        <th style="width: 50px;" title="Delta - probability of finishing in-the-money (approx)">Delta</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="calls-table-body">
-                                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Analyze a ticker to view chain</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <!-- Puts Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title" style="color: var(--red);">Puts</div>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div style="max-height: 500px; overflow-y: auto;">
-                            <table class="options-chain-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 70px;" title="Option strike price">Strike</th>
-                                        <th style="width: 60px;" title="Best bid price - what buyers are willing to pay">Bid</th>
-                                        <th style="width: 60px;" title="Best ask price - what sellers are asking">Ask</th>
-                                        <th style="width: 60px;" title="Today's trading volume for this contract">Vol</th>
-                                        <th style="width: 70px;" title="Open Interest - total outstanding contracts">OI</th>
-                                        <th style="width: 50px;" title="Implied Volatility - market's expected annualized volatility">IV</th>
-                                        <th style="width: 50px;" title="Delta - probability of finishing in-the-money (approx)">Delta</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="puts-table-body">
-                                    <tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-muted);">Analyze a ticker to view chain</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Whale Trades + Unusual Activity -->
-            <div class="grid-2" style="margin-bottom: 20px;">
-                <div class="card">
-                    <div class="card-header">
-                        <span title="Large options trades exceeding $50K in premium - often institutional or smart money activity">Whale Trades (>$50K)</span>
-                        <button class="btn btn-ghost" onclick="loadWhaleTrades()">Refresh</button>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div id="whale-trades-container" style="max-height: 300px; overflow-y: auto;">
-                            <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
-                                Click Refresh to load whale trades
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card">
-                    <div class="card-header">
-                        <span title="Options with volume significantly exceeding open interest, signaling new positioning">Unusual Activity</span>
-                        <button class="btn btn-ghost" onclick="loadUnusualActivity()">Refresh</button>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div id="unusual-activity-container" style="max-height: 300px; overflow-y: auto;">
-                            <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">
-                                Click Refresh to scan unusual activity
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Smart Money Flow -->
-            <div class="card" style="margin-bottom: 20px;">
+            <div class="card" style="margin-bottom: 20px; border-left: 3px solid var(--magenta);">
                 <div class="card-header">
-                    <span>Smart Money Flow Analysis</span>
+                    <div class="card-title">BEST SETUP SCANNER</div>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span id="scanner-status" style="font-size: 0.7rem; color: var(--text-muted);"></span>
+                        <span id="scanner-timestamp" style="font-size: 0.65rem; color: var(--text-dim);"></span>
+                        <button class="btn btn-primary" id="scanner-scan-btn" onclick="runBestSetupScanner()" style="background: var(--magenta); border-color: var(--magenta);">Scan All</button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                        <input type="text" id="flow-ticker-input" placeholder="Enter ticker (e.g., NVDA)" style="flex: 1; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text); padding: 10px; border-radius: 6px; font-size: 0.85rem;" onkeypress="if(event.key==='Enter') loadSmartMoneyFlow()" />
-                        <button class="btn btn-primary" onclick="loadSmartMoneyFlow()" style="padding: 10px 20px;">Analyze</button>
+                    <div id="scanner-progress" style="display: none;"></div>
+                    <div id="scanner-filter-bar">
+                        <button class="scanner-filter-btn active" onclick="setScannerFilter('overall')">Best Edge</button>
+                        <button class="scanner-filter-btn" onclick="setScannerFilter('buycalls')">Buy Calls</button>
+                        <button class="scanner-filter-btn" onclick="setScannerFilter('buyputs')">Buy Puts</button>
+                        <button class="scanner-filter-btn" onclick="setScannerFilter('sellpremium')">Sell Premium</button>
+                        <button class="scanner-filter-btn" onclick="setScannerFilter('squeeze')">Highest Squeeze</button>
+                        <button class="scanner-filter-btn" onclick="setScannerFilter('momentum')">Momentum</button>
                     </div>
-                    <div id="smart-money-flow-container">
-                        <div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 20px;">
-                            Enter a ticker to analyze institutional and smart money options flow
-                        </div>
+                    <div id="scanner-results"></div>
+                    <div id="scanner-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 30px 20px;">
+                        Scans X-Ray with PhD intelligence across <strong>MAG 7 + SPY + QQQ + IBIT + GLD</strong> — edge score, regime detection, VRP, flow toxicity, strategy selection.<br>
+                        <span style="font-size: 0.7rem; color: var(--text-dim); margin-top: 6px; display: inline-block;">Click <strong>Scan All</strong> to begin.</span>
                     </div>
                 </div>
             </div>
+            <!-- Drill-down X-Ray detail for selected ticker -->
+            <div id="scanner-xray-detail" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--cyan);"></div>
 
-            <!-- Section Divider: Strategy & X-Ray -->
+            <!-- ── SECTION: X-RAY & SWING TRADES ── -->
             <div class="tab-section-divider">
-                <span class="tab-section-label" style="color: var(--purple);">STRATEGY & X-RAY</span>
+                <span class="tab-section-label" style="color: var(--purple);">X-RAY & SWING TRADES</span>
             </div>
 
             <!-- Active Swing Trades -->
@@ -848,232 +638,10 @@
                 </div>
             </div>
 
-        </div><!-- end tab-chain-flow -->
-
-        <!-- ===== TAB: CHART ===== -->
-        <div class="tab-content" id="tab-chart">
-            <div id="options-viz-container" class="card" style="display: none;">
-                <div class="card-header">
-                    <div class="card-title">CHART <span id="viz-ticker-label"></span> <span id="live-status" style="font-size: 0.65rem; font-weight: 500; margin-left: 8px; display: none;"><span id="live-status-dot" style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle;"></span><span id="live-status-text"></span></span></div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <div class="interval-selector">
-                            <button class="interval-btn" onclick="setInterval_('1m')">1m</button>
-                            <button class="interval-btn" onclick="setInterval_('5m')">5m</button>
-                            <button class="interval-btn" onclick="setInterval_('15m')">15m</button>
-                            <button class="interval-btn" onclick="setInterval_('1h')">1h</button>
-                            <button class="interval-btn" onclick="setInterval_('4h')">4h</button>
-                            <button class="interval-btn active" onclick="setInterval_('1d')">1D</button>
-                            <button class="interval-btn" onclick="setInterval_('1w')">1W</button>
-                        </div>
-                        <div class="interval-selector">
-                            <button class="interval-btn" id="btn-log-scale" onclick="toggleLogScale()" title="Toggle logarithmic price scale">Log</button>
-                            <button class="interval-btn active" id="btn-auto-scale" onclick="toggleAutoScale()" title="Toggle auto-scale (fit price to visible range)">Auto</button>
-                        </div>
-                        <select id="viz-timeframe" onchange="refreshOptionsViz()" title="Chart timeframe - select how far back to show price history">
-                            <option value="1825" selected>5Y</option>
-                            <option value="7300">All</option>
-                        </select>
-                        <button class="btn btn-ghost" onclick="refreshOptionsViz()" title="Refresh">Refresh</button>
-                        <button class="btn btn-ghost fullscreen-btn" onclick="toggleChartFullscreen()" title="Toggle fullscreen">&#x26F6;</button>
-                    </div>
-                </div>
-                <!-- Toggle Panel -->
-                <div class="toggle-panel">
-                    <label class="toggle-item" title="Call Wall - strike with highest call gamma. Acts as resistance; price tends to slow or reverse here.">
-                        <input type="checkbox" id="viz-toggle-callwall" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label call">Call Wall</span>
-                    </label>
-                    <label class="toggle-item" title="Put Wall - strike with highest put gamma. Acts as support; dealers buy dips here.">
-                        <input type="checkbox" id="viz-toggle-putwall" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label put">Put Wall</span>
-                    </label>
-                    <label class="toggle-item" title="Gamma Flip - strike where net GEX crosses from positive to negative. Above = stabilizing, below = volatile.">
-                        <input type="checkbox" id="viz-toggle-gammaflip" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label gamma">Gamma Flip</span>
-                    </label>
-                    <label class="toggle-item" title="Max Pain - strike where option holders lose the most. Price gravitates here near expiry.">
-                        <input type="checkbox" id="viz-toggle-maxpain" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label maxpain">Max Pain</span>
-                    </label>
-                    <span class="toggle-divider">|</span>
-                    <label class="toggle-item" title="Value Area Low - bottom of the 70% volume zone. Acts as support.">
-                        <input type="checkbox" id="viz-toggle-val" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label val">VAL</span>
-                    </label>
-                    <label class="toggle-item" title="Point of Control - price level with the highest traded volume. Strongest magnet level.">
-                        <input type="checkbox" id="viz-toggle-poc" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label poc">POC</span>
-                    </label>
-                    <label class="toggle-item" title="Value Area High - top of the 70% volume zone. Acts as resistance.">
-                        <input type="checkbox" id="viz-toggle-vah" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label vah">VAH</span>
-                    </label>
-                    <label class="toggle-item" title="Volume Profile histogram - horizontal bars showing volume at each price level.">
-                        <input type="checkbox" id="viz-toggle-vp" onchange="toggleVolumeProfile()">
-                        <span class="toggle-label vp">VP Hist</span>
-                    </label>
-                    <span class="toggle-divider">|</span>
-                    <label class="toggle-item" title="Toggle the GEX by strike bar chart below the price chart.">
-                        <input type="checkbox" id="viz-toggle-gex" checked onchange="toggleGexChart()">
-                        <span class="toggle-label">GEX Chart</span>
-                    </label>
-                    <label class="toggle-item" title="Overlay whale trade markers on the price chart at trade timestamps.">
-                        <input type="checkbox" id="viz-toggle-flow" onchange="toggleFlowMarkers()">
-                        <span class="toggle-label" style="color: var(--magenta);">Flow</span>
-                    </label>
-                </div>
-                <!-- Indicator Toggle Panel -->
-                <div class="toggle-panel-indicators">
-                    <label class="toggle-item" title="Simple Moving Average (20 period) - short-term trend">
-                        <input type="checkbox" id="viz-toggle-sma20" onchange="updateIndicators()">
-                        <span class="toggle-label sma20">SMA 20</span>
-                    </label>
-                    <label class="toggle-item" title="Simple Moving Average (50 period) - medium-term trend">
-                        <input type="checkbox" id="viz-toggle-sma50" onchange="updateIndicators()">
-                        <span class="toggle-label sma50">SMA 50</span>
-                    </label>
-                    <label class="toggle-item" title="Simple Moving Average (200 period) - long-term trend">
-                        <input type="checkbox" id="viz-toggle-sma200" onchange="updateIndicators()">
-                        <span class="toggle-label sma200">SMA 200</span>
-                    </label>
-                    <label class="toggle-item" title="Volume Weighted Average Price - institutional fair value">
-                        <input type="checkbox" id="viz-toggle-vwap" onchange="updateIndicators()">
-                        <span class="toggle-label vwap">VWAP</span>
-                    </label>
-                    <label class="toggle-item" title="Bollinger Bands (20, 2) - volatility envelope around SMA 20">
-                        <input type="checkbox" id="viz-toggle-bb" onchange="updateIndicators()">
-                        <span class="toggle-label bb">BB</span>
-                    </label>
-                    <span class="toggle-divider">|</span>
-                    <label class="toggle-item" title="Relative Strength Index (14) - momentum oscillator 0-100">
-                        <input type="checkbox" id="viz-toggle-rsi" onchange="toggleRsiChart()">
-                        <span class="toggle-label rsi">RSI</span>
-                    </label>
-                    <label class="toggle-item" title="Relative Strength vs SPY - compares stock performance against S&P 500">
-                        <input type="checkbox" id="viz-toggle-rs" onchange="toggleRsChart()">
-                        <span class="toggle-label rs">RS</span>
-                    </label>
-                    <label class="toggle-item" title="Volume bars at bottom of price chart">
-                        <input type="checkbox" id="viz-toggle-volume" checked onchange="toggleVolumeSeries()">
-                        <span class="toggle-label vol">Vol</span>
-                    </label>
-                    <span class="toggle-divider">|</span>
-                    <span class="intel-toggle-group">INTEL:</span>
-                    <label class="toggle-item" title="Expected Move envelope - 1-sigma boundaries from ATM straddle pricing">
-                        <input type="checkbox" id="viz-toggle-em" checked onchange="updatePriceChartLevels()">
-                        <span class="toggle-label em">EM</span>
-                    </label>
-                    <label class="toggle-item" title="GEX Regime badge - shows pinned/volatile/transitional with dealer recommendation">
-                        <input type="checkbox" id="viz-toggle-regime" onchange="toggleRegimeBadge()">
-                        <span class="toggle-label regime">Regime</span>
-                    </label>
-                    <label class="toggle-item" title="Volatility Risk Premium gauge - IV vs RV spread">
-                        <input type="checkbox" id="viz-toggle-vrp" onchange="toggleVrpGauge()">
-                        <span class="toggle-label vrp">VRP</span>
-                    </label>
-                    <label class="toggle-item" title="GEX Heatmap - top strikes by gamma exposure magnitude">
-                        <input type="checkbox" id="viz-toggle-gexheat" onchange="toggleGexHeatmap()">
-                        <span class="toggle-label gexheat">GEX Heat</span>
-                    </label>
-                    <label class="toggle-item" title="Flow toxicity gauge - measures toxic vs informed order flow">
-                        <input type="checkbox" id="viz-toggle-toxicity" onchange="toggleFlowStrip()">
-                        <span class="toggle-label toxicity">Toxicity</span>
-                    </label>
-                    <label class="toggle-item" title="Dealer flow direction badge - net hedging flow from vanna/charm/GEX">
-                        <input type="checkbox" id="viz-toggle-dealer" onchange="toggleDealerBadge()">
-                        <span class="toggle-label dealer">Dealer</span>
-                    </label>
-                </div>
-                <!-- Fullscreen-only ticker bar -->
-                <div class="fs-ticker-bar">
-                    <input type="text" id="fs-ticker-input" placeholder="Ticker..." onkeypress="if(event.key==='Enter'){quickAnalyzeTicker(this.value.toUpperCase().trim());this.blur();}">
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('SPY')">SPY</button>
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('QQQ')">QQQ</button>
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('NVDA')">NVDA</button>
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('TSLA')">TSLA</button>
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('AAPL')">AAPL</button>
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('AMD')">AMD</button>
-                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('META')">META</button>
-                    <span style="color:var(--border);">|</span>
-                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/ES')">/ES</button>
-                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/NQ')">/NQ</button>
-                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/CL')">/CL</button>
-                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/GC')">/GC</button>
-                </div>
-                <div class="card-body chart-body" style="min-height: 600px;">
-                    <div id="price-chart-container" class="chart-container" style="min-height: 500px;">
-                        <div class="chart-loading">Loading price data...</div>
-                    </div>
-                    <div id="rsi-chart-container" class="chart-container rsi-pane" style="display:none;">
-                    </div>
-                    <div id="rs-chart-container" class="chart-container rs-pane" style="display:none;">
-                    </div>
-                    <div id="vrp-gauge-container" class="vrp-gauge" style="display:none;"></div>
-                    <div id="flow-strip-container" class="flow-strip" style="display:none;"></div>
-                    <div id="gex-chart-container" class="chart-container" style="height: 200px;">
-                        <div class="chart-loading">Loading GEX data...</div>
-                    </div>
-                </div>
-                <!-- Info Bar -->
-                <div class="info-bar">
-                    <div class="info-item" title="Live streaming price via Tastytrade WebSocket">
-                        <span class="info-label">Current Price</span>
-                        <span class="info-value" id="viz-current-price">--</span>
-                    </div>
-                    <div class="info-item" title="Call Wall - highest call gamma strike, acts as resistance">
-                        <span class="info-label">Call Wall</span>
-                        <span class="info-value call" id="viz-call-wall">--</span>
-                    </div>
-                    <div class="info-item" title="Put Wall - highest put gamma strike, acts as support">
-                        <span class="info-label">Put Wall</span>
-                        <span class="info-value put" id="viz-put-wall">--</span>
-                    </div>
-                    <div class="info-item" title="Max Pain - strike where option holders lose the most at expiry">
-                        <span class="info-label">Max Pain</span>
-                        <span class="info-value maxpain" id="viz-max-pain">--</span>
-                    </div>
-                    <div class="info-item" title="Total net Gamma Exposure across all strikes. Positive = stabilizing, Negative = volatile.">
-                        <span class="info-label">Total GEX</span>
-                        <span class="info-value" id="viz-total-gex">--</span>
-                    </div>
-                </div>
+            <!-- ── SECTION: PAPER TRADING & 0DTE ── -->
+            <div class="tab-section-divider">
+                <span class="tab-section-label" style="color: var(--green);">PAPER TRADING & 0DTE</span>
             </div>
-        </div><!-- end tab-chart -->
-
-        <!-- ===== TAB: BACKTEST (Multi-Ticker Scanner) ===== -->
-        <div class="tab-content" id="tab-backtest">
-            <div class="card" style="margin-bottom: 20px; border-left: 3px solid var(--magenta);">
-                <div class="card-header">
-                    <div class="card-title">BEST SETUP SCANNER</div>
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <span id="scanner-status" style="font-size: 0.7rem; color: var(--text-muted);"></span>
-                        <span id="scanner-timestamp" style="font-size: 0.65rem; color: var(--text-dim);"></span>
-                        <button class="btn btn-primary" id="scanner-scan-btn" onclick="runBestSetupScanner()" style="background: var(--magenta); border-color: var(--magenta);">Scan All</button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div id="scanner-progress" style="display: none;"></div>
-                    <div id="scanner-filter-bar">
-                        <button class="scanner-filter-btn active" onclick="setScannerFilter('overall')">Best Edge</button>
-                        <button class="scanner-filter-btn" onclick="setScannerFilter('buycalls')">Buy Calls</button>
-                        <button class="scanner-filter-btn" onclick="setScannerFilter('buyputs')">Buy Puts</button>
-                        <button class="scanner-filter-btn" onclick="setScannerFilter('sellpremium')">Sell Premium</button>
-                        <button class="scanner-filter-btn" onclick="setScannerFilter('squeeze')">Highest Squeeze</button>
-                        <button class="scanner-filter-btn" onclick="setScannerFilter('momentum')">Momentum</button>
-                    </div>
-                    <div id="scanner-results"></div>
-                    <div id="scanner-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 30px 20px;">
-                        Scans X-Ray with PhD intelligence across <strong>MAG 7 + SPY + QQQ + IBIT + GLD</strong> — edge score, regime detection, VRP, flow toxicity, strategy selection.<br>
-                        <span style="font-size: 0.7rem; color: var(--text-dim); margin-top: 6px; display: inline-block;">Click <strong>Scan All</strong> to begin.</span>
-                    </div>
-                </div>
-            </div>
-            <!-- Drill-down X-Ray detail for selected ticker -->
-            <div id="scanner-xray-detail" class="card" style="display: none; margin-bottom: 20px; border-left: 3px solid var(--cyan);"></div>
-        </div><!-- end tab-backtest -->
-
-        <!-- ===== TAB: TRADING ===== -->
-        <div class="tab-content" id="tab-trading">
 
             <!-- Account Overview -->
             <div class="card trading-card" style="border-left: 3px solid var(--green); margin-bottom: 16px;">
@@ -1396,75 +964,6 @@
                 </div>
             </div>
 
-            <!-- Adaptive Intelligence -->
-            <div class="card trading-card" id="adaptive-intel-card" style="border-left: 3px solid var(--cyan); margin-bottom: 16px;">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <div class="card-title" style="color: var(--cyan);">Adaptive Intelligence</div>
-                        <span id="adaptive-health-badge" class="ai-health-badge cold">--</span>
-                    </div>
-                    <button class="btn btn-ghost" onclick="rebuildAdaptiveSystems()" style="padding: 3px 8px; font-size: 0.7rem;" title="Force rebuild all adaptive systems from trade journal">Rebuild</button>
-                </div>
-                <div class="card-body" style="padding: 12px;">
-                    <!-- System Overview Metrics -->
-                    <div class="ai-overview" id="adaptive-overview">
-                        <div class="ai-metric-box">
-                            <div class="ai-metric-value" id="ai-cycles">--</div>
-                            <div class="ai-metric-label">Feedback Loops</div>
-                        </div>
-                        <div class="ai-metric-box">
-                            <div class="ai-metric-value" id="ai-components">--</div>
-                            <div class="ai-metric-label">Active Modules</div>
-                        </div>
-                        <div class="ai-metric-box">
-                            <div class="ai-metric-value" id="ai-confidence">--</div>
-                            <div class="ai-metric-label">Confidence</div>
-                        </div>
-                        <div class="ai-metric-box">
-                            <div class="ai-metric-value" id="ai-exploration">--</div>
-                            <div class="ai-metric-label">Exploration</div>
-                        </div>
-                    </div>
-                    <!-- Learning Tiers -->
-                    <div class="ai-section">
-                        <div class="ai-section-title">LEARNING TIERS</div>
-                        <div id="adaptive-tiers" class="ai-tiers-row">
-                            <span class="tier-badge cold"><span class="tier-dot"></span>Bandit: cold</span>
-                            <span class="tier-badge cold"><span class="tier-dot"></span>Regime: cold</span>
-                            <span class="tier-badge cold"><span class="tier-dot"></span>Exit: cold</span>
-                            <span class="tier-badge cold"><span class="tier-dot"></span>Meta: cold</span>
-                        </div>
-                    </div>
-                    <!-- Two-column: Factor Weights + Intelligence Modules -->
-                    <div class="ai-columns">
-                        <div class="ai-col-left">
-                            <div class="ai-section-title">FACTOR WEIGHTS <span style="color: var(--text-dim); font-weight: 400;">(Thompson Sampling)</span></div>
-                            <div id="adaptive-factor-bars">
-                                <span style="color: var(--text-muted); font-size: 0.7rem;">Loading...</span>
-                            </div>
-                        </div>
-                        <div class="ai-col-right">
-                            <div class="ai-section-title">INTELLIGENCE MODULES</div>
-                            <div id="adaptive-modules" class="ai-modules-grid">
-                                <span style="color: var(--text-muted); font-size: 0.7rem;">Loading...</span>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Exit Parameters -->
-                    <div class="ai-section">
-                        <div class="ai-section-title">EXIT PARAMETERS</div>
-                        <div id="adaptive-exits">
-                            <span style="color: var(--text-muted); font-size: 0.7rem;">No data yet</span>
-                        </div>
-                    </div>
-                    <!-- Meta Engine Footer -->
-                    <div id="adaptive-meta" class="ai-meta-footer">
-                        <span class="ai-meta-label">Meta Engine</span>
-                        <span style="color: var(--text-muted); font-size: 0.65rem;">Loading...</span>
-                    </div>
-                </div>
-            </div>
-
             <!-- Trade Journal -->
             <div class="card trading-card" style="border-left: 3px solid var(--text-muted); margin-bottom: 16px;">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1487,7 +986,206 @@
                 <button class="btn btn-ghost" onclick="resetPaperAccount()" style="padding: 6px 16px; font-size: 0.75rem; color: var(--red); border-color: var(--red);" title="Reset paper account to starting capital. This clears all trades and equity history.">Reset Paper Account</button>
             </div>
 
-        </div><!-- end tab-trading -->
+        </div><!-- end tab-trade -->
+
+        <!-- ===== TAB: CHART ===== -->
+        <div class="tab-content" id="tab-chart">
+            <div id="options-viz-container" class="card" style="display: none;">
+                <div class="card-header">
+                    <div class="card-title">CHART <span id="viz-ticker-label"></span> <span id="live-status" style="font-size: 0.65rem; font-weight: 500; margin-left: 8px; display: none;"><span id="live-status-dot" style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle;"></span><span id="live-status-text"></span></span></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <div class="interval-selector">
+                            <button class="interval-btn" onclick="setInterval_('1m')">1m</button>
+                            <button class="interval-btn" onclick="setInterval_('5m')">5m</button>
+                            <button class="interval-btn" onclick="setInterval_('15m')">15m</button>
+                            <button class="interval-btn" onclick="setInterval_('1h')">1h</button>
+                            <button class="interval-btn" onclick="setInterval_('4h')">4h</button>
+                            <button class="interval-btn active" onclick="setInterval_('1d')">1D</button>
+                            <button class="interval-btn" onclick="setInterval_('1w')">1W</button>
+                        </div>
+                        <div class="interval-selector">
+                            <button class="interval-btn" id="btn-log-scale" onclick="toggleLogScale()" title="Toggle logarithmic price scale">Log</button>
+                            <button class="interval-btn active" id="btn-auto-scale" onclick="toggleAutoScale()" title="Toggle auto-scale (fit price to visible range)">Auto</button>
+                        </div>
+                        <select id="viz-timeframe" onchange="refreshOptionsViz()" title="Chart timeframe - select how far back to show price history">
+                            <option value="1825" selected>5Y</option>
+                            <option value="7300">All</option>
+                        </select>
+                        <button class="btn btn-ghost" onclick="refreshOptionsViz()" title="Refresh">Refresh</button>
+                        <button class="btn btn-ghost fullscreen-btn" onclick="toggleChartFullscreen()" title="Toggle fullscreen">&#x26F6;</button>
+                    </div>
+                </div>
+                <!-- Toggle Preset Bar -->
+                <div class="toggle-preset-bar">
+                    <button class="preset-btn active" data-preset="options" onclick="applyTogglePreset('options')">Options</button>
+                    <button class="preset-btn" data-preset="technicals" onclick="applyTogglePreset('technicals')">Technicals</button>
+                    <button class="preset-btn" data-preset="intel" onclick="applyTogglePreset('intel')">Intel</button>
+                    <button class="preset-btn preset-custom-btn" onclick="toggleCustomToggles()">Custom &#9662;</button>
+                </div>
+                <!-- Toggle Panel (collapsible) -->
+                <div class="toggle-panels-wrapper" id="custom-toggles" style="display: none;">
+                <div class="toggle-panel">
+                    <label class="toggle-item" title="Call Wall - strike with highest call gamma. Acts as resistance; price tends to slow or reverse here.">
+                        <input type="checkbox" id="viz-toggle-callwall" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label call">Call Wall</span>
+                    </label>
+                    <label class="toggle-item" title="Put Wall - strike with highest put gamma. Acts as support; dealers buy dips here.">
+                        <input type="checkbox" id="viz-toggle-putwall" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label put">Put Wall</span>
+                    </label>
+                    <label class="toggle-item" title="Gamma Flip - strike where net GEX crosses from positive to negative. Above = stabilizing, below = volatile.">
+                        <input type="checkbox" id="viz-toggle-gammaflip" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label gamma">Gamma Flip</span>
+                    </label>
+                    <label class="toggle-item" title="Max Pain - strike where option holders lose the most. Price gravitates here near expiry.">
+                        <input type="checkbox" id="viz-toggle-maxpain" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label maxpain">Max Pain</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <label class="toggle-item" title="Value Area Low - bottom of the 70% volume zone. Acts as support.">
+                        <input type="checkbox" id="viz-toggle-val" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label val">VAL</span>
+                    </label>
+                    <label class="toggle-item" title="Point of Control - price level with the highest traded volume. Strongest magnet level.">
+                        <input type="checkbox" id="viz-toggle-poc" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label poc">POC</span>
+                    </label>
+                    <label class="toggle-item" title="Value Area High - top of the 70% volume zone. Acts as resistance.">
+                        <input type="checkbox" id="viz-toggle-vah" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label vah">VAH</span>
+                    </label>
+                    <label class="toggle-item" title="Volume Profile histogram - horizontal bars showing volume at each price level.">
+                        <input type="checkbox" id="viz-toggle-vp" onchange="toggleVolumeProfile()">
+                        <span class="toggle-label vp">VP Hist</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <label class="toggle-item" title="Toggle the GEX by strike bar chart below the price chart.">
+                        <input type="checkbox" id="viz-toggle-gex" checked onchange="toggleGexChart()">
+                        <span class="toggle-label">GEX Chart</span>
+                    </label>
+                    <label class="toggle-item" title="Overlay whale trade markers on the price chart at trade timestamps.">
+                        <input type="checkbox" id="viz-toggle-flow" onchange="toggleFlowMarkers()">
+                        <span class="toggle-label" style="color: var(--magenta);">Flow</span>
+                    </label>
+                </div>
+                <!-- Indicator Toggle Panel -->
+                <div class="toggle-panel-indicators">
+                    <label class="toggle-item" title="Simple Moving Average (20 period) - short-term trend">
+                        <input type="checkbox" id="viz-toggle-sma20" onchange="updateIndicators()">
+                        <span class="toggle-label sma20">SMA 20</span>
+                    </label>
+                    <label class="toggle-item" title="Simple Moving Average (50 period) - medium-term trend">
+                        <input type="checkbox" id="viz-toggle-sma50" onchange="updateIndicators()">
+                        <span class="toggle-label sma50">SMA 50</span>
+                    </label>
+                    <label class="toggle-item" title="Simple Moving Average (200 period) - long-term trend">
+                        <input type="checkbox" id="viz-toggle-sma200" onchange="updateIndicators()">
+                        <span class="toggle-label sma200">SMA 200</span>
+                    </label>
+                    <label class="toggle-item" title="Volume Weighted Average Price - institutional fair value">
+                        <input type="checkbox" id="viz-toggle-vwap" onchange="updateIndicators()">
+                        <span class="toggle-label vwap">VWAP</span>
+                    </label>
+                    <label class="toggle-item" title="Bollinger Bands (20, 2) - volatility envelope around SMA 20">
+                        <input type="checkbox" id="viz-toggle-bb" onchange="updateIndicators()">
+                        <span class="toggle-label bb">BB</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <label class="toggle-item" title="Relative Strength Index (14) - momentum oscillator 0-100">
+                        <input type="checkbox" id="viz-toggle-rsi" onchange="toggleRsiChart()">
+                        <span class="toggle-label rsi">RSI</span>
+                    </label>
+                    <label class="toggle-item" title="Relative Strength vs SPY - compares stock performance against S&P 500">
+                        <input type="checkbox" id="viz-toggle-rs" onchange="toggleRsChart()">
+                        <span class="toggle-label rs">RS</span>
+                    </label>
+                    <label class="toggle-item" title="Volume bars at bottom of price chart">
+                        <input type="checkbox" id="viz-toggle-volume" checked onchange="toggleVolumeSeries()">
+                        <span class="toggle-label vol">Vol</span>
+                    </label>
+                    <span class="toggle-divider">|</span>
+                    <span class="intel-toggle-group">INTEL:</span>
+                    <label class="toggle-item" title="Expected Move envelope - 1-sigma boundaries from ATM straddle pricing">
+                        <input type="checkbox" id="viz-toggle-em" checked onchange="updatePriceChartLevels()">
+                        <span class="toggle-label em">EM</span>
+                    </label>
+                    <label class="toggle-item" title="GEX Regime badge - shows pinned/volatile/transitional with dealer recommendation">
+                        <input type="checkbox" id="viz-toggle-regime" onchange="toggleRegimeBadge()">
+                        <span class="toggle-label regime">Regime</span>
+                    </label>
+                    <label class="toggle-item" title="Volatility Risk Premium gauge - IV vs RV spread">
+                        <input type="checkbox" id="viz-toggle-vrp" onchange="toggleVrpGauge()">
+                        <span class="toggle-label vrp">VRP</span>
+                    </label>
+                    <label class="toggle-item" title="GEX Heatmap - top strikes by gamma exposure magnitude">
+                        <input type="checkbox" id="viz-toggle-gexheat" onchange="toggleGexHeatmap()">
+                        <span class="toggle-label gexheat">GEX Heat</span>
+                    </label>
+                    <label class="toggle-item" title="Flow toxicity gauge - measures toxic vs informed order flow">
+                        <input type="checkbox" id="viz-toggle-toxicity" onchange="toggleFlowStrip()">
+                        <span class="toggle-label toxicity">Toxicity</span>
+                    </label>
+                    <label class="toggle-item" title="Dealer flow direction badge - net hedging flow from vanna/charm/GEX">
+                        <input type="checkbox" id="viz-toggle-dealer" onchange="toggleDealerBadge()">
+                        <span class="toggle-label dealer">Dealer</span>
+                    </label>
+                </div>
+                </div><!-- end toggle-panels-wrapper -->
+                <!-- Fullscreen-only ticker bar -->
+                <div class="fs-ticker-bar">
+                    <input type="text" id="fs-ticker-input" placeholder="Ticker..." onkeypress="if(event.key==='Enter'){quickAnalyzeTicker(this.value.toUpperCase().trim());this.blur();}">
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('SPY')">SPY</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('QQQ')">QQQ</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('NVDA')">NVDA</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('TSLA')">TSLA</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('AAPL')">AAPL</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('AMD')">AMD</button>
+                    <button class="fs-tk-btn" onclick="quickAnalyzeTicker('META')">META</button>
+                    <span style="color:var(--border);">|</span>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/ES')">/ES</button>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/NQ')">/NQ</button>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/CL')">/CL</button>
+                    <button class="fs-tk-btn futures" onclick="quickAnalyzeTicker('/GC')">/GC</button>
+                </div>
+                <div class="card-body chart-body" style="min-height: 600px;">
+                    <div id="price-chart-container" class="chart-container" style="min-height: 500px;">
+                        <div class="chart-loading">Loading price data...</div>
+                    </div>
+                    <div id="rsi-chart-container" class="chart-container rsi-pane" style="display:none;">
+                    </div>
+                    <div id="rs-chart-container" class="chart-container rs-pane" style="display:none;">
+                    </div>
+                    <div id="vrp-gauge-container" class="vrp-gauge" style="display:none;"></div>
+                    <div id="flow-strip-container" class="flow-strip" style="display:none;"></div>
+                    <div id="gex-chart-container" class="chart-container" style="height: 200px;">
+                        <div class="chart-loading">Loading GEX data...</div>
+                    </div>
+                </div>
+                <!-- Info Bar -->
+                <div class="info-bar">
+                    <div class="info-item" title="Live streaming price via Tastytrade WebSocket">
+                        <span class="info-label">Current Price</span>
+                        <span class="info-value" id="viz-current-price">--</span>
+                    </div>
+                    <div class="info-item" title="Call Wall - highest call gamma strike, acts as resistance">
+                        <span class="info-label">Call Wall</span>
+                        <span class="info-value call" id="viz-call-wall">--</span>
+                    </div>
+                    <div class="info-item" title="Put Wall - highest put gamma strike, acts as support">
+                        <span class="info-label">Put Wall</span>
+                        <span class="info-value put" id="viz-put-wall">--</span>
+                    </div>
+                    <div class="info-item" title="Max Pain - strike where option holders lose the most at expiry">
+                        <span class="info-label">Max Pain</span>
+                        <span class="info-value maxpain" id="viz-max-pain">--</span>
+                    </div>
+                    <div class="info-item" title="Total net Gamma Exposure across all strikes. Positive = stabilizing, Negative = volatile.">
+                        <span class="info-label">Total GEX</span>
+                        <span class="info-value" id="viz-total-gex">--</span>
+                    </div>
+                </div>
+            </div>
+        </div><!-- end tab-chart -->
     </main>
 
     <!-- Footer -->
