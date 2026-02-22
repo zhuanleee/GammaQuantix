@@ -2302,7 +2302,23 @@ function renderPriceChart() {
             vertLines: { color: 'rgba(255,255,255,0.05)' },
             horzLines: { color: 'rgba(255,255,255,0.05)' },
         },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        crosshair: {
+            mode: LightweightCharts.CrosshairMode.Normal,
+            vertLine: {
+                color: 'rgba(224, 227, 235, 0.4)',
+                width: 1,
+                style: LightweightCharts.LineStyle.Dashed,
+                labelBackgroundColor: '#363A45',
+            },
+            horzLine: {
+                color: 'rgba(224, 227, 235, 0.4)',
+                width: 1,
+                style: LightweightCharts.LineStyle.Dashed,
+                labelBackgroundColor: '#363A45',
+            },
+        },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+        handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
         rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)', autoScale: isAutoScale, mode: isLogScale ? 1 : 0, scaleMargins: { top: 0.1, bottom: 0.1 } },
         timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: selectedInterval !== '1d' && selectedInterval !== '1w' },
         width: container.clientWidth,
@@ -2367,6 +2383,9 @@ function renderPriceChart() {
     }
 
     priceChart.timeScale().fitContent();
+
+    // Prevent page scroll when mouse wheel is used over chart (enables TradingView-style scroll-to-zoom)
+    container.addEventListener('wheel', function(e) { e.preventDefault(); }, { passive: false });
 
     // Redraw VP overlay on scroll/zoom (debounced)
     priceChart.timeScale().subscribeVisibleLogicalRangeChange(() => {
@@ -3990,7 +4009,12 @@ function renderRsiChart() {
             vertLines: { color: 'rgba(255,255,255,0.03)' },
             horzLines: { color: 'rgba(255,255,255,0.03)' },
         },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        crosshair: {
+            mode: LightweightCharts.CrosshairMode.Normal,
+            vertLine: { color: 'rgba(224, 227, 235, 0.4)', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#363A45' },
+            horzLine: { color: 'rgba(224, 227, 235, 0.4)', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#363A45' },
+        },
+        handleScale: { mouseWheel: false, pinch: false },
         rightPriceScale: {
             borderColor: 'rgba(255,255,255,0.1)',
             autoScale: false,
@@ -4129,7 +4153,12 @@ function renderRsChart() {
             vertLines: { color: 'rgba(255,255,255,0.03)' },
             horzLines: { color: 'rgba(255,255,255,0.03)' },
         },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        crosshair: {
+            mode: LightweightCharts.CrosshairMode.Normal,
+            vertLine: { color: 'rgba(224, 227, 235, 0.4)', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#363A45' },
+            horzLine: { color: 'rgba(224, 227, 235, 0.4)', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#363A45' },
+        },
+        handleScale: { mouseWheel: false, pinch: false },
         rightPriceScale: {
             borderColor: 'rgba(255,255,255,0.1)',
             scaleMargins: { top: 0.1, bottom: 0.1 },
