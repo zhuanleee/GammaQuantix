@@ -3566,7 +3566,7 @@ function renderVolumeProfileOverlay() {
     // Create or reuse canvas
     if (!vpCanvas) {
         vpCanvas = document.createElement('canvas');
-        vpCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;';
+        vpCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none;';
         container.style.position = 'relative';
         container.appendChild(vpCanvas);
         vpCtx = vpCanvas.getContext('2d');
@@ -3574,9 +3574,9 @@ function renderVolumeProfileOverlay() {
         vpTooltip = document.createElement('div');
         vpTooltip.style.cssText = 'position:absolute;display:none;z-index:15;pointer-events:none;background:rgba(20,20,30,0.92);border:1px solid rgba(100,149,237,0.5);border-radius:6px;padding:5px 9px;font-size:10.5px;color:#e2e8f0;white-space:nowrap;line-height:1.5;backdrop-filter:blur(4px);';
         container.appendChild(vpTooltip);
-        // Mouse handlers for tooltip
-        vpCanvas.addEventListener('mousemove', vpHandleMouseMove);
-        vpCanvas.addEventListener('mouseleave', vpHandleMouseLeave);
+        // Mouse handlers on container (not vpCanvas) so LightweightCharts still gets events
+        container.addEventListener('mousemove', vpHandleMouseMove);
+        container.addEventListener('mouseleave', vpHandleMouseLeave);
     }
 
     const dpr = window.devicePixelRatio || 1;
@@ -3705,7 +3705,6 @@ function vpHandleMouseMove(e) {
         }
     }
     if (hit) {
-        vpCanvas.style.cursor = 'crosshair';
         const b = hit.bin;
         const fmtVol = (v) => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : Math.round(v).toLocaleString();
         const fmtPrc = (v) => v.toFixed(2);
@@ -3725,20 +3724,21 @@ function vpHandleMouseMove(e) {
         vpTooltip.style.top = ttY + 'px';
         vpTooltip.style.display = 'block';
     } else {
-        vpCanvas.style.cursor = 'default';
         vpTooltip.style.display = 'none';
     }
 }
 
 function vpHandleMouseLeave() {
     if (vpTooltip) vpTooltip.style.display = 'none';
-    if (vpCanvas) vpCanvas.style.cursor = 'default';
 }
 
 function removeVolumeProfileOverlay() {
     if (vpCanvas) {
-        vpCanvas.removeEventListener('mousemove', vpHandleMouseMove);
-        vpCanvas.removeEventListener('mouseleave', vpHandleMouseLeave);
+        var vpContainer = vpCanvas.parentElement;
+        if (vpContainer) {
+            vpContainer.removeEventListener('mousemove', vpHandleMouseMove);
+            vpContainer.removeEventListener('mouseleave', vpHandleMouseLeave);
+        }
         vpCanvas.remove();
         vpCanvas = null;
         vpCtx = null;
