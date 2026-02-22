@@ -2412,10 +2412,13 @@ function renderPriceChart() {
                 try { cotChart.remove(); } catch(e) {}
                 cotChart = null; cotCat1Series = null; cotCat2Series = null; cotCat3Series = null; cotData = null;
             }
-            cotSignals = null;
-            var cotStripEl = document.getElementById('cot-strip-item');
-            if (cotStripEl) cotStripEl.style.display = 'none';
         }
+    }
+    // Always clean COT signals & strip for non-futures (toggle DOM may not exist yet)
+    if (!currentTk || !currentTk.startsWith('/')) {
+        cotSignals = null;
+        var cotStripEl = document.getElementById('cot-strip-item');
+        if (cotStripEl) cotStripEl.style.display = 'none';
     }
 
     priceChart.timeScale().fitContent();
