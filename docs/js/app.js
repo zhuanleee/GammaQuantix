@@ -4393,13 +4393,18 @@ function renderCotChart() {
     container.style.position = 'relative';
     container.appendChild(legend);
 
-    // Sync visible range with main chart
+    // Sync visible range with main chart (time-based, not logical — COT has fewer weekly bars than daily price)
     if (priceChart) {
-        priceChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+        priceChart.timeScale().subscribeVisibleTimeRangeChange(function(range) {
             if (cotChart && range) {
-                try { cotChart.timeScale().setVisibleLogicalRange(range); } catch(e) {}
+                try { cotChart.timeScale().setVisibleRange(range); } catch(e) {}
             }
         });
+        // Initial sync
+        var initRange = priceChart.timeScale().getVisibleRange();
+        if (initRange) {
+            try { cotChart.timeScale().setVisibleRange(initRange); } catch(e) {}
+        }
     }
 
     // Crosshair sync
