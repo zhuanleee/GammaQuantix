@@ -138,6 +138,7 @@ let cotCat1Series = null;
 let cotCat2Series = null;
 let cotCat3Series = null;
 let cotData = null;
+let cotSignals = null;
 let vpCanvas = null;
 let vpCtx = null;
 let vpProfileData = null;  // {bins, pocIndex, valIndex, vahIndex, maxVolume}
@@ -1007,6 +1008,9 @@ async function loadGexDashboard() {
             if (l.call_wall && l.put_wall) {
                 interpretation.push(`Range: $${l.put_wall.toFixed(0)} support to $${l.call_wall.toFixed(0)} resistance.`);
             }
+        }
+        if (cotSignals && optionsAnalysisTicker && optionsAnalysisTicker.startsWith('/')) {
+            interpretation.push('COT: ' + cotSignals.regime + ' \u2014 ' + cotSignals.actionable);
         }
 
         document.getElementById('gex-interpretation').textContent =
@@ -2408,6 +2412,9 @@ function renderPriceChart() {
                 try { cotChart.remove(); } catch(e) {}
                 cotChart = null; cotCat1Series = null; cotCat2Series = null; cotCat3Series = null; cotData = null;
             }
+            cotSignals = null;
+            var cotStripEl = document.getElementById('cot-strip-item');
+            if (cotStripEl) cotStripEl.style.display = 'none';
         }
     }
 
@@ -4310,6 +4317,113 @@ async function fetchAndRenderCotChart(ticker) {
     }
 }
 
+// --- COT Signal Engine ---
+function _cotZone(val) {
+    if (val >= 80) return 'extreme_high';
+    if (val >= 60) return 'high';
+    if (val <= 20) return 'extreme_low';
+    if (val <= 40) return 'low';
+    return 'neutral';
+}
+
+function _cotInterpretation(regime, am, lf, momentum, divergence) {
+    if (divergence === 'bullish_div') return 'Bullish divergence: smart money accumulating while price drops — reversal likely.';
+    if (divergence === 'bearish_div') return 'Bearish divergence: smart money distributing while price rises — top risk.';
+    switch (regime) {
+        case 'Institutional Bullish': return 'Asset managers net long at extremes, large specs fading — institutional conviction ' + (momentum === 'rising' ? 'and rising.' : 'but momentum cooling.');
+        case 'Institutional Bearish': return 'Asset managers net short at extremes, large specs crowded long — institutional distribution ' + (momentum === 'falling' ? 'accelerating.' : 'but stabilizing.');
+        case 'Euphoria': return 'Both AM and LF at bullish extremes — crowded long, elevated reversal risk.';
+        case 'Capitulation': return 'Both AM and LF at bearish extremes — washed out positioning, contrarian buy zone.';
+        default: return 'COT positioning neutral — no extreme signals from futures positioning.';
+    }
+}
+
+function _cotActionable(regime, momentum, divergence) {
+    if (divergence === 'bullish_div') return 'Strongest buy signal. Scale into longs on support.';
+    if (divergence === 'bearish_div') return 'Strongest sell signal. Reduce longs, add hedges.';
+    switch (regime) {
+        case 'Institutional Bullish': return momentum === 'rising' ? 'Favor longs. Buy dips to put wall.' : 'Long bias but momentum fading — tighten stops.';
+        case 'Institutional Bearish': return momentum === 'falling' ? 'Favor shorts. Sell rallies to call wall.' : 'Short bias but pressure easing — cover partials.';
+        case 'Euphoria': return 'Tighten stops, reduce long exposure.';
+        case 'Capitulation': return 'Contrarian buy zone. Scale in on support.';
+        default: return 'No COT edge. Use GEX and flow.';
+    }
+}
+
+function computeCotSignals() {
+    if (!cotData || !cotData.series || cotData.series.length < 2) { cotSignals = null; return; }
+
+    const s = cotData.series;
+    const latest = s[s.length - 1];
+    const am = latest.cat1_cot_idx;   // Asset Managers / Commercials
+    const lf = latest.cat2_cot_idx;   // Large Funds / Non-Commercials
+    const dl = latest.cat3_cot_idx;   // Dealer/Leveraged / Non-Reportable
+
+    // Momentum: 4-week AM delta
+    const weeksBack = Math.min(4, s.length - 1);
+    const amPrev = s[s.length - 1 - weeksBack].cat1_cot_idx;
+    const amDelta = am - amPrev;
+    const momentum = amDelta > 5 ? 'rising' : amDelta < -5 ? 'falling' : 'flat';
+
+    // Regime detection
+    let regime, signal;
+    if (am >= 75 && lf <= 25) { regime = 'Institutional Bullish'; signal = 2; }
+    else if (am <= 25 && lf >= 75) { regime = 'Institutional Bearish'; signal = -2; }
+    else if (am >= 75 && lf >= 75) { regime = 'Euphoria'; signal = -1; }
+    else if (am <= 25 && lf <= 25) { regime = 'Capitulation'; signal = 1; }
+    else { regime = 'Neutral'; signal = 0; }
+
+    // Direction shorthand
+    const direction = signal > 0 ? 'bullish' : signal < 0 ? 'bearish' : 'neutral';
+
+    // Divergence: AM trend vs price trend (last 20 bars)
+    let divergence = null;
+    if (optionsVizData.candles && optionsVizData.candles.length >= 20) {
+        const candles = optionsVizData.candles;
+        const recentClose = candles[candles.length - 1].close;
+        const olderClose = candles[candles.length - 20].close;
+        const priceUp = recentClose > olderClose * 1.005;
+        const priceDown = recentClose < olderClose * 0.995;
+        const amUp = amDelta > 5;
+        const amDown = amDelta < -5;
+        if (amUp && priceDown) divergence = 'bullish_div';
+        else if (amDown && priceUp) divergence = 'bearish_div';
+    }
+
+    const interpretation = _cotInterpretation(regime, am, lf, momentum, divergence);
+    const actionable = _cotActionable(regime, momentum, divergence);
+
+    cotSignals = {
+        regime, signal, direction, momentum, divergence,
+        am: { value: am, zone: _cotZone(am) },
+        lf: { value: lf, zone: _cotZone(lf) },
+        dl: { value: dl, zone: _cotZone(dl) },
+        interpretation, actionable,
+    };
+}
+
+function updateCotStripItem() {
+    var el = document.getElementById('cot-strip-item');
+    if (!el) return;
+    var isFutures = optionsAnalysisTicker && optionsAnalysisTicker.startsWith('/');
+    if (!isFutures || !cotSignals) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    var val = document.getElementById('spx-cot-regime');
+    if (val) {
+        val.textContent = cotSignals.regime;
+        val.style.color = cotSignals.direction === 'bullish' ? 'var(--green)' : cotSignals.direction === 'bearish' ? 'var(--red)' : 'var(--yellow, #eab308)';
+    }
+}
+
+function _appendCotToGexInterpretation() {
+    if (!cotSignals) return;
+    if (!optionsAnalysisTicker || !optionsAnalysisTicker.startsWith('/')) return;
+    var el = document.getElementById('gex-interpretation');
+    if (!el || !el.textContent) return;
+    if (el.textContent.indexOf('COT:') !== -1) return;
+    el.textContent = el.textContent + ' COT: ' + cotSignals.regime + ' \u2014 ' + cotSignals.actionable;
+}
+
 function renderCotChart() {
     const container = document.getElementById('cot-chart-container');
     if (!container || !cotData || !cotData.series || !cotData.series.length) return;
@@ -4382,16 +4496,41 @@ function renderCotChart() {
         lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: '',
     });
 
-    // Legend overlay
+    // Compute signals before building legend
+    computeCotSignals();
+
+    // Legend overlay (2-row: data + signal)
     const labels = cotData.labels || {};
+    const latest = cotData.series[cotData.series.length - 1];
     const legend = document.createElement('div');
-    legend.style.cssText = 'position:absolute;top:4px;left:8px;font-size:10px;color:#9ca3af;z-index:10;pointer-events:none;';
-    legend.innerHTML = '<span style="color:#9ca3af;">COT INDEX</span> '
-        + '<span style="color:#22c55e;">\u25CF ' + (labels.cat1 || 'Cat1') + '</span> '
-        + '<span style="color:#ef4444;">\u25CF ' + (labels.cat2 || 'Cat2') + '</span> '
-        + '<span style="color:' + cat3Color + ';">\u25CF ' + (labels.cat3 || 'Cat3') + '</span>';
+    legend.style.cssText = 'position:absolute;top:4px;left:8px;font-size:10px;color:#9ca3af;z-index:10;pointer-events:none;line-height:1.5;';
+
+    // Row 1: COT INDEX with current values
+    var row1 = '<span style="color:#9ca3af;">COT INDEX</span> '
+        + '<span style="color:#22c55e;">\u25CF ' + (labels.cat1 || 'AM') + ' ' + latest.cat1_cot_idx.toFixed(1) + '</span> '
+        + '<span style="color:#ef4444;">\u25CF ' + (labels.cat2 || 'LF') + ' ' + latest.cat2_cot_idx.toFixed(1) + '</span> '
+        + '<span style="color:' + cat3Color + ';">\u25CF ' + (labels.cat3 || 'DL') + ' ' + latest.cat3_cot_idx.toFixed(1) + '</span>';
+
+    // Row 2: Signal summary
+    var row2 = '';
+    if (cotSignals) {
+        var regColor = cotSignals.direction === 'bullish' ? '#22c55e' : cotSignals.direction === 'bearish' ? '#ef4444' : '#eab308';
+        var momArrow = cotSignals.momentum === 'rising' ? '<span style="color:#22c55e;">\u25B2 Rising</span>'
+            : cotSignals.momentum === 'falling' ? '<span style="color:#ef4444;">\u25BC Falling</span>'
+            : '<span style="color:#6b7280;">\u25C6 Flat</span>';
+        var divFlag = cotSignals.divergence ? ' <span style="color:#eab308;font-weight:700;">DIV</span>' : '';
+        row2 = '<br><span class="cot-regime-badge" style="color:' + regColor + ';font-weight:700;">' + cotSignals.regime.toUpperCase() + '</span> '
+            + momArrow + divFlag
+            + ' <span style="color:#6b7280;font-size:9px;">| ' + cotSignals.actionable + '</span>';
+    }
+
+    legend.innerHTML = row1 + row2;
     container.style.position = 'relative';
     container.appendChild(legend);
+
+    // Update strip item & GEX interpretation
+    updateCotStripItem();
+    _appendCotToGexInterpretation();
 
     // Sync visible range with main chart (time-based, not logical — COT has fewer weekly bars than daily price)
     // Price chart uses {year,month,day} objects; COT uses "YYYY-MM-DD" strings — must convert
@@ -4461,6 +4600,9 @@ function toggleCotChart() {
             try { cotChart.remove(); } catch(e) {}
             cotChart = null; cotCat1Series = null; cotCat2Series = null; cotCat3Series = null; cotData = null;
         }
+        cotSignals = null;
+        var cotStripEl = document.getElementById('cot-strip-item');
+        if (cotStripEl) cotStripEl.style.display = 'none';
     }
     saveToggles();
     if (document.fullscreenElement) setTimeout(resizeChartsToFit, 50);

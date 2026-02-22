@@ -2107,6 +2107,8 @@ select:focus {
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
 }
+.cot-regime-badge { font-size: 10px; letter-spacing: 0.05em; }
+.cot-strip-item .spx-strip-val { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; }
 
 /* ===== Market X-Ray ===== */
 .xray-section {
