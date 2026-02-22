@@ -4394,16 +4394,26 @@ function renderCotChart() {
     container.appendChild(legend);
 
     // Sync visible range with main chart (time-based, not logical — COT has fewer weekly bars than daily price)
+    // Price chart uses {year,month,day} objects; COT uses "YYYY-MM-DD" strings — must convert
+    function _cotTimeRange(range) {
+        if (!range || !range.from || !range.to) return null;
+        function fmt(t) {
+            if (typeof t === 'string') return t;
+            if (t.year) return t.year + '-' + String(t.month).padStart(2,'0') + '-' + String(t.day).padStart(2,'0');
+            return t;
+        }
+        return { from: fmt(range.from), to: fmt(range.to) };
+    }
     if (priceChart) {
         priceChart.timeScale().subscribeVisibleTimeRangeChange(function(range) {
             if (cotChart && range) {
-                try { cotChart.timeScale().setVisibleRange(range); } catch(e) {}
+                try { cotChart.timeScale().setVisibleRange(_cotTimeRange(range)); } catch(e) {}
             }
         });
         // Initial sync
         var initRange = priceChart.timeScale().getVisibleRange();
         if (initRange) {
-            try { cotChart.timeScale().setVisibleRange(initRange); } catch(e) {}
+            try { cotChart.timeScale().setVisibleRange(_cotTimeRange(initRange)); } catch(e) {}
         }
     }
 
