@@ -1099,6 +1099,10 @@
                         <input type="checkbox" id="viz-toggle-rs" onchange="toggleRsChart()">
                         <span class="toggle-label rs">RS</span>
                     </label>
+                    <label class="toggle-item" title="CFTC Commitments of Traders - institutional positioning (futures only)">
+                        <input type="checkbox" id="viz-toggle-cot" onchange="toggleCotChart()">
+                        <span class="toggle-label cot">COT</span>
+                    </label>
                     <label class="toggle-item" title="Volume bars at bottom of price chart">
                         <input type="checkbox" id="viz-toggle-volume" checked onchange="toggleVolumeSeries()">
                         <span class="toggle-label vol">Vol</span>
@@ -1154,6 +1158,8 @@
                     <div id="rsi-chart-container" class="chart-container rsi-pane" style="display:none;">
                     </div>
                     <div id="rs-chart-container" class="chart-container rs-pane" style="display:none;">
+                    </div>
+                    <div id="cot-chart-container" class="chart-container cot-pane" style="display:none;">
                     </div>
                     <div id="vrp-gauge-container" class="vrp-gauge" style="display:none;"></div>
                     <div id="flow-strip-container" class="flow-strip" style="display:none;"></div>

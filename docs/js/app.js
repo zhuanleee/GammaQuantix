@@ -133,6 +133,11 @@ let rsiSeries = null;
 let rsChart = null;
 let rsSeries = null;
 let rsSmaSeries = null;
+let cotChart = null;
+let cotCat1Series = null;
+let cotCat2Series = null;
+let cotCat3Series = null;
+let cotData = null;
 let vpCanvas = null;
 let vpCtx = null;
 let vpProfileData = null;  // {bins, pocIndex, valIndex, vahIndex, maxVolume}
@@ -150,7 +155,7 @@ const TOGGLE_IDS = [
     'viz-toggle-callwall','viz-toggle-putwall','viz-toggle-gammaflip','viz-toggle-maxpain',
     'viz-toggle-val','viz-toggle-poc','viz-toggle-vah','viz-toggle-vp','viz-toggle-gex',
     'viz-toggle-sma20','viz-toggle-sma50','viz-toggle-sma200','viz-toggle-vwap','viz-toggle-bb',
-    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-volume','viz-toggle-flow',
+    'viz-toggle-rsi','viz-toggle-rs','viz-toggle-cot','viz-toggle-volume','viz-toggle-flow',
     'viz-toggle-em','viz-toggle-regime','viz-toggle-vrp','viz-toggle-gexheat','viz-toggle-toxicity','viz-toggle-dealer'
 ];
 
@@ -2382,6 +2387,30 @@ function renderPriceChart() {
         }
     }
 
+    // COT toggle: enable for futures, disable for equities (inverse of RS)
+    var cotToggle = document.getElementById('viz-toggle-cot');
+    var cotLabel = cotToggle ? cotToggle.closest('.toggle-item') : null;
+    if (cotToggle && cotLabel) {
+        if (currentTk && currentTk.startsWith('/')) {
+            cotLabel.style.opacity = '1';
+            cotLabel.style.pointerEvents = 'auto';
+            if (cotToggle.checked) {
+                fetchAndRenderCotChart(currentTk);
+                document.getElementById('cot-chart-container').style.display = 'block';
+            }
+        } else {
+            cotToggle.checked = false;
+            cotLabel.style.opacity = '0.4';
+            cotLabel.style.pointerEvents = 'none';
+            var cotContainer = document.getElementById('cot-chart-container');
+            if (cotContainer) cotContainer.style.display = 'none';
+            if (cotChart) {
+                try { cotChart.remove(); } catch(e) {}
+                cotChart = null; cotCat1Series = null; cotCat2Series = null; cotCat3Series = null; cotData = null;
+            }
+        }
+    }
+
     priceChart.timeScale().fitContent();
 
     // Prevent page scroll when mouse wheel is used over chart (enables TradingView-style scroll-to-zoom)
@@ -3298,6 +3327,10 @@ function resizeChartsToFit() {
     if (rsChart) {
         var rsc = document.getElementById('rs-chart-container');
         if (rsc && rsc.clientWidth > 0) rsChart.applyOptions({ width: rsc.clientWidth, height: rsc.clientHeight || 100 });
+    }
+    if (cotChart) {
+        var cc = document.getElementById('cot-chart-container');
+        if (cc && cc.clientWidth > 0) cotChart.applyOptions({ width: cc.clientWidth, height: cc.clientHeight || 120 });
     }
 }
 
@@ -4242,6 +4275,179 @@ function toggleRsChart() {
             rsSmaSeries = null;
         }
     }
+    if (document.fullscreenElement) setTimeout(resizeChartsToFit, 50);
+}
+
+// =============================================================================
+// COT (Commitments of Traders) CHART
+// =============================================================================
+async function fetchAndRenderCotChart(ticker) {
+    if (!ticker || !ticker.startsWith('/')) return;
+
+    const url = `${API_BASE}/cot/data?ticker=${encodeURIComponent(ticker)}&weeks=104`;
+    const cached = getCachedApiResponse(url);
+    if (cached && cached.ok) {
+        cotData = cached.data;
+        renderCotChart();
+        return;
+    }
+
+    try {
+        const resp = await fetch(url);
+        const json = await resp.json();
+        cacheApiResponse(url, json);
+        if (json.ok && json.data) {
+            cotData = json.data;
+            renderCotChart();
+        } else {
+            var c = document.getElementById('cot-chart-container');
+            if (c) c.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">No COT data available</div>';
+        }
+    } catch(e) {
+        console.error('COT fetch error:', e);
+        var c = document.getElementById('cot-chart-container');
+        if (c) c.innerHTML = '<div class="chart-loading" style="font-size:0.7rem;">Failed to load COT data</div>';
+    }
+}
+
+function renderCotChart() {
+    const container = document.getElementById('cot-chart-container');
+    if (!container || !cotData || !cotData.series || !cotData.series.length) return;
+
+    // Destroy existing
+    if (cotChart) {
+        try { cotChart.remove(); } catch(e) {}
+        cotChart = null; cotCat1Series = null; cotCat2Series = null; cotCat3Series = null;
+    }
+
+    container.innerHTML = '';
+
+    cotChart = LightweightCharts.createChart(container, {
+        layout: {
+            background: { type: 'solid', color: 'transparent' },
+            textColor: '#9ca3af',
+        },
+        grid: {
+            vertLines: { color: 'rgba(255,255,255,0.03)' },
+            horzLines: { color: 'rgba(255,255,255,0.03)' },
+        },
+        crosshair: {
+            mode: LightweightCharts.CrosshairMode.Normal,
+            vertLine: { color: 'rgba(224, 227, 235, 0.4)', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#363A45' },
+            horzLine: { color: 'rgba(224, 227, 235, 0.4)', width: 1, style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#363A45' },
+        },
+        handleScale: { mouseWheel: false, pinch: false },
+        rightPriceScale: {
+            borderColor: 'rgba(255,255,255,0.1)',
+            autoScale: false,
+            scaleMargins: { top: 0.05, bottom: 0.05 },
+        },
+        timeScale: { visible: false },
+        width: container.clientWidth,
+        height: 120,
+    });
+
+    const isTff = cotData.type === 'tff';
+    const cat3Color = isTff ? '#06b6d4' : '#9ca3af';
+
+    cotCat1Series = cotChart.addLineSeries({
+        color: '#22c55e', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true,
+    });
+    cotCat2Series = cotChart.addLineSeries({
+        color: '#ef4444', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true,
+    });
+    cotCat3Series = cotChart.addLineSeries({
+        color: cat3Color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true,
+    });
+
+    const cat1Data = [], cat2Data = [], cat3Data = [];
+    cotData.series.forEach(function(d) {
+        const t = d.time;
+        cat1Data.push({ time: t, value: d.cat1_cot_idx });
+        cat2Data.push({ time: t, value: d.cat2_cot_idx });
+        cat3Data.push({ time: t, value: d.cat3_cot_idx });
+    });
+
+    cotCat1Series.setData(cat1Data);
+    cotCat2Series.setData(cat2Data);
+    cotCat3Series.setData(cat3Data);
+
+    // Reference lines at 80 (overbought) and 20 (oversold)
+    cotCat1Series.createPriceLine({
+        price: 80, color: 'rgba(239, 68, 68, 0.4)', lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: '',
+    });
+    cotCat1Series.createPriceLine({
+        price: 20, color: 'rgba(34, 197, 94, 0.4)', lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: '',
+    });
+
+    // Legend overlay
+    const labels = cotData.labels || {};
+    const legend = document.createElement('div');
+    legend.style.cssText = 'position:absolute;top:4px;left:8px;font-size:10px;color:#9ca3af;z-index:10;pointer-events:none;';
+    legend.innerHTML = '<span style="color:#9ca3af;">COT INDEX</span> '
+        + '<span style="color:#22c55e;">\u25CF ' + (labels.cat1 || 'Cat1') + '</span> '
+        + '<span style="color:#ef4444;">\u25CF ' + (labels.cat2 || 'Cat2') + '</span> '
+        + '<span style="color:' + cat3Color + ';">\u25CF ' + (labels.cat3 || 'Cat3') + '</span>';
+    container.style.position = 'relative';
+    container.appendChild(legend);
+
+    // Sync visible range with main chart
+    if (priceChart) {
+        priceChart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+            if (cotChart && range) {
+                try { cotChart.timeScale().setVisibleLogicalRange(range); } catch(e) {}
+            }
+        });
+    }
+
+    // Crosshair sync
+    if (priceChart) {
+        priceChart.subscribeCrosshairMove(function(param) {
+            if (!cotChart || !param || !param.time) return;
+            try { cotChart.setCrosshairPosition(undefined, param.time, cotCat1Series); } catch(e) {}
+        });
+        cotChart.subscribeCrosshairMove(function(param) {
+            if (!priceChart || !param || !param.time) return;
+            try { priceChart.setCrosshairPosition(undefined, param.time, priceSeries); } catch(e) {}
+        });
+    }
+
+    // ResizeObserver
+    var ro = new ResizeObserver(function() {
+        if (cotChart && container.clientWidth > 0) {
+            cotChart.applyOptions({ width: container.clientWidth });
+        }
+    });
+    ro.observe(container);
+}
+
+function toggleCotChart() {
+    var show = document.getElementById('viz-toggle-cot')?.checked;
+    var container = document.getElementById('cot-chart-container');
+    if (!container) return;
+
+    var ticker = optionsAnalysisTicker;
+    var isFutures = ticker && ticker.startsWith('/');
+
+    // Disable for non-futures
+    if (!isFutures && show) {
+        document.getElementById('viz-toggle-cot').checked = false;
+        return;
+    }
+
+    if (show) {
+        container.style.display = 'block';
+        fetchAndRenderCotChart(ticker);
+    } else {
+        container.style.display = 'none';
+        if (cotChart) {
+            try { cotChart.remove(); } catch(e) {}
+            cotChart = null; cotCat1Series = null; cotCat2Series = null; cotCat3Series = null; cotData = null;
+        }
+    }
+    saveToggles();
     if (document.fullscreenElement) setTimeout(resizeChartsToFit, 50);
 }
 
