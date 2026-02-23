@@ -5309,7 +5309,6 @@ function showTab(tabId) {
         'tab-gex': 'tab-analysis',
         'tab-strategy': 'tab-trade',
         'tab-chain-flow': 'tab-trade',
-        'tab-backtest': 'tab-trade',
         'tab-trading': 'tab-trade'
     };
     if (tabMigration[tabId]) tabId = tabMigration[tabId];
@@ -5349,6 +5348,11 @@ function showTab(tabId) {
         startTradingRefresh();
     } else {
         stopTradingRefresh();
+    }
+    if (tabId === 'tab-backtest') {
+        if (!backtestResults) loadLatestBacktest();
+    } else {
+        if (btPollTimer) { clearInterval(btPollTimer); btPollTimer = null; }
     }
 }
 
@@ -8302,6 +8306,335 @@ function render0DTEPositions(positions) {
     }
     html += '</tbody></table>';
     container.innerHTML = html;
+}
+
+
+// =============================================================================
+// UNIVERSAL BACKTEST ENGINE
+// =============================================================================
+
+let backtestJobId = null;
+let backtestResults = null;
+let backtestEquityChart = null;
+let btPollTimer = null;
+let btSortField = 'sharpe_oos';
+let btCategoryFilter = 'all';
+let btSelectedStrategy = null;
+
+const BT_CAT_COLORS = {
+    technical: { bg: 'rgba(0,188,212,0.15)', color: '#00bcd4' },
+    volatility: { bg: 'rgba(255,152,0,0.15)', color: '#ff9800' },
+    cot: { bg: 'rgba(156,39,176,0.15)', color: '#9c27b0' },
+    macro: { bg: 'rgba(33,150,243,0.15)', color: '#2196f3' },
+    cross: { bg: 'rgba(233,30,99,0.15)', color: '#e91e63' },
+};
+
+async function runBacktest() {
+    const btn = document.getElementById('bt-run-btn');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'RUNNING...';
+    const tickers = document.getElementById('bt-tickers').value;
+    const statusEl = document.getElementById('bt-status');
+    const progressEl = document.getElementById('bt-progress');
+    progressEl.style.display = 'flex';
+    statusEl.textContent = 'Starting...';
+
+    try {
+        const resp = await safeFetchJson(`${API_BASE}/backtest/run?tickers=${encodeURIComponent(tickers)}`
+            , { method: 'POST' });
+        if (!resp || !resp.ok) {
+            statusEl.textContent = 'Failed to start: ' + (resp?.error || 'unknown');
+            btn.disabled = false;
+            btn.textContent = 'RUN ALL STRATEGIES';
+            return;
+        }
+        backtestJobId = resp.job_id;
+        statusEl.textContent = `Job ${backtestJobId} started. ~${resp.estimated_minutes}min`;
+        pollBacktestStatus();
+        btPollTimer = setInterval(pollBacktestStatus, 3000);
+    } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'RUN ALL STRATEGIES';
+    }
+}
+
+async function pollBacktestStatus() {
+    if (!backtestJobId) return;
+    try {
+        const resp = await safeFetchJson(`${API_BASE}/backtest/status/${backtestJobId}`);
+        if (!resp || !resp.ok) return;
+        const fill = document.getElementById('bt-progress-fill');
+        const txt = document.getElementById('bt-progress-text');
+        const statusEl = document.getElementById('bt-status');
+        fill.style.width = resp.progress_pct + '%';
+        txt.textContent = resp.progress_pct + '%';
+        statusEl.textContent = `${resp.phase} | ${resp.combos_tested}/${resp.combos_total || '?'} combos | ${resp.elapsed_seconds}s`;
+
+        if (resp.status === 'completed') {
+            clearInterval(btPollTimer);
+            btPollTimer = null;
+            document.getElementById('bt-run-btn').disabled = false;
+            document.getElementById('bt-run-btn').textContent = 'RE-RUN';
+            statusEl.textContent = `Done! ${resp.combos_tested} combos in ${resp.elapsed_seconds}s`;
+            loadBacktestResults(backtestJobId);
+        } else if (resp.status === 'failed') {
+            clearInterval(btPollTimer);
+            btPollTimer = null;
+            document.getElementById('bt-run-btn').disabled = false;
+            document.getElementById('bt-run-btn').textContent = 'RUN ALL STRATEGIES';
+            statusEl.textContent = 'FAILED: ' + (resp.error || 'unknown error');
+            document.getElementById('bt-progress').style.display = 'none';
+        }
+    } catch (e) { /* ignore poll errors */ }
+}
+
+async function loadBacktestResults(jobId) {
+    try {
+        const resp = await safeFetchJson(`${API_BASE}/backtest/results/${jobId}`);
+        if (!resp || !resp.ok || !resp.results) return;
+        backtestResults = resp.results;
+        renderBtSummaryCards(resp.summary, resp.results);
+        renderBtLeaderboard(resp.results);
+        document.getElementById('bt-summary').style.display = 'grid';
+        document.getElementById('bt-filters').style.display = 'flex';
+    } catch (e) { console.error('Load results error:', e); }
+}
+
+async function loadLatestBacktest() {
+    try {
+        const resp = await safeFetchJson(`${API_BASE}/backtest/results/latest`);
+        if (!resp || !resp.ok || !resp.results || resp.results.length === 0) return;
+        backtestResults = resp.results;
+        if (resp.job_id) backtestJobId = resp.job_id;
+        renderBtSummaryCards(resp.summary, resp.results);
+        renderBtLeaderboard(resp.results);
+        document.getElementById('bt-summary').style.display = 'grid';
+        document.getElementById('bt-filters').style.display = 'flex';
+        const statusEl = document.getElementById('bt-status');
+        if (resp.summary?.completed_at) {
+            statusEl.textContent = 'Cached: ' + resp.summary.completed_at.slice(0, 16);
+        }
+        document.getElementById('bt-run-btn').textContent = 'RE-RUN';
+    } catch (e) { /* no cached results */ }
+}
+
+function renderBtSummaryCards(summary, results) {
+    const el = document.getElementById('bt-summary');
+    if (!summary && (!results || results.length === 0)) { el.style.display = 'none'; return; }
+    const best = summary?.best_sharpe || (results.length > 0 ? results[0] : null);
+    const bestCagr = summary?.best_cagr || (results.length > 0 ? results.reduce((a, b) => (b.cagr_oos || 0) > (a.cagr_oos || 0) ? b : a) : null);
+    const bestWr = summary?.best_win_rate || (results.length > 0 ? results.reduce((a, b) => (b.win_rate || 0) > (a.win_rate || 0) ? b : a) : null);
+    const total = summary?.total_combos_tested || results.length;
+
+    el.innerHTML = `
+        <div class="bt-summary-card">
+            <div class="card-label">COMBOS TESTED</div>
+            <div class="card-value">${total.toLocaleString()}</div>
+            <div class="card-sub">${results.length} results shown</div>
+        </div>
+        <div class="bt-summary-card">
+            <div class="card-label">BEST SHARPE (OOS)</div>
+            <div class="card-value" style="color:var(--green)">${best ? best.sharpe_oos?.toFixed(2) : '--'}</div>
+            <div class="card-sub">${best ? best.signal + ' / ' + best.ticker : '--'}</div>
+        </div>
+        <div class="bt-summary-card">
+            <div class="card-label">BEST CAGR (OOS)</div>
+            <div class="card-value" style="color:#2196f3">${bestCagr ? bestCagr.cagr_oos?.toFixed(1) + '%' : '--'}</div>
+            <div class="card-sub">${bestCagr ? bestCagr.signal + ' / ' + bestCagr.ticker : '--'}</div>
+        </div>
+        <div class="bt-summary-card">
+            <div class="card-label">BEST WIN RATE</div>
+            <div class="card-value" style="color:#ff9800">${bestWr ? bestWr.win_rate?.toFixed(1) + '%' : '--'}</div>
+            <div class="card-sub">${bestWr ? bestWr.signal + ' / ' + bestWr.ticker : '--'}</div>
+        </div>
+    `;
+}
+
+function renderBtLeaderboard(results) {
+    const el = document.getElementById('bt-leaderboard');
+    if (!results || results.length === 0) {
+        el.innerHTML = '<div style="color:var(--text-muted);font-size:0.75rem;padding:20px;text-align:center;">No results. Click RUN ALL STRATEGIES to start.</div>';
+        return;
+    }
+
+    // Filter
+    let filtered = results;
+    if (btCategoryFilter !== 'all') {
+        filtered = results.filter(r => r.category === btCategoryFilter);
+    }
+    // Sort
+    const reverse = btSortField !== 'max_drawdown_oos';
+    filtered = [...filtered].sort((a, b) => reverse ? (b[btSortField] || 0) - (a[btSortField] || 0) : (a[btSortField] || 0) - (b[btSortField] || 0));
+
+    const thClass = (f) => f === btSortField ? 'sorted' : '';
+    let html = `<table><thead><tr>
+        <th>#</th>
+        <th class="${thClass('signal')}" onclick="sortBtLeaderboard('signal')">Signal</th>
+        <th>Cat</th>
+        <th class="${thClass('exit')}" onclick="sortBtLeaderboard('exit')">Exit</th>
+        <th>Sizing</th>
+        <th>Ticker</th>
+        <th class="${thClass('total_trades')}" onclick="sortBtLeaderboard('total_trades')">Trades</th>
+        <th class="${thClass('win_rate')}" onclick="sortBtLeaderboard('win_rate')">Win%</th>
+        <th class="${thClass('sharpe_oos')}" onclick="sortBtLeaderboard('sharpe_oos')">Sharpe</th>
+        <th class="${thClass('cagr_oos')}" onclick="sortBtLeaderboard('cagr_oos')">CAGR%</th>
+        <th class="${thClass('max_drawdown_oos')}" onclick="sortBtLeaderboard('max_drawdown_oos')">MaxDD%</th>
+        <th class="${thClass('profit_factor')}" onclick="sortBtLeaderboard('profit_factor')">PF</th>
+        <th class="${thClass('expectancy')}" onclick="sortBtLeaderboard('expectancy')">Expect</th>
+    </tr></thead><tbody>`;
+
+    filtered.forEach((r, idx) => {
+        const rank = idx + 1;
+        const rankClass = rank === 1 ? 'bt-rank-1' : rank === 2 ? 'bt-rank-2' : rank === 3 ? 'bt-rank-3' : '';
+        const sharpeClass = r.sharpe_oos > 1.5 ? 'bt-sharpe-great' : r.sharpe_oos > 1.0 ? 'bt-sharpe-good' : r.sharpe_oos > 0.5 ? 'bt-sharpe-ok' : 'bt-sharpe-bad';
+        const cat = BT_CAT_COLORS[r.category] || BT_CAT_COLORS.technical;
+        const sel = btSelectedStrategy === r.strategy_id ? ' selected' : '';
+        html += `<tr class="${sel}" onclick="expandBtRow('${r.strategy_id}')">
+            <td class="${rankClass}">${rank}</td>
+            <td>${r.signal}</td>
+            <td><span class="bt-category-badge bt-cat-${r.category}">${r.category}</span></td>
+            <td>${r.exit}</td>
+            <td>${r.sizing}</td>
+            <td>${r.ticker}</td>
+            <td>${r.total_trades}</td>
+            <td>${r.win_rate?.toFixed(1)}</td>
+            <td class="${sharpeClass}">${r.sharpe_oos?.toFixed(2)}</td>
+            <td>${r.cagr_oos?.toFixed(1)}</td>
+            <td style="color:var(--red)">${r.max_drawdown_oos?.toFixed(1)}</td>
+            <td>${r.profit_factor?.toFixed(2)}</td>
+            <td>${r.expectancy?.toFixed(3)}</td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+}
+
+function sortBtLeaderboard(field) {
+    btSortField = field;
+    document.getElementById('bt-sort').value = field;
+    if (backtestResults) renderBtLeaderboard(backtestResults);
+}
+
+function filterBtCategory(cat) {
+    btCategoryFilter = cat;
+    document.querySelectorAll('.bt-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+    if (backtestResults) renderBtLeaderboard(backtestResults);
+}
+
+async function expandBtRow(strategyId) {
+    btSelectedStrategy = strategyId;
+    if (backtestResults) renderBtLeaderboard(backtestResults);
+
+    const eqPanel = document.getElementById('bt-equity-panel');
+    const trPanel = document.getElementById('bt-trade-panel');
+    eqPanel.style.display = 'block';
+    trPanel.style.display = 'block';
+
+    // Find strategy info for title
+    const strat = backtestResults?.find(r => r.strategy_id === strategyId);
+    if (strat) {
+        document.getElementById('bt-equity-title').textContent =
+            `EQUITY CURVE - ${strat.signal} / ${strat.exit} / ${strat.ticker}`;
+    }
+
+    // Load equity curve
+    try {
+        const resp = await safeFetchJson(`${API_BASE}/backtest/equity-curve/${strategyId}`);
+        if (resp?.ok && resp.data) {
+            renderBtEquityCurve(resp.data);
+        } else {
+            document.getElementById('bt-equity-chart').innerHTML =
+                '<div style="color:var(--text-muted);font-size:0.7rem;padding:40px;text-align:center;">Equity curve not available. Re-run backtest to see charts.</div>';
+        }
+    } catch (e) {
+        document.getElementById('bt-equity-chart').innerHTML =
+            '<div style="color:var(--text-muted);font-size:0.7rem;padding:40px;text-align:center;">Error loading equity curve</div>';
+    }
+
+    // Load trades
+    try {
+        const resp = await safeFetchJson(`${API_BASE}/backtest/trades/${strategyId}`);
+        if (resp?.ok && resp.trades) {
+            renderBtTrades(resp.trades);
+        }
+    } catch (e) { trPanel.style.display = 'none'; }
+}
+
+function renderBtEquityCurve(data) {
+    if (!data || data.length === 0) return;
+    const dates = data.map(d => d.date);
+    const equities = data.map(d => d.equity);
+    const startingCapital = data[0]?.equity || 100000;
+    const chartEl = document.getElementById('bt-equity-chart');
+
+    // OOS split line
+    const oosIdx = Math.floor(dates.length * 0.7);
+    const oosDate = dates[oosIdx] || dates[0];
+
+    if (backtestEquityChart) {
+        backtestEquityChart.destroy();
+        backtestEquityChart = null;
+    }
+
+    backtestEquityChart = new ApexCharts(chartEl, {
+        series: [{ name: 'Equity', data: equities }],
+        chart: { type: 'area', height: 280, background: 'transparent', toolbar: { show: false }, fontFamily: 'Inter, sans-serif' },
+        colors: ['#22c55e'],
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } },
+        stroke: { curve: 'smooth', width: 2 },
+        xaxis: {
+            categories: dates,
+            labels: { style: { colors: '#71717a', fontSize: '9px' }, rotate: -45, show: true, maxHeight: 60,
+                formatter: (v, ts, opts) => { const i = opts?.dataPointIndex ?? 0; return i % Math.max(1, Math.floor(dates.length / 12)) === 0 ? v : ''; }
+            },
+            axisBorder: { show: false }, axisTicks: { show: false },
+        },
+        yaxis: {
+            labels: { style: { colors: '#71717a', fontSize: '9px' }, formatter: v => '$' + (v / 1000).toFixed(1) + 'K' },
+        },
+        grid: { borderColor: '#2a2a3a', strokeDashArray: 3 },
+        tooltip: { theme: 'dark', y: { formatter: v => '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 }) } },
+        annotations: {
+            yaxis: [{
+                y: startingCapital, borderColor: '#71717a', strokeDashArray: 4,
+                label: { text: 'Starting', style: { color: '#71717a', background: 'transparent', fontSize: '9px' }, position: 'left' },
+            }],
+            xaxis: [{
+                x: oosDate, borderColor: '#ff9800', strokeDashArray: 2,
+                label: { text: 'OOS Start', style: { color: '#ff9800', background: '#1a1a2e', fontSize: '9px' }, orientation: 'horizontal' },
+            }],
+        },
+    });
+    backtestEquityChart.render();
+}
+
+function renderBtTrades(trades) {
+    const el = document.getElementById('bt-trade-panel');
+    if (!trades || trades.length === 0) { el.style.display = 'none'; return; }
+
+    let html = `<table><thead><tr>
+        <th>Entry</th><th>Exit</th><th>Dir</th><th>Entry$</th><th>Exit$</th>
+        <th>P&L%</th><th>P&L$</th><th>Days</th><th>OOS</th>
+    </tr></thead><tbody>`;
+    trades.slice(0, 50).forEach(t => {
+        const pnlClass = t.pnl_pct > 0 ? 'pnl-positive' : t.pnl_pct < 0 ? 'pnl-negative' : '';
+        html += `<tr>
+            <td>${t.entry_date}</td>
+            <td>${t.exit_date}</td>
+            <td>${t.direction}</td>
+            <td>${t.entry_price?.toFixed(2)}</td>
+            <td>${t.exit_price?.toFixed(2)}</td>
+            <td class="${pnlClass}">${t.pnl_pct > 0 ? '+' : ''}${t.pnl_pct?.toFixed(2)}%</td>
+            <td class="${pnlClass}">$${t.pnl?.toFixed(0)}</td>
+            <td>${t.bars_held}</td>
+            <td>${t.is_oos ? 'Y' : ''}</td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    if (trades.length > 50) html += `<div style="color:var(--text-muted);font-size:0.6rem;padding:4px;">Showing 50 of ${trades.length} trades</div>`;
+    el.innerHTML = html;
 }
 
 
