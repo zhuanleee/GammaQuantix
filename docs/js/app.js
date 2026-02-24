@@ -8423,7 +8423,7 @@ async function loadLatestBacktest() {
 function renderBtSummaryCards(summary, results) {
     const el = document.getElementById('bt-summary');
     if (!summary && (!results || results.length === 0)) { el.style.display = 'none'; return; }
-    const bestQuality = results.length > 0 ? results[0] : null;  // already sorted by quality_score
+    const bestQuality = results.length > 0 ? results.reduce((a, b) => (b.quality_score || 0) > (a.quality_score || 0) ? b : a) : null;
     const bestExpect = results.length > 0 ? results.reduce((a, b) => (b.expectancy || 0) > (a.expectancy || 0) ? b : a) : null;
     const bestCagr = summary?.best_cagr || (results.length > 0 ? results.reduce((a, b) => (b.cagr_oos || 0) > (a.cagr_oos || 0) ? b : a) : null);
     const bestWr = summary?.best_win_rate || (results.length > 0 ? results.reduce((a, b) => (b.win_rate || 0) > (a.win_rate || 0) ? b : a) : null);
