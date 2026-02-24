@@ -8584,16 +8584,27 @@ function renderBtEquityCurve(data) {
         backtestEquityChart = null;
     }
 
+    // Downsample to max ~200 points for clean rendering
+    let dsDates = dates, dsEquities = equities;
+    if (dates.length > 200) {
+        const step = Math.ceil(dates.length / 200);
+        dsDates = dates.filter((_, i) => i % step === 0 || i === dates.length - 1);
+        dsEquities = equities.filter((_, i) => i % step === 0 || i === equities.length - 1);
+    }
+    const dsOosIdx = Math.floor(dsDates.length * 0.7);
+    const dsOosDate = dsDates[dsOosIdx] || dsDates[0];
+
     backtestEquityChart = new ApexCharts(chartEl, {
-        series: [{ name: 'Equity', data: equities }],
+        series: [{ name: 'Equity', data: dsEquities }],
         chart: { type: 'area', height: 280, background: 'transparent', toolbar: { show: false }, fontFamily: 'Inter, sans-serif' },
         colors: ['#22c55e'],
+        dataLabels: { enabled: false },
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } },
         stroke: { curve: 'smooth', width: 2 },
         xaxis: {
-            categories: dates,
+            categories: dsDates,
             labels: { style: { colors: '#71717a', fontSize: '9px' }, rotate: -45, show: true, maxHeight: 60,
-                formatter: (v, ts, opts) => { const i = opts?.dataPointIndex ?? 0; return i % Math.max(1, Math.floor(dates.length / 12)) === 0 ? v : ''; }
+                formatter: (v, ts, opts) => { const i = opts?.dataPointIndex ?? 0; return i % Math.max(1, Math.floor(dsDates.length / 10)) === 0 ? v : ''; }
             },
             axisBorder: { show: false }, axisTicks: { show: false },
         },
@@ -8608,7 +8619,7 @@ function renderBtEquityCurve(data) {
                 label: { text: 'Starting', style: { color: '#71717a', background: 'transparent', fontSize: '9px' }, position: 'left' },
             }],
             xaxis: [{
-                x: oosDate, borderColor: '#ff9800', strokeDashArray: 2,
+                x: dsOosDate, borderColor: '#ff9800', strokeDashArray: 2,
                 label: { text: 'OOS Start', style: { color: '#ff9800', background: '#1a1a2e', fontSize: '9px' }, orientation: 'horizontal' },
             }],
         },
