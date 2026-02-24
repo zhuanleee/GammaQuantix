@@ -8423,7 +8423,8 @@ async function loadLatestBacktest() {
 function renderBtSummaryCards(summary, results) {
     const el = document.getElementById('bt-summary');
     if (!summary && (!results || results.length === 0)) { el.style.display = 'none'; return; }
-    const best = summary?.best_sharpe || (results.length > 0 ? results[0] : null);
+    const bestQuality = results.length > 0 ? results[0] : null;  // already sorted by quality_score
+    const bestExpect = results.length > 0 ? results.reduce((a, b) => (b.expectancy || 0) > (a.expectancy || 0) ? b : a) : null;
     const bestCagr = summary?.best_cagr || (results.length > 0 ? results.reduce((a, b) => (b.cagr_oos || 0) > (a.cagr_oos || 0) ? b : a) : null);
     const bestWr = summary?.best_win_rate || (results.length > 0 ? results.reduce((a, b) => (b.win_rate || 0) > (a.win_rate || 0) ? b : a) : null);
     const total = summary?.total_combos_tested || results.length;
@@ -8435,14 +8436,14 @@ function renderBtSummaryCards(summary, results) {
             <div class="card-sub">${results.length} results shown</div>
         </div>
         <div class="bt-summary-card">
-            <div class="card-label">BEST SHARPE (OOS)</div>
-            <div class="card-value" style="color:var(--green)">${best ? best.sharpe_oos?.toFixed(2) : '--'}</div>
-            <div class="card-sub">${best ? best.signal + ' / ' + best.ticker : '--'}</div>
+            <div class="card-label">BEST QUALITY SCORE</div>
+            <div class="card-value" style="color:var(--green)">${bestQuality ? bestQuality.quality_score?.toFixed(3) : '--'}</div>
+            <div class="card-sub">${bestQuality ? bestQuality.signal + ' / ' + bestQuality.ticker : '--'}</div>
         </div>
         <div class="bt-summary-card">
-            <div class="card-label">BEST CAGR (OOS)</div>
-            <div class="card-value" style="color:#2196f3">${bestCagr ? bestCagr.cagr_oos?.toFixed(1) + '%' : '--'}</div>
-            <div class="card-sub">${bestCagr ? bestCagr.signal + ' / ' + bestCagr.ticker : '--'}</div>
+            <div class="card-label">BEST EXPECTANCY</div>
+            <div class="card-value" style="color:#2196f3">${bestExpect ? '$' + bestExpect.expectancy?.toFixed(0) : '--'}</div>
+            <div class="card-sub">${bestExpect ? bestExpect.signal + ' / ' + bestExpect.ticker : '--'}</div>
         </div>
         <div class="bt-summary-card">
             <div class="card-label">BEST WIN RATE</div>
