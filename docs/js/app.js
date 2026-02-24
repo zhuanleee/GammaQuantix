@@ -8317,7 +8317,7 @@ let backtestJobId = null;
 let backtestResults = null;
 let backtestEquityChart = null;
 let btPollTimer = null;
-let btSortField = 'sharpe_oos';
+let btSortField = 'quality_score';
 let btCategoryFilter = 'all';
 let btSelectedStrategy = null;
 
@@ -8477,12 +8477,14 @@ function renderBtLeaderboard(results) {
         <th>Sizing</th>
         <th>Ticker</th>
         <th class="${thClass('total_trades')}" onclick="sortBtLeaderboard('total_trades')">Trades</th>
+        <th class="${thClass('oos_trades')}" onclick="sortBtLeaderboard('oos_trades')">OOS</th>
         <th class="${thClass('win_rate')}" onclick="sortBtLeaderboard('win_rate')">Win%</th>
         <th class="${thClass('sharpe_oos')}" onclick="sortBtLeaderboard('sharpe_oos')">Sharpe</th>
         <th class="${thClass('cagr_oos')}" onclick="sortBtLeaderboard('cagr_oos')">CAGR%</th>
         <th class="${thClass('max_drawdown_oos')}" onclick="sortBtLeaderboard('max_drawdown_oos')">MaxDD%</th>
         <th class="${thClass('profit_factor')}" onclick="sortBtLeaderboard('profit_factor')">PF</th>
         <th class="${thClass('expectancy')}" onclick="sortBtLeaderboard('expectancy')">Expect</th>
+        <th class="${thClass('quality_score')}" onclick="sortBtLeaderboard('quality_score')">Quality</th>
     </tr></thead><tbody>`;
 
     filtered.forEach((r, idx) => {
@@ -8491,6 +8493,8 @@ function renderBtLeaderboard(results) {
         const sharpeClass = r.sharpe_oos > 1.5 ? 'bt-sharpe-great' : r.sharpe_oos > 1.0 ? 'bt-sharpe-good' : r.sharpe_oos > 0.5 ? 'bt-sharpe-ok' : 'bt-sharpe-bad';
         const cat = BT_CAT_COLORS[r.category] || BT_CAT_COLORS.technical;
         const sel = btSelectedStrategy === r.strategy_id ? ' selected' : '';
+        const qScore = r.quality_score ?? 0;
+        const qClass = qScore > 0.5 ? 'bt-sharpe-great' : qScore > 0.3 ? 'bt-sharpe-good' : qScore > 0.15 ? 'bt-sharpe-ok' : 'bt-sharpe-bad';
         html += `<tr class="${sel}" onclick="expandBtRow('${r.strategy_id}')">
             <td class="${rankClass}">${rank}</td>
             <td>${r.signal}</td>
@@ -8499,12 +8503,14 @@ function renderBtLeaderboard(results) {
             <td>${r.sizing}</td>
             <td>${r.ticker}</td>
             <td>${r.total_trades}</td>
+            <td>${r.oos_trades ?? '-'}</td>
             <td>${r.win_rate?.toFixed(1)}</td>
             <td class="${sharpeClass}">${r.sharpe_oos?.toFixed(2)}</td>
             <td>${r.cagr_oos?.toFixed(1)}</td>
             <td style="color:var(--red)">${r.max_drawdown_oos?.toFixed(1)}</td>
             <td>${r.profit_factor?.toFixed(2)}</td>
             <td>${r.expectancy?.toFixed(3)}</td>
+            <td class="${qClass}" style="font-weight:700">${qScore.toFixed(3)}</td>
         </tr>`;
     });
     html += '</tbody></table>';
