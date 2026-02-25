@@ -3044,10 +3044,12 @@ function updateLivePrice(price) {
                 try { priceSeries.update(updatedCandle); } catch(e) {}
                 optionsVizData.candles[optionsVizData.candles.length - 1] = updatedCandle;
             } else {
-                // No candle for today — only create one on weekdays (trading days)
+                // No candle for today — only create one during market hours
                 const dayOfWeek = today.getDay();
                 const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-                if (isWeekday) {
+                const timeMin = today.getHours() * 60 + today.getMinutes();
+                const isMarketHours = isWeekday && timeMin >= 570 && timeMin < 960; // 9:30-16:00 ET
+                if (isMarketHours) {
                     const useObjFormat = optionsVizData.candles.length > 0 && typeof optionsVizData.candles[0].time === 'object';
                     const newTime = useObjFormat ? { year: y, month: m, day: d } : todayStr;
                     const newCandle = {
