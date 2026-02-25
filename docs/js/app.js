@@ -2055,6 +2055,16 @@ async function loadOptionsViz(ticker) {
                     };
                 }).filter(c => c.time && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
                 .filter(c => c.low >= c.open * 0.5 && c.high <= c.open * 2);
+                // Remove phantom candle: if last daily candle is today and volume is <30% of prior, it's partial overnight data
+                if (isDaily && optionsVizData.candles.length >= 2) {
+                    const last = optionsVizData.candles[optionsVizData.candles.length - 1];
+                    const prev = optionsVizData.candles[optionsVizData.candles.length - 2];
+                    const nyNow = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/New_York'}));
+                    const todayStr = nyNow.getFullYear() + '-' + String(nyNow.getMonth() + 1).padStart(2, '0') + '-' + String(nyNow.getDate()).padStart(2, '0');
+                    if (last.time === todayStr && prev.volume > 0 && last.volume < prev.volume * 0.3) {
+                        optionsVizData.candles.pop();
+                    }
+                }
             } catch (e) {
                 console.error('Error parsing candle data:', e);
                 optionsVizData.candles = [];
